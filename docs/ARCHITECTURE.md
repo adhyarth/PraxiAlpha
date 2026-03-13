@@ -247,7 +247,7 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | Step | Command | What It Does | Status |
 |------|---------|-------------|--------|
 | 1. Populate | `--populate` | Fetches 49,225 US ticker symbols from EODHD | ✅ Done |
-| 2. Test | `--test` | Backfills 10 blue-chip stocks (AAPL, MSFT, etc.) as a smoke test | 🔜 Next |
+| 2. Test | `--test` | Backfills 10 blue-chip stocks (AAPL, MSFT, etc.) as a smoke test | ✅ Done (67,919 records) |
 | 3. Full | `--all` | Backfills ALL 49,225 tickers (~75M+ rows, takes hours) | ⬜ After test |
 
 ---
@@ -298,6 +298,44 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 **Why "adjusted close"?** When a stock splits (e.g., 4:1), the price drops to 1/4 overnight, but you didn't lose money. Adjusted close accounts for splits and dividends so historical comparisons are accurate.
 
 **Why TimescaleDB hypertable?** Regular PostgreSQL stores all rows in one big pile. TimescaleDB automatically partitions rows by time (e.g., one chunk per month). Queries like "get AAPL's price for the last 90 days" become 10-100x faster because it only scans 3 chunks instead of millions of rows.
+
+#### `stock_splits` — Split History
+```sql
+-- Tracks stock split events
+┌────────────────┬──────────────────────────────────────┐
+│ Column         │ Purpose                              │
+├────────────────┼──────────────────────────────────────┤
+│ id             │ Auto-increment primary key           │
+│ stock_id       │ → links to stocks.id                 │
+│ date           │ Split date                           │
+│ split_ratio    │ Raw string: "7.000000/1.000000"      │
+│ numerator      │ 7.0 (new shares per old share)       │
+│ denominator    │ 1.0 (old shares)                     │
+└────────────────┴──────────────────────────────────────┘
+```
+
+**Why track splits?** Even though `adjusted_close` accounts for splits, having explicit split records lets us verify data integrity, display split events on charts, and explain sudden price drops to learners.
+
+#### `stock_dividends` — Dividend History
+```sql
+-- Tracks dividend payment events
+┌────────────────────┬──────────────────────────────────────┐
+│ Column             │ Purpose                              │
+├────────────────────┼──────────────────────────────────────┤
+│ id                 │ Auto-increment primary key           │
+│ stock_id           │ → links to stocks.id                 │
+│ date               │ Ex-dividend date                     │
+│ value              │ Dividend per share (adjusted)        │
+│ unadjusted_value   │ Raw dividend per share               │
+│ currency           │ "USD"                                │
+│ period             │ "Quarterly", "Annual", etc.          │
+│ declaration_date   │ When announced                       │
+│ record_date        │ Who qualifies                        │
+│ payment_date       │ When paid out                        │
+└────────────────────┴──────────────────────────────────────┘
+```
+
+**Why track dividends?** For total return calculations (price appreciation + dividends), income-focused screening, and teaching users about dividend investing.
 
 #### `macro_data` — Economic Indicators from FRED
 ```sql
@@ -372,7 +410,9 @@ PraxiAlpha/
 │   ├── 📁 models/            ← Database table definitions (SQLAlchemy)
 │   │   ├── stock.py          ← Stock/ETF ticker table
 │   │   ├── ohlcv.py          ← Daily price data table
-│   │   └── macro.py          ← Macro indicator table
+│   │   ├── macro.py          ← Macro indicator table
+│   │   ├── split.py          ← Stock split events table
+│   │   └── dividend.py       ← Dividend payment events table
 │   │
 │   ├── 📁 api/               ← REST API endpoints
 │   │   └── routes/
@@ -426,4 +466,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-13 — Phase 1 (Data Pipeline)*
+*Last updated: 2026-03-13 — Phase 1 (Data Pipeline — test backfill complete)*

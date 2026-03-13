@@ -53,6 +53,8 @@ class Stock(Base):
 
     # Relationships
     daily_ohlcv = relationship("DailyOHLCV", back_populates="stock", lazy="dynamic")
+    splits = relationship("StockSplit", back_populates="stock", lazy="dynamic")
+    dividends = relationship("StockDividend", back_populates="stock", lazy="dynamic")
 
     def __repr__(self) -> str:
         return f"<Stock(ticker={self.ticker}, name={self.name}, exchange={self.exchange})>"
