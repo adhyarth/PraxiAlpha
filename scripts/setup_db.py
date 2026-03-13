@@ -31,6 +31,10 @@ async def setup_database():
         print("   Enabling TimescaleDB extension...")
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;"))
 
+        # Drop existing tables (fresh setup)
+        print("   Dropping existing tables (fresh setup)...")
+        await conn.run_sync(Base.metadata.drop_all)
+
         # Create all tables
         print("   Creating tables...")
         await conn.run_sync(Base.metadata.create_all)

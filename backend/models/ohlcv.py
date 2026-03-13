@@ -36,11 +36,11 @@ class DailyOHLCV(Base):
         UniqueConstraint("stock_id", "date", name="uq_daily_ohlcv_stock_date"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    # TimescaleDB requires the partitioning column (date) in the primary key
     stock_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("stocks.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer, ForeignKey("stocks.id", ondelete="CASCADE"), primary_key=True, index=True
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    date: Mapped[date] = mapped_column(Date, primary_key=True, index=True)
 
     # Price data
     open: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)

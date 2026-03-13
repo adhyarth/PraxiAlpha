@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.config import get_settings
+from backend.api.routes import stocks
 
 settings = get_settings()
 
@@ -39,6 +40,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---- Register API Routers ----
+app.include_router(stocks.router, prefix="/api/v1")
 
 
 # ---- Health Check ----

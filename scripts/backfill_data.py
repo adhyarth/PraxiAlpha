@@ -143,7 +143,7 @@ async def backfill_single_stock(
             if records:
                 stmt = pg_insert(DailyOHLCV).values(records)
                 stmt = stmt.on_conflict_do_update(
-                    constraint="uq_daily_ohlcv_stock_date",
+                    index_elements=["stock_id", "date"],
                     set_={
                         "open": stmt.excluded.open,
                         "high": stmt.excluded.high,

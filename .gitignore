@@ -40,6 +40,12 @@ data/migrations/versions/*.py
 # Docker
 docker-compose.override.yml
 
+# Celery
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+celerybeat-schedule.db
+
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb_checkpoints

@@ -17,16 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR /app
 
-# Copy dependency file and install
-COPY pyproject.toml ./
-RUN pip install --upgrade pip && \
-    pip install -e ".[dev]"
-
-# Copy application code
+# Copy everything (needed for pip install -e .)
 COPY . .
 
-# Install the project itself
-RUN pip install -e .
+# Install dependencies
+RUN pip install --upgrade pip && \
+    pip install -e ".[dev]"
 
 # Expose port
 EXPOSE 8000
