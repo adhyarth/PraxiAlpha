@@ -1,0 +1,67 @@
+# ==========================================
+# PraxiAlpha .gitignore
+# ==========================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite3
+data/migrations/versions/*.py
+!data/migrations/versions/.gitkeep
+
+# Docker
+docker-compose.override.yml
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
+logs/
+
+# Data (local dev data is too large for git)
+data/backups/
+data/exports/
+
+# Node (frontend)
+node_modules/
+frontend/dist/
+frontend/build/
+
+# OS
+Thumbs.db
+.DS_Store

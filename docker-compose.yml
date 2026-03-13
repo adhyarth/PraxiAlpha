@@ -1,0 +1,105 @@
+# ==========================================
+# PraxiAlpha — Docker Compose (Local Dev)
+# ==========================================
+# Usage:
+#   docker compose up -d        # Start all services
+#   docker compose down          # Stop all services
+#   docker compose logs -f app   # Follow app logs
+# ==========================================
+
+services:
+  # ---- PostgreSQL + TimescaleDB ----
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: praxialpha-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-praxialpha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-praxialpha_dev_2025}
+      POSTGRES_DB: ${POSTGRES_DB:-praxialpha}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-praxialpha}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---- Redis (Cache + Celery Broker) ----
+  redis:
+    image: redis:7-alpine
+    container_name: praxialpha-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---- FastAPI Backend ----
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: praxialpha-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ---- Celery Worker ----
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: praxialpha-celery-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend.tasks.celery_app worker --loglevel=info --concurrency=4
+
+  # ---- Celery Beat (Scheduler) ----
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: praxialpha-celery-beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A backend.tasks.celery_app beat --loglevel=info
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
