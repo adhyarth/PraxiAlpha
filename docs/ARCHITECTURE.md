@@ -361,7 +361,7 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | DFF | Fed Funds Rate | The Fed's interest rate tool |
 | VIXCLS | VIX | Market fear gauge |
 | DCOILWTICO | WTI Crude Oil | Energy costs affect all businesses |
-| GOLDAMGBD228NLBM | Gold Price | Safe haven indicator |
+| T10YIE | 10-Year Breakeven Inflation Rate | Market inflation expectations |
 | M2SL | M2 Money Supply | How much money is in the system |
 | WALCL | Fed Balance Sheet | Quantitative easing/tightening |
 | UNRATE | Unemployment Rate | Labor market health |
