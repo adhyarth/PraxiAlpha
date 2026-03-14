@@ -10,7 +10,7 @@
 #   ./scripts/ci_check.sh --fix    # auto-fix lint + format issues
 # ─────────────────────────────────────────────────────────────
 
-set -e  # Exit on first failure
+set -euo pipefail  # Strict mode for setup, disabled below for check accumulation
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,7 +18,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 FIX_MODE=false
-if [[ "$1" == "--fix" ]]; then
+if [[ "${1:-}" == "--fix" ]]; then
     FIX_MODE=true
 fi
 
@@ -29,6 +29,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 FAILED=0
+
+# Disable exit-on-error so we can accumulate failures
+set +e
 
 # ── Step 1: Ruff Lint ──
 echo -n "  [1/3] Ruff lint ........... "
@@ -72,6 +75,9 @@ if python3 -m mypy backend/ --ignore-missing-imports --no-error-summary 2>/dev/n
 else
     echo -e "${GREEN}passed ✅${NC}"
 fi
+
+# Re-enable strict mode for the exit
+set -e
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

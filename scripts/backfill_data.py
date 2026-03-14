@@ -320,6 +320,28 @@ async def backfill_stocks(tickers: list[str] | None = None, all_stocks: bool = F
         await fetcher.close()
 
 
+def build_macro_records(df: pd.DataFrame, series_id: str, indicator_name: str) -> list[dict]:
+    """
+    Build a list of macro record dicts from a validated DataFrame.
+
+    Filters out rows with NaN values (FRED uses NaN for holidays/missing days).
+    Each record contains the fields needed for MacroData upsert.
+    """
+    records: list[dict] = []
+    for _, row in df.iterrows():
+        if pd.notna(row["value"]):
+            records.append(
+                {
+                    "indicator_code": series_id,
+                    "indicator_name": indicator_name,
+                    "date": row["date"],
+                    "value": float(row["value"]),
+                    "source": "FRED",
+                }
+            )
+    return records
+
+
 async def backfill_macro_data(start_date: str = "1990-01-01"):
     """
     Backfill all FRED macro indicator series.
@@ -356,20 +378,9 @@ async def backfill_macro_data(start_date: str = "1990-01-01"):
                 # Validate
                 df = DataValidator.validate_macro(df, series_id)
 
-                # Build records for upsert
+                # Build records for upsert (filters out NaN values)
+                records = build_macro_records(df, series_id, meta["name"])
                 BATCH_SIZE = 3000
-                records = []
-                for _, row in df.iterrows():
-                    if pd.notna(row["value"]):
-                        records.append(
-                            {
-                                "indicator_code": series_id,
-                                "indicator_name": meta["name"],
-                                "date": row["date"],
-                                "value": float(row["value"]),
-                                "source": "FRED",
-                            }
-                        )
 
                 if records:
                     async with async_session_factory() as session:

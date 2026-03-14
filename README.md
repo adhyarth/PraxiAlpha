@@ -130,7 +130,7 @@ Once the server is running, visit:
 
 - **~10,000+ active US stocks & ETFs** (NYSE, NASDAQ, AMEX)
 - **30+ years of daily OHLCV** history
-- **16 macroeconomic indicators** from FRED (Treasury yields, VIX, DXY, oil, inflation expectations, etc.)
+- **14 macroeconomic indicators** from FRED (Treasury yields, VIX, DXY, oil, inflation expectations, etc.)
 - **~33 GB** estimated total database size
 
 ---

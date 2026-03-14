@@ -77,9 +77,11 @@ class DataValidator:
         Validate and clean FRED macro data.
 
         Checks:
-        - Required columns present
-        - No duplicate dates
-        - Drops rows with null values (FRED uses "." for missing)
+        - No duplicate dates (keeps last)
+        - Sorted by date ascending
+
+        Null values are preserved — FRED uses them for holidays/missing days.
+        The backfill script filters nulls at insert time instead.
 
         Returns:
             Cleaned DataFrame

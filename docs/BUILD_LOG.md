@@ -309,12 +309,13 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 - `backend/models/macro.py` — Replaced `GOLDAMGBD228NLBM` with `T10YIE`, updated docstring
 - `backend/services/data_pipeline/eodhd_fetcher.py` — Fixed mypy `[no-any-return]` error
 - `backend/services/data_pipeline/fred_fetcher.py` — Fixed 2 mypy `[no-any-return]` errors
+- `backend/services/data_pipeline/data_validator.py` — Fixed high/low swap (pandas 2.x CoW pitfall), corrected `validate_macro` docstring
 - `backend/tests/test_data_pipeline.py` — Added `TestFREDSeriesRegistry` (6 tests) + `TestValidateMacroExtended` (6 tests)
-- `backend/tests/test_backfill_macro.py` — **NEW** — 8 tests for macro backfill logic
-- `scripts/backfill_data.py` — Added `backfill_macro_data()` + `--macro` CLI flag, updated docstring
-- `scripts/ci_check.sh` — **NEW** — Local CI check script (lint, format, types)
-- `.github/workflows/ci.yml` — CI triggers on `feat/**` and `fix/**` branches
-- `pyproject.toml` — Added `N806` per-file-ignore for test files
+- `backend/tests/test_backfill_macro.py` — **NEW** — 10 tests: backfill logic + `build_macro_records` helper tests
+- `scripts/backfill_data.py` — Added `backfill_macro_data()` + `build_macro_records()` + `--macro` CLI flag
+- `scripts/ci_check.sh` — **NEW** — Local CI check script; fixed `$1` nounset crash
+- `.github/workflows/ci.yml` — Feature-branch triggers, pip caching, lightweight test install
+- `pyproject.toml` — Added `[test]` extras, inlined into `[dev]`; `N806` per-file-ignore for tests
 - `DESIGN_DOC.md` — Updated FRED series list + macro curriculum table
 - `docs/ARCHITECTURE.md` — Updated indicators table
 - `README.md` — Updated data coverage description
@@ -326,6 +327,11 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 - `fix(types): resolve mypy no-any-return errors in EODHD and FRED fetchers`
 - `ci: trigger CI on feature and fix branch pushes`
 - `fix(lint): resolve ruff errors and add local CI check script + pre-push hook`
+- `fix(ci): use lightweight deps in test job to avoid hanging on heavy package builds`
+- `fix(validator): use explicit copy for high/low swap to avoid pandas pitfall`
+- `refactor(backfill): extract build_macro_records helper + improve test assertions`
+- `fix(ci-check): use ${1:-} to avoid nounset crash when no args passed`
+- `fix(pyproject): inline test deps into dev extras to avoid self-referencing dep`
 
 #### Lessons Learned
 | # | Lesson | Context |
@@ -336,6 +342,11 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate local checks with pre-push hooks |
 | 19 | Mock variables use PascalCase by convention, configure linters accordingly | `MockFetcher` is standard in Python tests; add `N806` ignore for test files |
 | 20 | Never install full project deps in CI test jobs | `pip install -e ".[dev]"` pulls in streamlit, plotly, jupyter, celery — CI only needs test tooling + the packages the tests actually import; use an explicit lightweight install instead |
+| 21 | Pandas 2.x copy-on-write breaks multi-column swaps | `df.loc[mask, ['a', 'b']] = df.loc[mask, ['b', 'a']].values` silently fails; use explicit temp variable swaps instead |
+| 22 | Tests should exercise production code, not duplicate it | Copy-pasting logic into tests means tests pass even when production code changes; extract helpers and test those |
+| 23 | Assertions must verify the actual behavior under test | A test that only asserts `close()` was called doesn't verify that null filtering actually happened |
+| 24 | `set -u` + `$1` crashes when no args are passed | Use `${1:-}` to provide a default empty string |
+| 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation — make it a habit, not an afterthought |
 
 ---
 
@@ -363,6 +374,11 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate with pre-push hooks |
 | 19 | Mock variables use PascalCase by convention | `MockFetcher` is standard in Python tests; configure linters with per-file ignores |
 | 20 | Never install full project deps in CI test jobs | `pip install -e ".[dev]"` pulls in heavy packages CI doesn't need; use an explicit lightweight install of only what tests import |
+| 21 | Pandas 2.x copy-on-write breaks multi-column swaps | Use explicit temp variable swaps instead of `df.loc[mask, ['a','b']] = ...` |
+| 22 | Tests should exercise production code, not duplicate it | Extract helpers and test those; copy-pasted logic passes even when prod changes |
+| 23 | Assertions must verify the actual behavior under test | A test that only asserts `close()` was called doesn't verify null filtering happened |
+| 24 | `set -u` + `$1` crashes when no args are passed | Use `${1:-}` to provide a safe default |
+| 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation |
 
 ---
 

@@ -145,9 +145,24 @@ class TestBackfillMacroData:
 
             await backfill_macro_data()
 
-            # The function should have committed (non-null records exist)
-            # Detailed assertion: each series call should build records
-            # filtering out NaN values
+            # Verify execute was called and inspect the insert values.
+            # fred_df_with_nulls has 3 rows per series (1 NaN), so each
+            # series should produce 2 non-null records.
+            assert mock_session.execute.call_count > 0
+            # Each execute call receives an insert statement built from
+            # records that had NaN filtered out.  Grab the first call's
+            # positional arg (the compiled insert statement) and verify
+            # the embedded values contain no NaN.
+            for call in mock_session.execute.call_args_list:
+                stmt = call[0][0]  # first positional arg
+                # The pg_insert().values(batch) embeds records in
+                # stmt.compile().params, but the easiest check is that
+                # the statement's _values list (batch dicts) was built
+                # with only non-null values.
+                if hasattr(stmt, "_values"):
+                    for record in stmt._values:
+                        if isinstance(record, dict):
+                            assert record["value"] is not None
             mock_fetcher.close.assert_called_once()
 
     @pytest.mark.asyncio
@@ -173,56 +188,74 @@ class TestBackfillMacroData:
 
 
 class TestBackfillMacroRecordBuilding:
-    """Tests for the record-building logic within backfill_macro_data."""
+    """Tests for the build_macro_records helper function."""
 
     def test_null_values_filtered(self):
         """Records should only include non-null values."""
+        from scripts.backfill_data import build_macro_records
+
         df = pd.DataFrame(
             {
                 "date": [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)],
                 "value": [4.1, float("nan"), 4.3],
             }
         )
-        records = []
-        for _, row in df.iterrows():
-            if pd.notna(row["value"]):
-                records.append(
-                    {
-                        "indicator_code": "DGS10",
-                        "indicator_name": "10-Year Treasury Yield",
-                        "date": row["date"],
-                        "value": float(row["value"]),
-                        "source": "FRED",
-                    }
-                )
+        records = build_macro_records(df, "DGS10", "10-Year Treasury Yield")
         assert len(records) == 2
         assert records[0]["value"] == 4.1
         assert records[1]["value"] == 4.3
 
     def test_record_fields_complete(self):
         """Each record should have all required fields for MacroData."""
+        from scripts.backfill_data import build_macro_records
+
         df = pd.DataFrame(
             {
                 "date": [date(2024, 1, 1)],
                 "value": [4.1],
             }
         )
-        row = df.iloc[0]
-        record = {
-            "indicator_code": "DGS10",
-            "indicator_name": "10-Year Treasury Yield",
-            "date": row["date"],
-            "value": float(row["value"]),
-            "source": "FRED",
-        }
+        records = build_macro_records(df, "DGS10", "10-Year Treasury Yield")
         required_keys = {"indicator_code", "indicator_name", "date", "value", "source"}
-        assert set(record.keys()) == required_keys
+        assert len(records) == 1
+        assert set(records[0].keys()) == required_keys
+        assert records[0]["indicator_code"] == "DGS10"
+        assert records[0]["indicator_name"] == "10-Year Treasury Yield"
+        assert records[0]["source"] == "FRED"
 
     def test_value_cast_to_float(self):
         """Values should be cast to Python float for database insertion."""
         import numpy as np
 
-        val = np.float64(4.12345)
-        record_val = float(val)
-        assert isinstance(record_val, float)
-        assert record_val == pytest.approx(4.12345)
+        from scripts.backfill_data import build_macro_records
+
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1)],
+                "value": [np.float64(4.12345)],
+            }
+        )
+        records = build_macro_records(df, "DGS10", "10-Year Treasury Yield")
+        assert isinstance(records[0]["value"], float)
+        assert records[0]["value"] == pytest.approx(4.12345)
+
+    def test_all_null_returns_empty(self):
+        """A DataFrame with all NaN values should produce zero records."""
+        from scripts.backfill_data import build_macro_records
+
+        df = pd.DataFrame(
+            {
+                "date": [date(2024, 1, 1), date(2024, 1, 2)],
+                "value": [float("nan"), float("nan")],
+            }
+        )
+        records = build_macro_records(df, "DGS10", "10-Year Treasury Yield")
+        assert len(records) == 0
+
+    def test_empty_df_returns_empty(self):
+        """An empty DataFrame should produce zero records."""
+        from scripts.backfill_data import build_macro_records
+
+        df = pd.DataFrame()
+        records = build_macro_records(df, "DGS10", "10-Year Treasury Yield")
+        assert len(records) == 0
