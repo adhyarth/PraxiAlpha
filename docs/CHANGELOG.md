@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+### Added
+- **`CONTRIBUTING.md`** — commit message convention (Conventional Commits), branch naming, git workflow, PR checklist, documentation checklist
+- **Branch workflow** — all future work uses feature branches + PRs (no more direct commits to `main`)
+
 ---
 
 ## [0.1.0] — 2026-03-13

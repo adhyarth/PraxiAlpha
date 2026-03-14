@@ -220,12 +220,20 @@ Push/PR to main
 
 #### Git Commits
 - `Session 3: CI/CD pipeline + code quality (ruff, mypy, pytest via GitHub Actions)`
+- `docs: add CONTRIBUTING.md and adopt Conventional Commits`
+
+#### Process Decision: Branching Strategy
+Starting from Session 4, all work will use **feature branches + pull requests**:
+- Sessions 1-3 committed directly to `main` (acceptable for initial scaffolding)
+- From now on: `feat/`, `fix/`, `docs/` branches → PR → CI passes → merge to `main`
+- Commit messages follow **Conventional Commits** (see `CONTRIBUTING.md`)
+- Every PR must update docs (BUILD_LOG, CHANGELOG, ARCHITECTURE if applicable)
 
 ---
 
 ### Session 4 — (Next Session)
 
-_To be filled in..._
+_Feature branches begin. To be filled in..._
 
 ---
 
@@ -245,6 +253,8 @@ _To be filled in..._
 | 10 | Lint and format rules should be strict but pragmatic | Ignore `B008` for FastAPI's `Depends()` pattern; ignore `E501` since formatter handles line length |
 | 11 | Docker volumes are invisible to Finder | Use SQL queries or API to inspect data, not filesystem navigation |
 | 12 | Keep documentation updated with every commit | BUILD_LOG, ARCHITECTURE, CHANGELOG should reflect the actual state of the project |
+| 13 | Standardize commit messages from day one | Inconsistent messages look unprofessional; Conventional Commits is the industry standard |
+| 14 | Start branching as soon as CI exists | Direct-to-main is fine for scaffolding, but once CI validates PRs, use it |
 
 ---
 
