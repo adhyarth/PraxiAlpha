@@ -11,7 +11,6 @@ EODHD API docs: https://eodhd.com/financial-apis/
 """
 
 import logging
-from datetime import date, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -42,9 +41,7 @@ class EODHDFetcher:
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or settings.eodhd_api_key
         if not self.api_key:
-            raise ValueError(
-                "EODHD API key not set. Set EODHD_API_KEY in .env file."
-            )
+            raise ValueError("EODHD API key not set. Set EODHD_API_KEY in .env file.")
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:

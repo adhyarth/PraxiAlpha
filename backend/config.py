@@ -6,6 +6,7 @@ Uses pydantic-settings for validation and type coercion.
 """
 
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

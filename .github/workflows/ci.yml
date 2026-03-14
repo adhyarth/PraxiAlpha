@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-type-check:
+    name: Lint, Format & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+
+      - name: Ruff lint
+        run: ruff check backend/ scripts/
+
+      - name: Ruff format check
+        run: ruff format --check backend/ scripts/
+
+      - name: Mypy type check
+        run: mypy backend/ --ignore-missing-imports
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    needs: lint-and-type-check
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: praxialpha
+          POSTGRES_PASSWORD: praxialpha
+          POSTGRES_DB: praxialpha_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://praxialpha:praxialpha@localhost:5432/praxialpha_test
+          REDIS_URL: redis://localhost:6379/0
+          EODHD_API_KEY: test_key
+          FRED_API_KEY: test_key
+        run: pytest --tb=short -q

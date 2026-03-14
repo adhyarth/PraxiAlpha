@@ -61,9 +61,7 @@ async def stock_count(db: AsyncSession = Depends(get_db)):
     """Get total count of stocks in the database."""
     from sqlalchemy import func
 
-    result = await db.execute(
-        select(func.count(Stock.id)).where(Stock.is_active.is_(True))
-    )
+    result = await db.execute(select(func.count(Stock.id)).where(Stock.is_active.is_(True)))
     total_active = result.scalar()
 
     result = await db.execute(select(func.count(Stock.id)))
@@ -75,12 +73,11 @@ async def stock_count(db: AsyncSession = Depends(get_db)):
 @router.get("/{ticker}")
 async def get_stock(ticker: str, db: AsyncSession = Depends(get_db)):
     """Get stock details by ticker."""
-    result = await db.execute(
-        select(Stock).where(Stock.ticker == ticker.upper())
-    )
+    result = await db.execute(select(Stock).where(Stock.ticker == ticker.upper()))
     stock = result.scalar_one_or_none()
     if not stock:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail=f"Stock {ticker.upper()} not found")
 
     return {

@@ -19,7 +19,6 @@ import asyncio
 import logging
 import sys
 import time
-from datetime import date
 from pathlib import Path
 
 import pandas as pd  # needed for dividend date parsing
@@ -27,17 +26,16 @@ import pandas as pd  # needed for dividend date parsing
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from backend.config import get_settings
 from backend.database import async_session_factory
-from backend.models.stock import Stock
+from backend.models.dividend import StockDividend
 from backend.models.ohlcv import DailyOHLCV
 from backend.models.split import StockSplit
-from backend.models.dividend import StockDividend
-from backend.services.data_pipeline.eodhd_fetcher import EODHDFetcher
+from backend.models.stock import Stock
 from backend.services.data_pipeline.data_validator import DataValidator
+from backend.services.data_pipeline.eodhd_fetcher import EODHDFetcher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -71,9 +69,7 @@ async def populate_stocks_table(fetcher: EODHDFetcher):
                 continue
 
             # Check if exists
-            result = await session.execute(
-                select(Stock).where(Stock.ticker == ticker)
-            )
+            result = await session.execute(select(Stock).where(Stock.ticker == ticker))
             existing = result.scalar_one_or_none()
 
             if existing:
@@ -135,16 +131,18 @@ async def backfill_single_stock(
 
         records = []
         for _, row in df.iterrows():
-            records.append({
-                "stock_id": stock.id,
-                "date": row["date"],
-                "open": float(row["open"]),
-                "high": float(row["high"]),
-                "low": float(row["low"]),
-                "close": float(row["close"]),
-                "adjusted_close": float(row["adjusted_close"]),
-                "volume": int(row["volume"]),
-            })
+            records.append(
+                {
+                    "stock_id": stock.id,
+                    "date": row["date"],
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "adjusted_close": float(row["adjusted_close"]),
+                    "volume": int(row["volume"]),
+                }
+            )
 
         # Upsert in batches — on conflict (stock_id, date), update prices
         if records:
@@ -166,9 +164,7 @@ async def backfill_single_stock(
                     await session.execute(stmt)
 
                 # Update stock metadata
-                result = await session.execute(
-                    select(Stock).where(Stock.id == stock.id)
-                )
+                result = await session.execute(select(Stock).where(Stock.id == stock.id))
                 stock_record = result.scalar_one()
                 stock_record.earliest_date = df["date"].min()
                 stock_record.latest_date = df["date"].max()
@@ -177,8 +173,7 @@ async def backfill_single_stock(
                 await session.commit()
 
         logger.info(
-            f"✅ {stock.ticker}: {len(records)} records "
-            f"({df['date'].min()} → {df['date'].max()})"
+            f"✅ {stock.ticker}: {len(records)} records ({df['date'].min()} → {df['date'].max()})"
         )
         return len(records)
 
@@ -216,9 +211,7 @@ async def backfill_splits_dividends(
                         numerator=numerator,
                         denominator=denominator,
                     )
-                    stmt = stmt.on_conflict_do_nothing(
-                        constraint="uq_stock_splits_stock_date"
-                    )
+                    stmt = stmt.on_conflict_do_nothing(constraint="uq_stock_splits_stock_date")
                     await session.execute(stmt)
                     splits_count += 1
                 await session.commit()
@@ -254,17 +247,13 @@ async def backfill_splits_dividends(
                         record_date=rec_date,
                         payment_date=pay_date,
                     )
-                    stmt = stmt.on_conflict_do_nothing(
-                        constraint="uq_stock_dividends_stock_date"
-                    )
+                    stmt = stmt.on_conflict_do_nothing(constraint="uq_stock_dividends_stock_date")
                     await session.execute(stmt)
                     divs_count += 1
                 await session.commit()
 
         if splits_count or divs_count:
-            logger.info(
-                f"   {stock.ticker}: {splits_count} splits, {divs_count} dividends"
-            )
+            logger.info(f"   {stock.ticker}: {splits_count} splits, {divs_count} dividends")
 
     except Exception as e:
         logger.error(f"   {stock.ticker} splits/divs error: {e}")
@@ -319,10 +308,10 @@ async def backfill_stocks(tickers: list[str] | None = None, all_stocks: bool = F
 
         elapsed = time.time() - start_time
         logger.info("=" * 60)
-        logger.info(f"✅ BACKFILL COMPLETE")
+        logger.info("✅ BACKFILL COMPLETE")
         logger.info(f"   Stocks: {len(stocks)}")
         logger.info(f"   Records: {total_records:,}")
-        logger.info(f"   Time: {elapsed:.1f}s ({elapsed/60:.1f}min)")
+        logger.info(f"   Time: {elapsed:.1f}s ({elapsed / 60:.1f}min)")
         logger.info("=" * 60)
 
     finally:
@@ -332,20 +321,14 @@ async def backfill_stocks(tickers: list[str] | None = None, all_stocks: bool = F
 async def main():
     parser = argparse.ArgumentParser(description="PraxiAlpha Data Backfill")
     parser.add_argument(
-        "--populate", action="store_true",
-        help="Populate stocks table from EODHD (run first!)"
+        "--populate", action="store_true", help="Populate stocks table from EODHD (run first!)"
     )
     parser.add_argument(
-        "--test", action="store_true",
-        help="Backfill test tickers only (AAPL, MSFT, GOOGL, etc.)"
+        "--test", action="store_true", help="Backfill test tickers only (AAPL, MSFT, GOOGL, etc.)"
     )
+    parser.add_argument("--all", action="store_true", help="Backfill ALL active US stocks")
     parser.add_argument(
-        "--all", action="store_true",
-        help="Backfill ALL active US stocks"
-    )
-    parser.add_argument(
-        "--tickers", nargs="+",
-        help="Backfill specific tickers (e.g., --tickers AAPL MSFT)"
+        "--tickers", nargs="+", help="Backfill specific tickers (e.g., --tickers AAPL MSFT)"
     )
 
     args = parser.parse_args()

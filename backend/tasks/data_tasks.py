@@ -5,9 +5,7 @@ Async tasks for fetching, validating, and storing market data.
 These tasks are executed by Celery workers.
 """
 
-import asyncio
 import logging
-from datetime import date, datetime, timedelta
 
 from backend.tasks.celery_app import celery_app
 

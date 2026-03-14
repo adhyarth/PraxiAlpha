@@ -50,12 +50,7 @@ class DataValidator:
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
 
         # Drop rows where price is null or <= 0
-        price_mask = (
-            (df["close"] > 0)
-            & (df["open"] > 0)
-            & (df["high"] > 0)
-            & (df["low"] > 0)
-        )
+        price_mask = (df["close"] > 0) & (df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0)
         df = df[price_mask].copy()
 
         # Fix high < low (swap them)

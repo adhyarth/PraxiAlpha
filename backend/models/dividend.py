@@ -23,9 +23,7 @@ class StockDividend(Base):
     """
 
     __tablename__ = "stock_dividends"
-    __table_args__ = (
-        UniqueConstraint("stock_id", "date", name="uq_stock_dividends_stock_date"),
-    )
+    __table_args__ = (UniqueConstraint("stock_id", "date", name="uq_stock_dividends_stock_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     stock_id: Mapped[int] = mapped_column(
@@ -47,9 +45,7 @@ class StockDividend(Base):
     payment_date: Mapped[date_type | None] = mapped_column(Date, nullable=True)
 
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     stock = relationship("Stock", back_populates="dividends")

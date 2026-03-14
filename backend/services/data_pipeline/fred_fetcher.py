@@ -9,7 +9,6 @@ FRED API docs: https://fred.stlouisfed.org/docs/api/fred/
 """
 
 import logging
-from datetime import date, datetime
 
 import httpx
 import pandas as pd
@@ -39,9 +38,7 @@ class FREDFetcher:
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or settings.fred_api_key
         if not self.api_key:
-            raise ValueError(
-                "FRED API key not set. Set FRED_API_KEY in .env file."
-            )
+            raise ValueError("FRED API key not set. Set FRED_API_KEY in .env file.")
         self._client: httpx.AsyncClient | None = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -141,9 +138,7 @@ class FREDFetcher:
                 df = await self.fetch_series(series_id, start=start, end=end)
                 if not df.empty:
                     results[series_id] = df
-                    logger.info(
-                        f"✅ {series_id} ({meta['name']}): {len(df)} records"
-                    )
+                    logger.info(f"✅ {series_id} ({meta['name']}): {len(df)} records")
                 else:
                     logger.warning(f"⚠️ {series_id} ({meta['name']}): no data")
             except Exception as e:

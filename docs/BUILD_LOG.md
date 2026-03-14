@@ -137,7 +137,93 @@
 
 ---
 
-### Session 3 — (Next Session)
+### Session 3 — 2026-03-13: CI/CD Setup & Code Quality
+
+#### What We Did
+1. ✅ **Set up GitHub Actions CI pipeline** (`.github/workflows/ci.yml`)
+   - **Job 1: Lint, Format & Type Check** — runs on every push/PR to `main`
+     - `ruff check backend/ scripts/` — linting (style rules, import sorting, best practices)
+     - `ruff format --check backend/ scripts/` — formatting verification (consistent code style)
+     - `mypy backend/ --ignore-missing-imports` — static type checking
+   - **Job 2: Tests** — runs after lint job passes
+     - Spins up TimescaleDB (PostgreSQL 16) and Redis as service containers
+     - Installs project with `pip install -e ".[dev]"`
+     - Runs `pytest --tb=short -q`
+     - Uses test-safe environment variables (dummy API keys)
+
+2. ✅ **Ran all linters and formatters locally**
+   - `ruff check` — fixed all lint warnings across backend/ and scripts/
+   - `ruff format` — auto-formatted all files to consistent style (line length 100, import sorting, etc.)
+   - `mypy` — resolved type-checking issues, configured to suppress false positives from untyped third-party libraries
+
+3. ✅ **Updated `pyproject.toml` for code quality tooling**
+   - Ruff config: `select = ["E", "W", "F", "I", "N", "UP", "B", "SIM"]` — a broad set of lint rules
+   - Ruff ignores: `E501` (line length handled by formatter), `B008` (FastAPI `Depends()` pattern)
+   - Per-file ignores: scripts allow uppercase constants inside functions (`N806`)
+   - Mypy config: `ignore_missing_imports = true` to suppress false positives from untyped libraries
+
+4. ✅ **Code style fixes across the codebase**
+   - Removed unused imports (`date`, `func`, `Text`, `Numeric`, `get_settings`, individual model imports in `setup_db.py`)
+   - Sorted imports alphabetically (PEP 8 / isort style)
+   - Reformatted long lines and function signatures for consistency
+   - Used f-string literals correctly (removed `f"..."` on strings with no interpolation)
+
+#### Files Changed
+- `.github/workflows/ci.yml` — **NEW** — GitHub Actions CI pipeline
+- `pyproject.toml` — Added Ruff + mypy configuration
+- `backend/models/__init__.py` — Sorted imports
+- `backend/models/stock.py` — Removed unused imports, reformatted
+- `backend/models/ohlcv.py` — Style fixes
+- `backend/models/macro.py` — Style fixes
+- `backend/models/split.py` — Style fixes (new file from Session 2)
+- `backend/models/dividend.py` — Style fixes (new file from Session 2)
+- `backend/config.py` — Style fixes
+- `backend/database.py` — Style fixes
+- `backend/main.py` — Style fixes
+- `backend/api/routes/stocks.py` — Style fixes
+- `backend/services/data_pipeline/eodhd_fetcher.py` — Style fixes
+- `backend/services/data_pipeline/fred_fetcher.py` — Style fixes
+- `backend/services/data_pipeline/data_validator.py` — Style fixes
+- `backend/tasks/data_tasks.py` — Style fixes
+- `backend/tests/test_data_pipeline.py` — Style fixes
+- `scripts/backfill_data.py` — Removed unused imports, reformatted
+- `scripts/setup_db.py` — Removed individual model imports (use `__init__` exports)
+
+#### CI Pipeline Architecture
+```
+Push/PR to main
+      │
+      ▼
+┌─────────────────────────┐
+│  Job 1: Lint & Types    │
+│  ├── ruff check         │  ← Catches bugs, style violations
+│  ├── ruff format --check│  ← Ensures consistent formatting
+│  └── mypy               │  ← Static type safety
+└──────────┬──────────────┘
+           │ (passes)
+           ▼
+┌─────────────────────────┐
+│  Job 2: Tests           │
+│  ├── TimescaleDB svc    │  ← Real database for integration tests
+│  ├── Redis svc          │  ← Real message broker
+│  └── pytest             │  ← Runs all tests
+└─────────────────────────┘
+```
+
+#### Data Storage Note
+- All PraxiAlpha data lives in **Docker volumes** (`pgdata` for PostgreSQL, `redisdata` for Redis)
+- These volumes are managed by Docker and are NOT directly accessible via Finder
+- Data persists across container restarts but is tied to the Docker installation
+- To inspect data: use SQL queries via `docker exec`, pgAdmin, or the API
+- Docker must be running at 6 PM ET for the Celery Beat auto-update to trigger
+- If Docker was down, run the backfill script manually to catch up
+
+#### Git Commits
+- `Session 3: CI/CD pipeline + code quality (ruff, mypy, pytest via GitHub Actions)`
+
+---
+
+### Session 4 — (Next Session)
 
 _To be filled in..._
 
@@ -155,6 +241,10 @@ _To be filled in..._
 | 6 | PostgreSQL has a ~32,767 parameter limit per query | Bulk inserts must be batched — 3,000 rows × 8 cols = 24K params is safe |
 | 7 | Silent failures are the worst bugs | The insert didn't raise an error — only noticed because row counts were wrong |
 | 8 | Compare working vs. failing cases to diagnose | META/TSLA (small history) worked; AAPL/MSFT (large history) didn't → pointed to size-related issue |
+| 9 | Set up CI early — it catches regressions before they land | GitHub Actions runs lint + format + type check + tests on every push/PR |
+| 10 | Lint and format rules should be strict but pragmatic | Ignore `B008` for FastAPI's `Depends()` pattern; ignore `E501` since formatter handles line length |
+| 11 | Docker volumes are invisible to Finder | Use SQL queries or API to inspect data, not filesystem navigation |
+| 12 | Keep documentation updated with every commit | BUILD_LOG, ARCHITECTURE, CHANGELOG should reflect the actual state of the project |
 
 ---
 

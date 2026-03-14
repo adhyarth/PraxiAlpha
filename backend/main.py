@@ -7,8 +7,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.config import get_settings
 from backend.api.routes import stocks
+from backend.config import get_settings
 
 settings = get_settings()
 

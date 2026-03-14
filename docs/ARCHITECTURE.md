@@ -390,17 +390,65 @@ More endpoints will be added as we build analysis, trading, and other modules.
 
 ---
 
-## 📁 Project File Structure
+## � CI/CD Pipeline
+
+### GitHub Actions (`.github/workflows/ci.yml`)
+
+Every push or pull request to `main` triggers an automated pipeline:
+
+```
+┌─────────────────────────────────┐     ┌─────────────────────────────────┐
+│  Job 1: Lint, Format & Types    │────►│  Job 2: Tests                   │
+│                                 │     │                                 │
+│  • ruff check backend/ scripts/ │     │  Services:                      │
+│  • ruff format --check          │     │    • TimescaleDB (PG 16)        │
+│  • mypy backend/                │     │    • Redis 7                    │
+│                                 │     │                                 │
+│  Catches style violations,      │     │  • pip install -e ".[dev]"      │
+│  import issues, type errors     │     │  • pytest --tb=short -q         │
+└─────────────────────────────────┘     └─────────────────────────────────┘
+```
+
+### Code Quality Tools
+
+| Tool | Purpose | Config Location |
+|------|---------|----------------|
+| **Ruff** | Linting + formatting (replaces flake8, isort, black) | `pyproject.toml` `[tool.ruff]` |
+| **mypy** | Static type checking | `pyproject.toml` `[tool.mypy]` |
+| **pytest** | Test runner | `pyproject.toml` `[tool.pytest.ini_options]` |
+
+### Running Locally
+
+```bash
+# Lint
+ruff check backend/ scripts/
+
+# Format
+ruff format backend/ scripts/
+
+# Type check
+mypy backend/ --ignore-missing-imports
+
+# Tests
+pytest
+```
+
+---
+
+## �📁 Project File Structure
 
 ```
 PraxiAlpha/
 │
 ├── 📄 docker-compose.yml     ← Defines all 5 Docker containers
 ├── 📄 Dockerfile             ← How to build the Python container
-├── 📄 pyproject.toml          ← Python dependencies & project config
+├── 📄 pyproject.toml          ← Python dependencies, linting & test config
 ├── 📄 alembic.ini            ← Database migration config
 ├── 📄 .env                   ← API keys & secrets (NOT in Git!)
 ├── 📄 .env.example           ← Template for .env (IS in Git)
+│
+├── 📁 .github/workflows/     ← CI/CD pipeline
+│   └── ci.yml                ← GitHub Actions: lint, format, type check, tests
 │
 ├── 📁 backend/                ← All Python backend code
 │   ├── main.py               ← FastAPI app entry point
@@ -466,4 +514,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-13 — Phase 1 (Data Pipeline — test backfill complete)*
+*Last updated: 2026-03-13 — Phase 1 (Data Pipeline — test backfill complete, CI/CD active)*

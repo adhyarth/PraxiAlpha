@@ -22,9 +22,7 @@ class MacroData(Base):
     """
 
     __tablename__ = "macro_data"
-    __table_args__ = (
-        UniqueConstraint("indicator_code", "date", name="uq_macro_indicator_date"),
-    )
+    __table_args__ = (UniqueConstraint("indicator_code", "date", name="uq_macro_indicator_date"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     indicator_code: Mapped[str] = mapped_column(
@@ -36,15 +34,10 @@ class MacroData(Base):
     source: Mapped[str] = mapped_column(String(20), default="FRED")
 
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     def __repr__(self) -> str:
-        return (
-            f"<MacroData(indicator={self.indicator_code}, "
-            f"date={self.date}, value={self.value})>"
-        )
+        return f"<MacroData(indicator={self.indicator_code}, date={self.date}, value={self.value})>"
 
 
 # ---- FRED Series Registry ----

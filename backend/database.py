@@ -31,6 +31,7 @@ async_session_factory = async_sessionmaker(
 # ---- Base Model ----
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy ORM models."""
+
     pass
 
 

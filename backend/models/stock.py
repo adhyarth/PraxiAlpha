@@ -6,7 +6,7 @@ Represents a stock/ETF ticker in the universe.
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database import Base
@@ -44,9 +44,7 @@ class Stock(Base):
     total_records: Mapped[int] = mapped_column(Integer, default=0)
 
     # Metadata
-    added_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    added_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

@@ -16,12 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import text
-from backend.database import engine, Base
-from backend.models.stock import Stock
-from backend.models.ohlcv import DailyOHLCV
-from backend.models.macro import MacroData
-from backend.models.split import StockSplit
-from backend.models.dividend import StockDividend
+
+from backend.database import Base, engine
 
 
 async def setup_database():

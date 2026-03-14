@@ -32,9 +32,7 @@ class DailyOHLCV(Base):
     """
 
     __tablename__ = "daily_ohlcv"
-    __table_args__ = (
-        UniqueConstraint("stock_id", "date", name="uq_daily_ohlcv_stock_date"),
-    )
+    __table_args__ = (UniqueConstraint("stock_id", "date", name="uq_daily_ohlcv_stock_date"),)
 
     # TimescaleDB requires the partitioning column (date) in the primary key
     stock_id: Mapped[int] = mapped_column(
@@ -51,9 +49,7 @@ class DailyOHLCV(Base):
     volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
 
     # Metadata
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     stock = relationship("Stock", back_populates="daily_ohlcv")
