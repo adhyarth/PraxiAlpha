@@ -258,7 +258,19 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
    - GitHub Actions now triggers on pushes to `feat/**` and `fix/**` branches
    - Catches lint/type/test failures before PRs are opened
 
-6. ✅ **Updated all documentation**
+6. ✅ **Fixed CI lint failures**
+   - Removed unused imports (`MagicMock`, `AsyncMock`, `patch`) from test files
+   - Added `N806` per-file-ignore for `backend/tests/*` in `pyproject.toml` (PascalCase mock variables like `MockFetcher` are conventional in Python tests)
+   - Removed unused `MockSession` variable assignment in `test_backfill_macro_closes_fetcher_on_error`
+   - Ran `ruff format` to fix formatting inconsistencies
+
+7. ✅ **Created local CI check tooling**
+   - `scripts/ci_check.sh` — runs all 3 CI checks locally (ruff lint, ruff format, mypy)
+   - Supports `--fix` mode: `./scripts/ci_check.sh --fix` auto-repairs lint and format issues
+   - Git pre-push hook (`.git/hooks/pre-push`) — runs `ci_check.sh` automatically before every push
+   - Bypass with `git push --no-verify` for emergencies only
+
+8. ✅ **Updated all documentation**
    - `DESIGN_DOC.md` — replaced gold series, added Inflation row to macro curriculum
    - `docs/ARCHITECTURE.md` — replaced gold series in indicators table
    - `README.md` — updated data coverage description
@@ -300,7 +312,9 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 - `backend/tests/test_data_pipeline.py` — Added `TestFREDSeriesRegistry` (6 tests) + `TestValidateMacroExtended` (6 tests)
 - `backend/tests/test_backfill_macro.py` — **NEW** — 8 tests for macro backfill logic
 - `scripts/backfill_data.py` — Added `backfill_macro_data()` + `--macro` CLI flag, updated docstring
+- `scripts/ci_check.sh` — **NEW** — Local CI check script (lint, format, types)
 - `.github/workflows/ci.yml` — CI triggers on `feat/**` and `fix/**` branches
+- `pyproject.toml` — Added `N806` per-file-ignore for test files
 - `DESIGN_DOC.md` — Updated FRED series list + macro curriculum table
 - `docs/ARCHITECTURE.md` — Updated indicators table
 - `README.md` — Updated data coverage description
@@ -311,6 +325,7 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 - `feat(data-pipeline): add macro backfill from FRED & replace discontinued gold series`
 - `fix(types): resolve mypy no-any-return errors in EODHD and FRED fetchers`
 - `ci: trigger CI on feature and fix branch pushes`
+- `fix(lint): resolve ruff errors and add local CI check script + pre-push hook`
 
 #### Lessons Learned
 | # | Lesson | Context |
@@ -318,6 +333,8 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 15 | External data sources can be discontinued without warning | FRED removed `GOLDAMGBD228NLBM` — always have a fallback plan for third-party data |
 | 16 | Test the actual backfill, not just the code | Running the real macro backfill in Docker caught the gold series failure that unit tests alone wouldn't |
 | 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
+| 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate local checks with pre-push hooks |
+| 19 | Mock variables use PascalCase by convention, configure linters accordingly | `MockFetcher` is standard in Python tests; add `N806` ignore for test files |
 
 ---
 
@@ -339,6 +356,11 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 12 | Keep documentation updated with every commit | BUILD_LOG, ARCHITECTURE, CHANGELOG should reflect the actual state of the project |
 | 13 | Standardize commit messages from day one | Inconsistent messages look unprofessional; Conventional Commits is the industry standard |
 | 14 | Start branching as soon as CI exists | Direct-to-main is fine for scaffolding, but once CI validates PRs, use it |
+| 15 | External data sources can be discontinued without warning | FRED removed `GOLDAMGBD228NLBM` — always have a fallback plan for third-party data |
+| 16 | Test the actual backfill, not just the code | Running the real macro backfill in Docker caught the gold series failure that unit tests alone wouldn't |
+| 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
+| 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate with pre-push hooks |
+| 19 | Mock variables use PascalCase by convention | `MockFetcher` is standard in Python tests; configure linters with per-file ignores |
 
 ---
 
