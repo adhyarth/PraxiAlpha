@@ -15,6 +15,7 @@
 - **Extended macro validation tests** — sort order, null preservation, negative values, dedup behavior, index reset
 - **`CONTRIBUTING.md`** — commit message convention (Conventional Commits), branch naming, git workflow, PR checklist, documentation checklist
 - **Branch workflow** — all future work uses feature branches + PRs (no more direct commits to `main`)
+- **CI on feature branches** — GitHub Actions now triggers on pushes to `feat/**` and `fix/**` branches (not just `main`), catching failures before PRs
 
 ### Fixed
 - **Mypy type errors** — fixed 3 `[no-any-return]` errors in `eodhd_fetcher.py` and `fred_fetcher.py` by adding explicit type annotations for `response.json()` return values

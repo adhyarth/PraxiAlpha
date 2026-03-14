@@ -231,9 +231,93 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 
 ---
 
-### Session 4 — (Next Session)
+### Session 4 — 2026-03-13: Macro Backfill & FRED Series Fix
 
-_Feature branches begin. To be filled in..._
+#### What We Did
+1. ✅ **Replaced discontinued FRED series**
+   - `GOLDAMGBD228NLBM` (Gold Price) was removed from FRED — fetching it returned errors
+   - Replaced with `T10YIE` (10-Year Breakeven Inflation Rate) — adds inflation expectations to macro indicators
+   - Updated code (`backend/models/macro.py`), docs (`DESIGN_DOC.md`, `ARCHITECTURE.md`, `README.md`), and docstrings
+
+2. ✅ **Built macro backfill** (`--macro` flag in `scripts/backfill_data.py`)
+   - Fetches all 14 FRED macro series with 30+ years of history
+   - Validates data via `DataValidator.validate_macro()`
+   - Upserts into `macro_data` table in batches (handles PostgreSQL parameter limits)
+   - Result: **81,474 records**, 14/14 series successful, 0 failed
+
+3. ✅ **Added comprehensive tests**
+   - `test_backfill_macro.py` — **NEW** — 8 tests for backfill logic (fetcher calls, empty series, error recovery, null filtering, fetcher cleanup, record building)
+   - `test_data_pipeline.py` — Added `TestFREDSeriesRegistry` (6 tests: count, fields, categories, expected IDs, discontinued guard) and `TestValidateMacroExtended` (6 tests: valid data, sort order, null preservation, negative values, dedup, index reset)
+   - All tests pass in Docker
+
+4. ✅ **Fixed mypy type errors**
+   - 3 `[no-any-return]` errors in `eodhd_fetcher.py` and `fred_fetcher.py`
+   - Added explicit `dict[str, Any]` type annotations for `response.json()` return values
+
+5. ✅ **Extended CI to feature branches**
+   - GitHub Actions now triggers on pushes to `feat/**` and `fix/**` branches
+   - Catches lint/type/test failures before PRs are opened
+
+6. ✅ **Updated all documentation**
+   - `DESIGN_DOC.md` — replaced gold series, added Inflation row to macro curriculum
+   - `docs/ARCHITECTURE.md` — replaced gold series in indicators table
+   - `README.md` — updated data coverage description
+   - `docs/CHANGELOG.md` — documented all changes
+   - `backend/models/macro.py` + `scripts/backfill_data.py` — updated docstrings
+
+#### Macro Backfill Results (14/14 series)
+| Series | Name | Records |
+|--------|------|---------|
+| DGS10 | 10-Year Treasury Yield | ~9,100 |
+| DGS2 | 2-Year Treasury Yield | ~8,400 |
+| DGS30 | 30-Year Treasury Yield | ~8,800 |
+| DFF | Federal Funds Rate | ~9,100 |
+| T10Y2Y | 10Y-2Y Yield Spread | ~8,700 |
+| VIXCLS | VIX | ~8,400 |
+| DTWEXBGS | Trade Weighted Dollar Index | ~4,400 |
+| DCOILWTICO | WTI Crude Oil | ~8,000 |
+| T10YIE | 10-Year Breakeven Inflation Rate | ~5,600 |
+| M2SL | M2 Money Supply | ~400 |
+| WALCL | Fed Balance Sheet | ~1,100 |
+| UNRATE | Unemployment Rate | ~420 |
+| CPIAUCSL | Consumer Price Index | ~420 |
+| PCEPI | PCE Price Index | ~420 |
+| **Total** | | **~81,474** |
+
+#### Current Database State
+| Table | Rows | Status |
+|-------|------|--------|
+| `stocks` | 49,225 | ✅ Populated |
+| `daily_ohlcv` | 67,919 | ✅ Test backfill complete (10 stocks) |
+| `stock_splits` | 34 | ✅ Test backfill complete (10 stocks) |
+| `stock_dividends` | 544 | ✅ Test backfill complete (10 stocks) |
+| `macro_data` | 81,474 | ✅ Full backfill complete (14 series) |
+
+#### Files Changed
+- `backend/models/macro.py` — Replaced `GOLDAMGBD228NLBM` with `T10YIE`, updated docstring
+- `backend/services/data_pipeline/eodhd_fetcher.py` — Fixed mypy `[no-any-return]` error
+- `backend/services/data_pipeline/fred_fetcher.py` — Fixed 2 mypy `[no-any-return]` errors
+- `backend/tests/test_data_pipeline.py` — Added `TestFREDSeriesRegistry` (6 tests) + `TestValidateMacroExtended` (6 tests)
+- `backend/tests/test_backfill_macro.py` — **NEW** — 8 tests for macro backfill logic
+- `scripts/backfill_data.py` — Added `backfill_macro_data()` + `--macro` CLI flag, updated docstring
+- `.github/workflows/ci.yml` — CI triggers on `feat/**` and `fix/**` branches
+- `DESIGN_DOC.md` — Updated FRED series list + macro curriculum table
+- `docs/ARCHITECTURE.md` — Updated indicators table
+- `README.md` — Updated data coverage description
+- `docs/CHANGELOG.md` — Documented all changes
+- `docs/BUILD_LOG.md` — This session log
+
+#### Git Commits
+- `feat(data-pipeline): add macro backfill from FRED & replace discontinued gold series`
+- `fix(types): resolve mypy no-any-return errors in EODHD and FRED fetchers`
+- `ci: trigger CI on feature and fix branch pushes`
+
+#### Lessons Learned
+| # | Lesson | Context |
+|---|--------|---------|
+| 15 | External data sources can be discontinued without warning | FRED removed `GOLDAMGBD228NLBM` — always have a fallback plan for third-party data |
+| 16 | Test the actual backfill, not just the code | Running the real macro backfill in Docker caught the gold series failure that unit tests alone wouldn't |
+| 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
 
 ---
 
