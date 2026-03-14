@@ -169,7 +169,8 @@ The interactive learning hub for retail investors.
 | **Global Liquidity** | Central bank balance sheets, M2 money supply |
 | **Bond Markets** | US 10Y/2Y yields, yield curve, global bond yields |
 | **Currencies** | DXY (Dollar Index), EUR/USD, USD/JPY |
-| **Commodities** | Oil (WTI/Brent), Gold, Copper |
+| **Commodities** | Oil (WTI/Brent), Copper |
+| **Inflation** | CPI, PCE, 10-Year Breakeven Inflation Rate |
 | **Volatility** | VIX, VIX term structure, MOVE Index |
 | **Intermarket Analysis** | Correlations between above and equity markets |
 
@@ -871,7 +872,7 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
   - `WALCL` — Fed Balance Sheet
   - `M2SL` — M2 Money Supply
   - `DCOILWTICO` — WTI Oil
-  - `GOLDAMGBD228NLBM` — Gold Price
+  - `T10YIE` — 10-Year Breakeven Inflation Rate
 - **Docs:** https://fred.stlouisfed.org/docs/api/fred/
 
 #### Brokerage: **Alpaca** ⭐

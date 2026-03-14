@@ -31,11 +31,13 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from backend.database import async_session_factory
 from backend.models.dividend import StockDividend
+from backend.models.macro import FRED_SERIES, MacroData
 from backend.models.ohlcv import DailyOHLCV
 from backend.models.split import StockSplit
 from backend.models.stock import Stock
 from backend.services.data_pipeline.data_validator import DataValidator
 from backend.services.data_pipeline.eodhd_fetcher import EODHDFetcher
+from backend.services.data_pipeline.fred_fetcher import FREDFetcher
 
 logging.basicConfig(
     level=logging.INFO,
@@ -318,6 +320,106 @@ async def backfill_stocks(tickers: list[str] | None = None, all_stocks: bool = F
         await fetcher.close()
 
 
+def build_macro_records(df: pd.DataFrame, series_id: str, indicator_name: str) -> list[dict]:
+    """
+    Build a list of macro record dicts from a validated DataFrame.
+
+    Filters out rows with NaN values (FRED uses NaN for holidays/missing days).
+    Each record contains the fields needed for MacroData upsert.
+    """
+    records: list[dict] = []
+    for _, row in df.iterrows():
+        if pd.notna(row["value"]):
+            records.append(
+                {
+                    "indicator_code": series_id,
+                    "indicator_name": indicator_name,
+                    "date": row["date"],
+                    "value": float(row["value"]),
+                    "source": "FRED",
+                }
+            )
+    return records
+
+
+async def backfill_macro_data(start_date: str = "1990-01-01"):
+    """
+    Backfill all FRED macro indicator series.
+
+    Fetches 14 economic indicators (Treasury yields, VIX, DXY, oil,
+    inflation expectations, M2, Fed balance sheet, unemployment,
+    CPI, PCE) with 30+ years of history and stores them in the
+    macro_data table.
+    """
+    fetcher = FREDFetcher()
+
+    try:
+        logger.info("=" * 60)
+        logger.info("MACRO BACKFILL: Fetching FRED economic indicators")
+        logger.info(f"   Series: {len(FRED_SERIES)}")
+        logger.info(f"   Start date: {start_date}")
+        logger.info("=" * 60)
+
+        total_records = 0
+        successful = 0
+        failed = 0
+        start_time = time.time()
+
+        for series_id, meta in FRED_SERIES.items():
+            try:
+                logger.info(f"Fetching {series_id} ({meta['name']})...")
+
+                df = await fetcher.fetch_series(series_id, start=start_date)
+                if df.empty:
+                    logger.warning(f"⚠️  {series_id}: No data returned")
+                    failed += 1
+                    continue
+
+                # Validate
+                df = DataValidator.validate_macro(df, series_id)
+
+                # Build records for upsert (filters out NaN values)
+                records = build_macro_records(df, series_id, meta["name"])
+                BATCH_SIZE = 3000
+
+                if records:
+                    async with async_session_factory() as session:
+                        for batch_start in range(0, len(records), BATCH_SIZE):
+                            batch = records[batch_start : batch_start + BATCH_SIZE]
+                            stmt = pg_insert(MacroData).values(batch)
+                            stmt = stmt.on_conflict_do_update(
+                                constraint="uq_macro_indicator_date",
+                                set_={
+                                    "value": stmt.excluded.value,
+                                    "indicator_name": stmt.excluded.indicator_name,
+                                },
+                            )
+                            await session.execute(stmt)
+                        await session.commit()
+
+                logger.info(
+                    f"✅ {series_id}: {len(records)} records "
+                    f"({df['date'].min()} → {df['date'].max()})"
+                )
+                total_records += len(records)
+                successful += 1
+
+            except Exception as e:
+                logger.error(f"❌ {series_id} ({meta['name']}): {e}")
+                failed += 1
+
+        elapsed = time.time() - start_time
+        logger.info("=" * 60)
+        logger.info("✅ MACRO BACKFILL COMPLETE")
+        logger.info(f"   Series: {successful}/{len(FRED_SERIES)} successful, {failed} failed")
+        logger.info(f"   Records: {total_records:,}")
+        logger.info(f"   Time: {elapsed:.1f}s")
+        logger.info("=" * 60)
+
+    finally:
+        await fetcher.close()
+
+
 async def main():
     parser = argparse.ArgumentParser(description="PraxiAlpha Data Backfill")
     parser.add_argument(
@@ -327,6 +429,9 @@ async def main():
         "--test", action="store_true", help="Backfill test tickers only (AAPL, MSFT, GOOGL, etc.)"
     )
     parser.add_argument("--all", action="store_true", help="Backfill ALL active US stocks")
+    parser.add_argument(
+        "--macro", action="store_true", help="Backfill FRED macro indicators (yields, VIX, etc.)"
+    )
     parser.add_argument(
         "--tickers", nargs="+", help="Backfill specific tickers (e.g., --tickers AAPL MSFT)"
     )
@@ -346,6 +451,9 @@ async def main():
     elif args.all:
         await backfill_stocks(all_stocks=True)
 
+    elif args.macro:
+        await backfill_macro_data()
+
     elif args.tickers:
         await backfill_stocks(tickers=args.tickers)
 
@@ -354,7 +462,8 @@ async def main():
         print("\n💡 Recommended order:")
         print("   1. python scripts/backfill_data.py --populate")
         print("   2. python scripts/backfill_data.py --test")
-        print("   3. python scripts/backfill_data.py --all")
+        print("   3. python scripts/backfill_data.py --macro")
+        print("   4. python scripts/backfill_data.py --all")
 
 
 if __name__ == "__main__":

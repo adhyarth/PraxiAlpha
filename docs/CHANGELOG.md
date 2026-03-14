@@ -8,8 +8,40 @@
 ## [Unreleased]
 
 ### Added
+- **Macro backfill** (`--macro` flag) — backfills all 14 FRED macro indicator series (81,474 records) with upsert support
+- **`T10YIE` (10-Year Breakeven Inflation Rate)** — replaces discontinued `GOLDAMGBD228NLBM` (Gold Price) in the FRED series registry
+- **Macro backfill tests** (`test_backfill_macro.py`) — unit tests for backfill logic (fetcher calls, empty series handling, error recovery, null filtering, fetcher cleanup)
+- **FRED registry tests** (`test_data_pipeline.py`) — series count, required fields, valid categories, expected IDs, discontinued series guard
+- **Extended macro validation tests** — sort order, null preservation, negative values, dedup behavior, index reset
+- **`build_macro_records()` helper** — extracted record-building logic from `backfill_macro_data()` into a testable pure function
 - **`CONTRIBUTING.md`** — commit message convention (Conventional Commits), branch naming, git workflow, PR checklist, documentation checklist
 - **Branch workflow** — all future work uses feature branches + PRs (no more direct commits to `main`)
+- **CI on feature branches** — GitHub Actions now triggers on pushes to `feat/**` and `fix/**` branches (not just `main`), catching failures before PRs
+- **Local CI script** (`scripts/ci_check.sh`) — runs ruff lint, ruff format, and mypy locally before pushing; supports `--fix` mode for auto-repair
+- **Git pre-push hook** — automatically runs `ci_check.sh` before every `git push`, blocking pushes that would fail CI
+
+### Fixed
+- **Mypy type errors** — fixed 3 `[no-any-return]` errors in `eodhd_fetcher.py` and `fred_fetcher.py` by adding explicit type annotations for `response.json()` return values
+- **Discontinued FRED series** — removed `GOLDAMGBD228NLBM` (Gold Price, no longer available on FRED) from the macro series registry
+- **Ruff lint failures** — removed unused imports (`MagicMock`, `AsyncMock`, `patch`) from test files; added `N806` ignore for test files in `pyproject.toml` (PascalCase mock variables are conventional)
+- **CI "tests" job hanging** — `pip install -e ".[dev]"` installed heavy packages (streamlit, celery, plotly, jupyter) that took forever to build; replaced with a lightweight explicit install of only the packages needed by tests; added pip caching
+- **OHLCV high/low swap** — pandas 2.x copy-on-write broke the one-liner multi-column swap; replaced with explicit copy-based swap
+- **`ci_check.sh` nounset crash** — `$1` was unset when no args passed; fixed with `${1:-}` default
+- **Self-referencing optional dep** — `praxialpha[test]` inside `[dev]` extras could fail during source installs; inlined test deps into `[dev]`
+- **`validate_macro` docstring** — incorrectly claimed "Drops rows with null values"; updated to reflect actual behavior (nulls preserved, filtered at insert time)
+- **Null filter test** — `test_backfill_macro_filters_null_values` accessed internal SQLAlchemy `stmt._values` which is `None`; simplified to verify `build_macro_records` output directly
+
+### Changed
+- **FRED series registry** — replaced Gold Price (`GOLDAMGBD228NLBM`) with 10-Year Breakeven Inflation Rate (`T10YIE`) for better macro coverage
+- **CI test install** — split `[dev]` optional dependencies into `[test]` (lightweight) + `[dev]` (full); CI uses explicit lightweight install to avoid building unused heavy packages
+- **Macro backfill tests** — `TestBackfillMacroRecordBuilding` now tests the extracted `build_macro_records()` function directly instead of duplicating production logic
+- **Null filtering test** — `test_backfill_macro_filters_null_values` verifies `build_macro_records` returns only non-null records and that execute was called
+- **Local CI script** — `ci_check.sh` now runs pytest (step 4/4) in addition to lint, format, and type checks; pre-push hook catches test failures before they reach GitHub
+- **Documentation** — updated `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, and `README.md` to reflect the new macro series and removal of gold
+
+### Data Milestones
+- 14/14 FRED macro series backfilled successfully (81,474 records)
+- Series: DGS10, DGS2, DGS30, DFF, T10Y2Y, VIXCLS, DTWEXBGS, DCOILWTICO, T10YIE, M2SL, WALCL, UNRATE, CPIAUCSL, PCEPI
 
 ---
 

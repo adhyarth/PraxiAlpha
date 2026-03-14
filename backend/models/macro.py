@@ -18,7 +18,7 @@ class MacroData(Base):
     Macroeconomic indicator time-series data from FRED API.
 
     Tracks indicators like Treasury yields, VIX, DXY, oil prices,
-    gold prices, M2 money supply, Fed balance sheet, etc.
+    inflation expectations, M2 money supply, Fed balance sheet, etc.
     """
 
     __tablename__ = "macro_data"
@@ -55,7 +55,8 @@ FRED_SERIES = {
     "DTWEXBGS": {"name": "Trade Weighted Dollar Index (Broad)", "category": "currencies"},
     # Commodities
     "DCOILWTICO": {"name": "WTI Crude Oil Price", "category": "commodities"},
-    "GOLDAMGBD228NLBM": {"name": "Gold Price (London PM Fix)", "category": "commodities"},
+    # Inflation Expectations
+    "T10YIE": {"name": "10-Year Breakeven Inflation Rate", "category": "economic"},
     # Money Supply & Fed
     "M2SL": {"name": "M2 Money Supply", "category": "liquidity"},
     "WALCL": {"name": "Fed Total Assets (Balance Sheet)", "category": "liquidity"},

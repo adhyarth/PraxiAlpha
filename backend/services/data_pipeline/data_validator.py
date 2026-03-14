@@ -58,7 +58,9 @@ class DataValidator:
         if swap_mask.any():
             count = swap_mask.sum()
             logger.warning(f"{ticker}: Swapping high/low for {count} rows")
-            df.loc[swap_mask, ["high", "low"]] = df.loc[swap_mask, ["low", "high"]].values
+            orig_high = df.loc[swap_mask, "high"].copy()
+            df.loc[swap_mask, "high"] = df.loc[swap_mask, "low"]
+            df.loc[swap_mask, "low"] = orig_high
 
         # Sort by date
         df = df.sort_values("date").reset_index(drop=True)
@@ -75,9 +77,11 @@ class DataValidator:
         Validate and clean FRED macro data.
 
         Checks:
-        - Required columns present
-        - No duplicate dates
-        - Drops rows with null values (FRED uses "." for missing)
+        - No duplicate dates (keeps last)
+        - Sorted by date ascending
+
+        Null values are preserved — FRED uses them for holidays/missing days.
+        The backfill script filters nulls at insert time instead.
 
         Returns:
             Cleaned DataFrame

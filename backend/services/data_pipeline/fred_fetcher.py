@@ -9,6 +9,7 @@ FRED API docs: https://fred.stlouisfed.org/docs/api/fred/
 """
 
 import logging
+from typing import Any
 
 import httpx
 import pandas as pd
@@ -59,7 +60,7 @@ class FREDFetcher:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=30),
     )
-    async def _request(self, endpoint: str, params: dict | None = None) -> dict:
+    async def _request(self, endpoint: str, params: dict | None = None) -> dict[str, Any]:
         """Make an authenticated request to FRED API."""
         client = await self._get_client()
         url = f"{FRED_BASE_URL}{endpoint}"
@@ -74,7 +75,8 @@ class FREDFetcher:
         logger.debug(f"FRED request: {endpoint}")
         response = await client.get(url, params=request_params)
         response.raise_for_status()
-        return response.json()
+        result: dict[str, Any] = response.json()
+        return result
 
     async def fetch_series(
         self,
@@ -147,7 +149,8 @@ class FREDFetcher:
         logger.info(f"Fetched {len(results)}/{len(FRED_SERIES)} FRED series")
         return results
 
-    async def fetch_series_info(self, series_id: str) -> dict:
+    async def fetch_series_info(self, series_id: str) -> dict[str, Any]:
         """Get metadata about a FRED series."""
         data = await self._request("/series", params={"series_id": series_id})
-        return data.get("seriess", [{}])[0]
+        result: dict[str, Any] = data.get("seriess", [{}])[0]
+        return result

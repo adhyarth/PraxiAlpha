@@ -231,9 +231,125 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 
 ---
 
-### Session 4 — (Next Session)
+### Session 4 — 2026-03-13: Macro Backfill & FRED Series Fix
 
-_Feature branches begin. To be filled in..._
+#### What We Did
+1. ✅ **Replaced discontinued FRED series**
+   - `GOLDAMGBD228NLBM` (Gold Price) was removed from FRED — fetching it returned errors
+   - Replaced with `T10YIE` (10-Year Breakeven Inflation Rate) — adds inflation expectations to macro indicators
+   - Updated code (`backend/models/macro.py`), docs (`DESIGN_DOC.md`, `ARCHITECTURE.md`, `README.md`), and docstrings
+
+2. ✅ **Built macro backfill** (`--macro` flag in `scripts/backfill_data.py`)
+   - Fetches all 14 FRED macro series with 30+ years of history
+   - Validates data via `DataValidator.validate_macro()`
+   - Upserts into `macro_data` table in batches (handles PostgreSQL parameter limits)
+   - Result: **81,474 records**, 14/14 series successful, 0 failed
+
+3. ✅ **Added comprehensive tests**
+   - `test_backfill_macro.py` — **NEW** — 8 tests for backfill logic (fetcher calls, empty series, error recovery, null filtering, fetcher cleanup, record building)
+   - `test_data_pipeline.py` — Added `TestFREDSeriesRegistry` (6 tests: count, fields, categories, expected IDs, discontinued guard) and `TestValidateMacroExtended` (6 tests: valid data, sort order, null preservation, negative values, dedup, index reset)
+   - All tests pass in Docker
+
+4. ✅ **Fixed mypy type errors**
+   - 3 `[no-any-return]` errors in `eodhd_fetcher.py` and `fred_fetcher.py`
+   - Added explicit `dict[str, Any]` type annotations for `response.json()` return values
+
+5. ✅ **Extended CI to feature branches**
+   - GitHub Actions now triggers on pushes to `feat/**` and `fix/**` branches
+   - Catches lint/type/test failures before PRs are opened
+
+6. ✅ **Fixed CI lint failures**
+   - Removed unused imports (`MagicMock`, `AsyncMock`, `patch`) from test files
+   - Added `N806` per-file-ignore for `backend/tests/*` in `pyproject.toml` (PascalCase mock variables like `MockFetcher` are conventional in Python tests)
+   - Removed unused `MockSession` variable assignment in `test_backfill_macro_closes_fetcher_on_error`
+   - Ran `ruff format` to fix formatting inconsistencies
+
+7. ✅ **Created local CI check tooling**
+   - `scripts/ci_check.sh` — runs all 3 CI checks locally (ruff lint, ruff format, mypy)
+   - Supports `--fix` mode: `./scripts/ci_check.sh --fix` auto-repairs lint and format issues
+   - Git pre-push hook (`.git/hooks/pre-push`) — runs `ci_check.sh` automatically before every push
+   - Bypass with `git push --no-verify` for emergencies only
+
+8. ✅ **Updated all documentation**
+   - `DESIGN_DOC.md` — replaced gold series, added Inflation row to macro curriculum
+   - `docs/ARCHITECTURE.md` — replaced gold series in indicators table
+   - `README.md` — updated data coverage description
+   - `docs/CHANGELOG.md` — documented all changes
+   - `backend/models/macro.py` + `scripts/backfill_data.py` — updated docstrings
+
+#### Macro Backfill Results (14/14 series)
+| Series | Name | Records |
+|--------|------|---------|
+| DGS10 | 10-Year Treasury Yield | ~9,100 |
+| DGS2 | 2-Year Treasury Yield | ~8,400 |
+| DGS30 | 30-Year Treasury Yield | ~8,800 |
+| DFF | Federal Funds Rate | ~9,100 |
+| T10Y2Y | 10Y-2Y Yield Spread | ~8,700 |
+| VIXCLS | VIX | ~8,400 |
+| DTWEXBGS | Trade Weighted Dollar Index | ~4,400 |
+| DCOILWTICO | WTI Crude Oil | ~8,000 |
+| T10YIE | 10-Year Breakeven Inflation Rate | ~5,600 |
+| M2SL | M2 Money Supply | ~400 |
+| WALCL | Fed Balance Sheet | ~1,100 |
+| UNRATE | Unemployment Rate | ~420 |
+| CPIAUCSL | Consumer Price Index | ~420 |
+| PCEPI | PCE Price Index | ~420 |
+| **Total** | | **~81,474** |
+
+#### Current Database State
+| Table | Rows | Status |
+|-------|------|--------|
+| `stocks` | 49,225 | ✅ Populated |
+| `daily_ohlcv` | 67,919 | ✅ Test backfill complete (10 stocks) |
+| `stock_splits` | 34 | ✅ Test backfill complete (10 stocks) |
+| `stock_dividends` | 544 | ✅ Test backfill complete (10 stocks) |
+| `macro_data` | 81,474 | ✅ Full backfill complete (14 series) |
+
+#### Files Changed
+- `backend/models/macro.py` — Replaced `GOLDAMGBD228NLBM` with `T10YIE`, updated docstring
+- `backend/services/data_pipeline/eodhd_fetcher.py` — Fixed mypy `[no-any-return]` error
+- `backend/services/data_pipeline/fred_fetcher.py` — Fixed 2 mypy `[no-any-return]` errors
+- `backend/services/data_pipeline/data_validator.py` — Fixed high/low swap (pandas 2.x CoW pitfall), corrected `validate_macro` docstring
+- `backend/tests/test_data_pipeline.py` — Added `TestFREDSeriesRegistry` (6 tests) + `TestValidateMacroExtended` (6 tests)
+- `backend/tests/test_backfill_macro.py` — **NEW** — 10 tests: backfill logic + `build_macro_records` helper tests
+- `scripts/backfill_data.py` — Added `backfill_macro_data()` + `build_macro_records()` + `--macro` CLI flag
+- `scripts/ci_check.sh` — **NEW** — Local CI check script; fixed `$1` nounset crash
+- `.github/workflows/ci.yml` — Feature-branch triggers, pip caching, lightweight test install
+- `pyproject.toml` — Added `[test]` extras, inlined into `[dev]`; `N806` per-file-ignore for tests
+- `DESIGN_DOC.md` — Updated FRED series list + macro curriculum table
+- `docs/ARCHITECTURE.md` — Updated indicators table
+- `README.md` — Updated data coverage description
+- `docs/CHANGELOG.md` — Documented all changes
+- `docs/BUILD_LOG.md` — This session log
+
+#### Git Commits
+- `feat(data-pipeline): add macro backfill from FRED & replace discontinued gold series`
+- `fix(types): resolve mypy no-any-return errors in EODHD and FRED fetchers`
+- `ci: trigger CI on feature and fix branch pushes`
+- `fix(lint): resolve ruff errors and add local CI check script + pre-push hook`
+- `fix(ci): use lightweight deps in test job to avoid hanging on heavy package builds`
+- `fix(validator): use explicit copy for high/low swap to avoid pandas pitfall`
+- `refactor(backfill): extract build_macro_records helper + improve test assertions`
+- `fix(ci-check): use ${1:-} to avoid nounset crash when no args passed`
+- `fix(pyproject): inline test deps into dev extras to avoid self-referencing dep`
+- `fix(test): simplify null filter test assertion + add pytest to local CI check`
+
+#### Lessons Learned
+| # | Lesson | Context |
+|---|--------|---------|
+| 15 | External data sources can be discontinued without warning | FRED removed `GOLDAMGBD228NLBM` — always have a fallback plan for third-party data |
+| 16 | Test the actual backfill, not just the code | Running the real macro backfill in Docker caught the gold series failure that unit tests alone wouldn't |
+| 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
+| 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate local checks with pre-push hooks |
+| 19 | Mock variables use PascalCase by convention, configure linters accordingly | `MockFetcher` is standard in Python tests; add `N806` ignore for test files |
+| 20 | Never install full project deps in CI test jobs | `pip install -e ".[dev]"` pulls in streamlit, plotly, jupyter, celery — CI only needs test tooling + the packages the tests actually import; use an explicit lightweight install instead |
+| 21 | Pandas 2.x copy-on-write breaks multi-column swaps | `df.loc[mask, ['a', 'b']] = df.loc[mask, ['b', 'a']].values` silently fails; use explicit temp variable swaps instead |
+| 22 | Tests should exercise production code, not duplicate it | Copy-pasting logic into tests means tests pass even when production code changes; extract helpers and test those |
+| 23 | Assertions must verify the actual behavior under test | A test that only asserts `close()` was called doesn't verify that null filtering actually happened |
+| 24 | `set -u` + `$1` crashes when no args are passed | Use `${1:-}` to provide a default empty string |
+| 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation — make it a habit, not an afterthought |
+| 26 | Run tests locally before pushing, not just lint | Lint passing ≠ tests passing; add pytest to the pre-push script so test failures never reach CI |
+| 27 | Don't access SQLAlchemy statement internals in tests | `stmt._values` is `None` in modern SQLAlchemy; test your own code's output, not ORM internals |
 
 ---
 
@@ -255,6 +371,19 @@ _Feature branches begin. To be filled in..._
 | 12 | Keep documentation updated with every commit | BUILD_LOG, ARCHITECTURE, CHANGELOG should reflect the actual state of the project |
 | 13 | Standardize commit messages from day one | Inconsistent messages look unprofessional; Conventional Commits is the industry standard |
 | 14 | Start branching as soon as CI exists | Direct-to-main is fine for scaffolding, but once CI validates PRs, use it |
+| 15 | External data sources can be discontinued without warning | FRED removed `GOLDAMGBD228NLBM` — always have a fallback plan for third-party data |
+| 16 | Test the actual backfill, not just the code | Running the real macro backfill in Docker caught the gold series failure that unit tests alone wouldn't |
+| 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
+| 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate with pre-push hooks |
+| 19 | Mock variables use PascalCase by convention | `MockFetcher` is standard in Python tests; configure linters with per-file ignores |
+| 20 | Never install full project deps in CI test jobs | `pip install -e ".[dev]"` pulls in heavy packages CI doesn't need; use an explicit lightweight install of only what tests import |
+| 21 | Pandas 2.x copy-on-write breaks multi-column swaps | Use explicit temp variable swaps instead of `df.loc[mask, ['a','b']] = ...` |
+| 22 | Tests should exercise production code, not duplicate it | Extract helpers and test those; copy-pasted logic passes even when prod changes |
+| 23 | Assertions must verify the actual behavior under test | A test that only asserts `close()` was called doesn't verify null filtering happened |
+| 24 | `set -u` + `$1` crashes when no args are passed | Use `${1:-}` to provide a safe default |
+| 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation |
+| 26 | Run tests locally before pushing, not just lint | Lint passing ≠ tests passing; add pytest to the pre-push script |
+| 27 | Don't access SQLAlchemy statement internals in tests | `stmt._values` is `None` in modern SQLAlchemy; test your own code's output |
 
 ---
 
