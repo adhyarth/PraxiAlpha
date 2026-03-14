@@ -353,6 +353,66 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 
 ---
 
+### Session 5 — 2026-03-14: Branch Protection & Merge Settings
+
+#### What We Did
+1. ✅ **Configured squash-and-merge as the only merge strategy**
+   - Disabled merge commits and rebase merges via GitHub API
+   - PR title becomes the squash commit message, PR body becomes the description
+   - Produces a clean, linear commit history on `main`
+
+2. ✅ **Enabled auto-delete of merged branches**
+   - Feature branches are automatically deleted after PR merge
+   - No manual cleanup needed
+
+3. ✅ **Upgraded to GitHub Pro** ($4/month)
+   - Required for branch protection on private repos
+   - Unlocks branch protection rules and rulesets APIs
+
+4. ✅ **Enabled branch protection on `main`**
+   - Require PR reviews to merge (no direct pushes)
+   - Enforce for admins — even repo owner cannot bypass
+   - Block force pushes and branch deletion on `main`
+   - Require linear history (compatible with squash-merge)
+   - Applied via GitHub API (`PUT /branches/main/protection`)
+
+5. ✅ **Updated documentation**
+   - `CONTRIBUTING.md` — updated branch protection table to reflect full enforcement
+   - `docs/CHANGELOG.md` — documented new settings
+   - `docs/BUILD_LOG.md` — this session log
+
+#### GitHub Settings Applied
+| Setting | Value | Via |
+|---------|-------|-----|
+| `allow_squash_merge` | `true` | GitHub API |
+| `allow_merge_commit` | `false` | GitHub API |
+| `allow_rebase_merge` | `false` | GitHub API |
+| `squash_merge_commit_title` | `PR_TITLE` | GitHub API |
+| `squash_merge_commit_message` | `PR_BODY` | GitHub API |
+| `delete_branch_on_merge` | `true` | GitHub API |
+| Require PR to merge | ✅ Enforced | GitHub API (branch protection) |
+| Block direct pushes (incl. admins) | ✅ Enforced | GitHub API (`enforce_admins: true`) |
+| No force pushes to main | ✅ Enforced | GitHub API (branch protection) |
+| No branch deletion (main) | ✅ Enforced | GitHub API (branch protection) |
+| Require linear history | ✅ Enforced | GitHub API (branch protection) |
+
+#### Files Changed
+- `CONTRIBUTING.md` — Added branch protection & merge settings section
+- `docs/CHANGELOG.md` — Documented new settings
+- `docs/BUILD_LOG.md` — This session log
+
+#### Git Commits
+- `feat(repo): configure squash-merge only + document branch protection`
+
+#### Lessons Learned
+| # | Lesson | Context |
+|---|--------|---------|
+| 28 | GitHub branch protection requires Pro for private repos | $4/month unlocks full branch protection, rulesets, and required status checks |
+| 29 | Configure merge strategy early | Squash-merge keeps `main` history clean; one commit per PR = easy to revert |
+| 30 | Enforce branch protection for admins too | Without `enforce_admins: true`, repo owners can bypass all rules — always enable it |
+
+---
+
 ## Lessons Learned
 
 | # | Lesson | Context |
@@ -384,6 +444,9 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation |
 | 26 | Run tests locally before pushing, not just lint | Lint passing ≠ tests passing; add pytest to the pre-push script |
 | 27 | Don't access SQLAlchemy statement internals in tests | `stmt._values` is `None` in modern SQLAlchemy; test your own code's output |
+| 28 | GitHub branch protection requires Pro for private repos | $4/month unlocks full branch protection, rulesets, and required status checks |
+| 29 | Configure merge strategy early | Squash-merge keeps `main` clean — one commit per PR, easy to revert |
+| 30 | Enforce branch protection for admins too | Without `enforce_admins: true`, repo owners can bypass all rules — always enable it |
 
 ---
 
