@@ -8,7 +8,11 @@
 ## [Unreleased]
 
 ### Added
-- **Macro backfill** (`--macro` flag) — backfills all 14 FRED macro indicator series (81,474 records) with upsert support
+- **GitHub Pro upgrade** — enables full branch protection for private repos
+- **Branch protection on `main`** — require PRs, block direct pushes (including admins), block force pushes, require linear history, block branch deletion
+- **Squash-and-merge enforcement** — only squash merge is allowed for PRs; PR title becomes commit message, PR body becomes commit description
+- **Auto-delete merged branches** — feature branches are cleaned up automatically after merge
+- **Branch protection documentation** — `CONTRIBUTING.md` updated with merge strategy and protection rules
 - **`T10YIE` (10-Year Breakeven Inflation Rate)** — replaces discontinued `GOLDAMGBD228NLBM` (Gold Price) in the FRED series registry
 - **Macro backfill tests** (`test_backfill_macro.py`) — unit tests for backfill logic (fetcher calls, empty series handling, error recovery, null filtering, fetcher cleanup)
 - **FRED registry tests** (`test_data_pipeline.py`) — series count, required fields, valid categories, expected IDs, discontinued series guard

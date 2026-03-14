@@ -147,7 +147,37 @@ docs: update BUILD_LOG with Session 2 results
 
 ---
 
-## 📚 Documentation Checklist
+## �️ Branch Protection & Merge Settings
+
+### Merge Strategy: Squash and Merge Only
+All PRs are merged via **squash and merge** (the only merge option enabled).
+This produces a clean, linear commit history on `main` where every commit
+corresponds to a single PR.
+
+- **Commit title** = PR title (use Conventional Commits format)
+- **Commit body** = PR description
+- **Feature branches are auto-deleted** after merge
+
+### Branch Protection
+Direct pushes to `main` are blocked. All changes must go through a PR.
+
+| Rule | Status |
+|------|--------|
+| Require PR to merge | ✅ Enforced (GitHub branch protection) |
+| Block direct pushes to main | ✅ Enforced (GitHub branch protection, incl. admins) |
+| No force pushes to main | ✅ Enforced (GitHub branch protection) |
+| Require linear history | ✅ Enforced (GitHub branch protection) |
+| No branch deletion (main) | ✅ Enforced (GitHub branch protection) |
+| Squash merge only | ✅ Enforced (repo settings) |
+| Auto-delete merged branches | ✅ Enabled (repo settings) |
+| Pre-push local CI check | ✅ Enforced (`scripts/ci_check.sh` via git hook) |
+
+> Branch protection is enforced for **all users including admins** via
+> GitHub Pro. The pre-push hook provides an additional local safety net.
+
+---
+
+## �📚 Documentation Checklist
 
 **Every PR / merge to `main` must update:**
 
@@ -170,4 +200,4 @@ Before merging any PR:
 
 ---
 
-*Last updated: 2026-03-13*
+*Last updated: 2026-03-14*
