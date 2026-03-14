@@ -47,10 +47,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
+# Minimal set for CI tests — no heavy deps like streamlit/plotly/jupyter
+test = [
     "pytest>=8.0,<9",
     "pytest-asyncio>=0.23,<1",
     "pytest-cov>=5.0,<6",
+]
+# Full dev environment (includes test + linters + notebooks)
+dev = [
+    "praxialpha[test]",
     "ruff>=0.5,<1",
     "mypy>=1.10,<2",
     "pre-commit>=3.7,<4",

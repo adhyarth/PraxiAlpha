@@ -335,6 +335,7 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
 | 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate local checks with pre-push hooks |
 | 19 | Mock variables use PascalCase by convention, configure linters accordingly | `MockFetcher` is standard in Python tests; add `N806` ignore for test files |
+| 20 | Never install full project deps in CI test jobs | `pip install -e ".[dev]"` pulls in streamlit, plotly, jupyter, celery — CI only needs test tooling + the packages the tests actually import; use an explicit lightweight install instead |
 
 ---
 
@@ -361,6 +362,7 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 17 | Run CI on feature branches, not just main/PRs | Catching failures before opening a PR saves review cycles |
 | 18 | Always run linters locally before pushing | A failed CI on a PR is embarrassing and wastes time — automate with pre-push hooks |
 | 19 | Mock variables use PascalCase by convention | `MockFetcher` is standard in Python tests; configure linters with per-file ignores |
+| 20 | Never install full project deps in CI test jobs | `pip install -e ".[dev]"` pulls in heavy packages CI doesn't need; use an explicit lightweight install of only what tests import |
 
 ---
 
