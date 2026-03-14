@@ -121,7 +121,7 @@ class TradingEconomicsFetcher:
         if importance is not None:
             params["importance"] = str(importance)
 
-        events = await self._request(endpoint, params)
+        events: list[dict[str, Any]] = await self._request(endpoint, params)
         logger.info(
             f"Fetched {len(events)} calendar events for {country} (importance={importance})"
         )
