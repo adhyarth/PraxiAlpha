@@ -7,6 +7,74 @@
 
 ## Phase 1: Foundation & Data Pipeline
 
+### Session 4 — 2026-03-14: Economic Calendar Integration (Full Stack)
+
+#### What We Did
+1. ✅ **Created `EconomicCalendarService`** (`backend/services/data_pipeline/economic_calendar_service.py`)
+   - `sync_upcoming_events()` — fetches from TradingEconomics, upserts into DB (PostgreSQL `ON CONFLICT DO UPDATE`)
+   - `prune_old_events()` — deletes events older than 90 days to keep table small
+   - `get_upcoming_events()` / `get_high_impact_events()` — query DB with date/importance filters
+   - `get_events_for_category()` — drill-down by specific event type (e.g., NFP only)
+   - `is_high_impact()` — static method checking against `US_HIGH_IMPACT_EVENTS` registry
+
+2. ✅ **Created calendar API routes** (`backend/api/routes/calendar.py`)
+   - `GET /api/v1/calendar/upcoming` — events with `days`, `importance`, `limit` query params
+   - `GET /api/v1/calendar/high-impact` — convenience endpoint (importance=3 only)
+   - `POST /api/v1/calendar/sync` — manual trigger for development/debugging
+   - Registered in `backend/main.py`
+
+3. ✅ **Created Celery Beat task** (`daily_economic_calendar_sync`)
+   - Runs at 7 AM ET daily (before market open)
+   - Syncs all importance levels for 14-day lookahead
+   - Prunes old events after sync
+   - Added to Celery Beat schedule in `celery_app.py`
+
+4. ✅ **Created Streamlit dashboard widget** (`streamlit_app/components/economic_calendar.py`)
+   - `render_economic_calendar_widget()` — renders compact event cards with importance badges (🔴/🟡/🟢), date/time, countdown ("In 3 days"), and forecast/actual/previous
+   - Dual data source: tries FastAPI backend first, falls back to direct TradingEconomics API call
+   - Handles async-in-sync (Streamlit's event loop) via thread pool executor
+
+5. ✅ **Updated dashboard page** (`streamlit_app/pages/dashboard.py`)
+   - Replaced Phase 2 placeholder with working economic calendar widget
+   - Tabbed interface: "High Impact" (importance=3) vs "All Events"
+
+6. ✅ **Wrote 18 integration tests** (`backend/tests/test_calendar_integration.py`)
+   - Service: sync with fetcher mock, sync with no events, prune, query, high-impact delegation, `is_high_impact` true/false
+   - API: `_serialize_event` with full fields and None date
+   - Task: Celery task is registered and callable
+   - Widget: importance badges (4 levels), `_days_until` (today, future, past, invalid/None)
+
+7. ✅ **Added `__init__.py` files** for `streamlit_app/`, `components/`, `pages/` — fixes mypy module resolution
+8. ✅ **All CI checks pass** — 62/62 tests, ruff lint clean, ruff format clean, mypy clean (only pre-existing `database.py` warning)
+
+#### Architecture Decisions
+- **Service layer pattern**: Dashboard/tasks never touch the fetcher or DB directly — they go through `EconomicCalendarService`. This makes testing easy (mock the session) and keeps the pipeline logic in one place.
+- **Upsert with ON CONFLICT**: Re-syncing the same window is idempotent. If an event gets updated with actual values, the upsert updates forecast/actual/previous without creating duplicates.
+- **7 AM ET sync**: Economic releases cluster around 8:30 AM ET. Syncing at 7 AM gives the dashboard fresh data before the pre-market session.
+- **Fallback to direct API**: The Streamlit widget works even without the backend running, which is useful during development.
+- **Pruning**: Events older than 90 days are auto-deleted. The calendar is for awareness, not historical analysis.
+
+#### Files Created
+- `backend/services/data_pipeline/economic_calendar_service.py` (new)
+- `backend/api/routes/calendar.py` (new)
+- `backend/tests/test_calendar_integration.py` (new)
+- `streamlit_app/components/economic_calendar.py` (new)
+- `streamlit_app/__init__.py` (new)
+- `streamlit_app/components/__init__.py` (new)
+- `streamlit_app/pages/__init__.py` (new)
+
+#### Files Modified
+- `backend/main.py` — registered calendar router
+- `backend/tasks/data_tasks.py` — added `daily_economic_calendar_sync` task
+- `backend/tasks/celery_app.py` — added Celery Beat schedule entry
+- `streamlit_app/pages/dashboard.py` — replaced placeholder with calendar widget
+- `docs/CHANGELOG.md` — documented new features
+- `docs/BUILD_LOG.md` — this entry
+
+#### Test Count: 62 (was 44)
+
+---
+
 ### Session 1 — 2026-03-13: Project Scaffolding
 
 #### What We Did
@@ -410,6 +478,84 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 28 | GitHub branch protection requires Pro for private repos | $4/month unlocks full branch protection, rulesets, and required status checks |
 | 29 | Configure merge strategy early | Squash-merge keeps `main` history clean; one commit per PR = easy to revert |
 | 30 | Enforce branch protection for admins too | Without `enforce_admins: true`, repo owners can bypass all rules — always enable it |
+
+---
+
+### Session 6 — 2026-03-14: Economic Calendar Infrastructure
+
+#### What We Did
+1. ✅ **Added Mental Model #14 to DESIGN_DOC.md**
+   - "Economic events are noise, price action is signal"
+   - Calendar events create short-term volatility but smart money sets the tape
+   - Use the calendar defensively (don't get blindsided), not as a trading signal
+
+2. ✅ **Updated DESIGN_DOC.md with economic calendar capability**
+   - Added TradingEconomics as a data provider (free developer tier)
+   - Added `Economic Calendar` data type to Module 2 (Data Pipeline)
+   - Added 3 economic calendar tasks to Phase 2 roadmap
+   - Updated pipeline architecture diagram, data flow diagram, database schema
+   - Updated system architecture Mermaid diagrams
+   - Updated cost tables (TradingEconomics = $0 on free tier)
+   - Updated project structure with new files
+
+3. ✅ **Created placeholder model: `EconomicCalendarEvent`**
+   - SQLAlchemy model with all TradingEconomics fields
+   - Unique constraint on `calendar_id`, indexed on `date`, `country`, `importance`
+   - Values stored as strings (TE returns mixed formats: "0.5%", "1.307M", etc.)
+
+4. ✅ **Created placeholder fetcher: `TradingEconomicsFetcher`**
+   - Async HTTP client with retry logic (tenacity)
+   - `fetch_calendar()` — filter by country, importance, date range
+   - `fetch_upcoming_events()` — lookahead N days (default 7)
+   - `parse_event()` — maps TE field names to our model columns
+   - Falls back to `guest:guest` (free tier) when no API key configured
+
+5. ✅ **Created `US_HIGH_IMPACT_EVENTS` registry**
+   - 19 key US events that actually move markets (NFP, CPI, FOMC, GDP, etc.)
+
+6. ✅ **Added config and .env support**
+   - `te_api_key` in `backend/config.py` with empty default
+   - `.env.example` updated with `TE_API_KEY=guest:guest`
+
+7. ✅ **Created 14 unit tests** (`test_economic_calendar.py`)
+   - Model tests: tablename, columns, unique constraint, repr
+   - Registry tests: count, key events present, types
+   - Fetcher tests: API key fallback, parse_event mapping, fetch mock, close behavior
+
+8. ✅ **All checks pass**
+   - 44/44 tests pass (30 existing + 14 new)
+   - Ruff lint: clean
+   - Ruff format: clean
+   - mypy: no new errors (pre-existing `database.py` async generator warning)
+
+#### Verified: TradingEconomics Free API Works
+```bash
+curl "https://api.tradingeconomics.com/calendar/country/united%20states?c=guest:guest&importance=3"
+# Returns real data: NFP, CPI, Retail Sales, Housing Starts, etc.
+```
+
+#### Files Changed
+| File | Change |
+|------|--------|
+| `DESIGN_DOC.md` | Mental Model #14, economic calendar in pipeline/schema/Phase 2/providers/diagrams |
+| `backend/models/economic_calendar.py` | New — `EconomicCalendarEvent` model + `US_HIGH_IMPACT_EVENTS` registry |
+| `backend/services/data_pipeline/trading_economics_fetcher.py` | New — async fetcher with retry, filtering, and event parser |
+| `backend/tests/test_economic_calendar.py` | New — 14 tests for model, registry, and fetcher |
+| `backend/models/__init__.py` | Added `EconomicCalendarEvent` to exports |
+| `backend/config.py` | Added `te_api_key` setting |
+| `.env.example` | Added `TE_API_KEY` |
+| `docs/CHANGELOG.md` | Documented new feature |
+| `docs/BUILD_LOG.md` | This session log |
+
+#### Git Commits
+- `feat(pipeline): add economic calendar model, fetcher, and tests`
+
+#### Lessons Learned
+| # | Lesson | Context |
+|---|--------|---------|
+| 31 | Free API tiers can provide significant value | TradingEconomics guest:guest returns real calendar data — enough for dashboard awareness |
+| 32 | Store external API values as strings when formats vary | TE returns "0.5%", "1.307M", "K" — parsing to float loses context; store raw, parse on display |
+| 33 | Placeholder infrastructure enables parallel development | Model + fetcher + tests now exist; dashboard widget and scheduler can be built independently |
 
 ---
 

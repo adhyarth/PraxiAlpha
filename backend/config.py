@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     # ---- Data Providers ----
     eodhd_api_key: str = ""
     fred_api_key: str = ""
+    te_api_key: str = ""  # TradingEconomics API key (optional, falls back to guest:guest)
 
     @property
     def async_database_url(self) -> str:

@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.routes import calendar as calendar_routes
 from backend.api.routes import stocks
 from backend.config import get_settings
 
@@ -43,6 +44,7 @@ app.add_middleware(
 
 # ---- Register API Routers ----
 app.include_router(stocks.router, prefix="/api/v1")
+app.include_router(calendar_routes.router, prefix="/api/v1")
 
 
 # ---- Health Check ----
