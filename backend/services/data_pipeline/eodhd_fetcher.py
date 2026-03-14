@@ -91,7 +91,7 @@ class EODHDFetcher:
     # ============================================================
     # Ticker List
     # ============================================================
-    async def fetch_us_tickers(self) -> list[dict]:
+    async def fetch_us_tickers(self) -> list[dict[str, Any]]:
         """
         Fetch all active US exchange tickers from EODHD.
 
@@ -99,7 +99,7 @@ class EODHDFetcher:
             List of dicts with keys: Code, Name, Country, Exchange, Currency, Type, Isin
         """
         logger.info("Fetching all US tickers from EODHD...")
-        data = await self._request("/exchange-symbol-list/US")
+        data: list[dict[str, Any]] = await self._request("/exchange-symbol-list/US")
         logger.info(f"Fetched {len(data)} US tickers from EODHD")
         return data
 
