@@ -332,6 +332,7 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 - `refactor(backfill): extract build_macro_records helper + improve test assertions`
 - `fix(ci-check): use ${1:-} to avoid nounset crash when no args passed`
 - `fix(pyproject): inline test deps into dev extras to avoid self-referencing dep`
+- `fix(test): simplify null filter test assertion + add pytest to local CI check`
 
 #### Lessons Learned
 | # | Lesson | Context |
@@ -347,6 +348,8 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 23 | Assertions must verify the actual behavior under test | A test that only asserts `close()` was called doesn't verify that null filtering actually happened |
 | 24 | `set -u` + `$1` crashes when no args are passed | Use `${1:-}` to provide a default empty string |
 | 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation — make it a habit, not an afterthought |
+| 26 | Run tests locally before pushing, not just lint | Lint passing ≠ tests passing; add pytest to the pre-push script so test failures never reach CI |
+| 27 | Don't access SQLAlchemy statement internals in tests | `stmt._values` is `None` in modern SQLAlchemy; test your own code's output, not ORM internals |
 
 ---
 
@@ -379,6 +382,8 @@ Starting from Session 4, all work will use **feature branches + pull requests**:
 | 23 | Assertions must verify the actual behavior under test | A test that only asserts `close()` was called doesn't verify null filtering happened |
 | 24 | `set -u` + `$1` crashes when no args are passed | Use `${1:-}` to provide a safe default |
 | 25 | Update CHANGELOG + BUILD_LOG before every commit | Documentation that lags behind commits is worse than no documentation |
+| 26 | Run tests locally before pushing, not just lint | Lint passing ≠ tests passing; add pytest to the pre-push script |
+| 27 | Don't access SQLAlchemy statement internals in tests | `stmt._values` is `None` in modern SQLAlchemy; test your own code's output |
 
 ---
 

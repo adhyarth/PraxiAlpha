@@ -145,24 +145,20 @@ class TestBackfillMacroData:
 
             await backfill_macro_data()
 
-            # Verify execute was called and inspect the insert values.
-            # fred_df_with_nulls has 3 rows per series (1 NaN), so each
-            # series should produce 2 non-null records.
+            # fred_df_with_nulls has 3 rows per series (1 NaN).
+            # build_macro_records filters nulls → 2 records per series.
+            # Verify execute was called (records were inserted).
             assert mock_session.execute.call_count > 0
-            # Each execute call receives an insert statement built from
-            # records that had NaN filtered out.  Grab the first call's
-            # positional arg (the compiled insert statement) and verify
-            # the embedded values contain no NaN.
-            for call in mock_session.execute.call_args_list:
-                stmt = call[0][0]  # first positional arg
-                # The pg_insert().values(batch) embeds records in
-                # stmt.compile().params, but the easiest check is that
-                # the statement's _values list (batch dicts) was built
-                # with only non-null values.
-                if hasattr(stmt, "_values"):
-                    for record in stmt._values:
-                        if isinstance(record, dict):
-                            assert record["value"] is not None
+
+            # Verify that build_macro_records correctly filters nulls
+            # by calling it directly with the same input.
+            from scripts.backfill_data import build_macro_records
+
+            records = build_macro_records(fred_df_with_nulls, "DGS10", "test")
+            assert len(records) == 2
+            for r in records:
+                assert r["value"] is not None
+
             mock_fetcher.close.assert_called_once()
 
     @pytest.mark.asyncio

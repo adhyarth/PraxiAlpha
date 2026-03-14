@@ -2,12 +2,12 @@
 # ─────────────────────────────────────────────────────────────
 # PraxiAlpha — Local CI Check
 #
-# Runs the same lint, format, and type checks that GitHub Actions
-# runs. Use this BEFORE pushing to catch failures early.
+# Runs the same lint, format, type, and test checks that GitHub
+# Actions runs. Use this BEFORE pushing to catch failures early.
 #
 # Usage:
-#   ./scripts/ci_check.sh          # run all checks
-#   ./scripts/ci_check.sh --fix    # auto-fix lint + format issues
+#   ./scripts/ci_check.sh          # run all checks (lint + format + types + tests)
+#   ./scripts/ci_check.sh --fix    # auto-fix lint + format issues, then run tests
 # ─────────────────────────────────────────────────────────────
 
 set -euo pipefail  # Strict mode for setup, disabled below for check accumulation
@@ -34,7 +34,7 @@ FAILED=0
 set +e
 
 # ── Step 1: Ruff Lint ──
-echo -n "  [1/3] Ruff lint ........... "
+echo -n "  [1/4] Ruff lint ........... "
 if $FIX_MODE; then
     python3 -m ruff check backend/ scripts/ --fix --quiet 2>/dev/null
     echo -e "${GREEN}fixed ✅${NC}"
@@ -50,7 +50,7 @@ else
 fi
 
 # ── Step 2: Ruff Format ──
-echo -n "  [2/3] Ruff format ........ "
+echo -n "  [2/4] Ruff format ........ "
 if $FIX_MODE; then
     python3 -m ruff format backend/ scripts/ --quiet 2>/dev/null
     echo -e "${GREEN}fixed ✅${NC}"
@@ -66,7 +66,7 @@ else
 fi
 
 # ── Step 3: Mypy ──
-echo -n "  [3/3] Mypy types ......... "
+echo -n "  [3/4] Mypy types ......... "
 if python3 -m mypy backend/ --ignore-missing-imports --no-error-summary 2>/dev/null | grep -q "error"; then
     echo -e "${RED}FAILED ❌${NC}"
     echo ""
@@ -74,6 +74,17 @@ if python3 -m mypy backend/ --ignore-missing-imports --no-error-summary 2>/dev/n
     FAILED=1
 else
     echo -e "${GREEN}passed ✅${NC}"
+fi
+
+# ── Step 4: Pytest ──
+echo -n "  [4/4] Pytest ............. "
+if python3 -m pytest --tb=short -q 2>/dev/null; then
+    echo -e "${GREEN}passed ✅${NC}"
+else
+    echo -e "${RED}FAILED ❌${NC}"
+    echo ""
+    python3 -m pytest --tb=short
+    FAILED=1
 fi
 
 # Re-enable strict mode for the exit
