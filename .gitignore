@@ -62,6 +62,9 @@ logs/
 # Data (local dev data is too large for git)
 data/backups/
 data/exports/
+data/backfill_progress.json
+data/backfill_progress.tmp
+data/backfill_live.log
 
 # Node (frontend)
 node_modules/

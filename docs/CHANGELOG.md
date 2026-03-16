@@ -8,6 +8,30 @@
 ## [Unreleased]
 
 ### Added
+- **Production backfill script (`scripts/backfill_full.py`)** — full market backfill for ~10K+ active US stocks & ETFs
+  - Smart ticker filtering: only Common Stock + ETF (skips warrants, preferred, units, OTC)
+  - Async concurrency with configurable semaphore (default 5 parallel requests)
+  - Real-time `data/backfill_live.log` for `tail -f` monitoring (one line per ticker)
+  - `data/backfill_progress.json` checkpoint file — tracks completed/failed tickers, records count, ETA
+  - Resume from checkpoint after crash (`--resume` flag)
+  - Dry-run mode (`--dry-run`) to preview without API calls
+  - Failed ticker retry queue (automatic sequential retry after main pass)
+  - Incremental start date: uses `stock.latest_date - 5 days` overlap to avoid re-fetching full history
+  - CLI flags: `--concurrency`, `--asset-type`, `--skip-splits-divs`, `--start-date`
+- **Implemented `daily_ohlcv_update` Celery task** — replaces TODO stub with working incremental logic
+  - Uses EODHD bulk endpoint (single API call for all tickers on a given date)
+  - Updates `stock.latest_date` after successful upsert
+  - Includes retry logic (max 3 retries, 5-minute delay)
+- **Implemented `daily_macro_update` Celery task** — replaces TODO stub with working incremental logic
+  - Fetches only last 7 days of observations per FRED series (incremental, not full re-fetch)
+  - Upserts with ON CONFLICT deduplication
+- **33 new tests** (95 total) — ticker filtering, progress tracker, checkpoint load/save, incremental date calculation
+
+### Changed
+- `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
+- `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`
+- `.gitignore` updated to exclude backfill progress/log files
+
 - **`WORKFLOW.md` — session workflow document** — entry point for every Copilot chat session; includes current project state, 7-step session workflow, common pitfalls, quick reference, and session log summary
 - **Economic calendar full integration** — service layer, API, Celery scheduler, and Streamlit dashboard widget
   - `EconomicCalendarService` — orchestrates fetch/upsert/query/prune operations for calendar events (PostgreSQL upsert with ON CONFLICT)

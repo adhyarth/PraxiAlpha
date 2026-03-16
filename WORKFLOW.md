@@ -4,30 +4,32 @@
 > Paste it (or reference it) at the start of every new conversation so Copilot
 > has full context on where we left off, what comes next, and how we work.
 >
-> **Last updated:** 2026-03-16 (Session 7)
+> **Last updated:** 2026-03-16 (Session 8)
 
 ---
 
 ## 1. Current Project State
 
-### What Exists (as of Session 6)
+### What Exists (as of Session 8)
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Database** | ✅ Running | PostgreSQL 16 + TimescaleDB via Docker |
 | **Tables** | ✅ Populated | `stocks` (49K), `daily_ohlcv` (68K test), `macro_data` (81K), `stock_splits`, `stock_dividends`, `economic_calendar_events` |
 | **Data Pipeline** | ✅ Working | EODHD fetcher (OHLCV, splits, dividends), FRED fetcher (14 macro series), TradingEconomics fetcher (economic calendar) |
+| **Backfill** | ✅ Ready | `scripts/backfill_full.py` — production backfill with concurrency, progress tracking, checkpoint/resume |
+| **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint), daily macro (7-day incremental), daily calendar |
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/` |
-| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV, daily macro, daily economic calendar (7 AM ET) |
+| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget (high-impact + all events) |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (62 tests) |
-| **Tests** | ✅ 62 passing | Model, fetcher, service, API, task, widget, helpers |
-| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (6 sessions), CHANGELOG, CONTRIBUTING |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (95 tests) |
+| **Tests** | ✅ 95 passing | Model, fetcher, service, API, task, widget, helpers, backfill |
+| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (8 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
 
 ### Current Phase
 **Phase 1: Foundation (Weeks 1–4)** — mostly complete.
 
 #### Phase 1 Remaining Tasks
-- [ ] Backfill ALL active US stocks + ETFs (~10,000 tickers) → full 30+ year history
+- [ ] **Run full backfill** — execute `python scripts/backfill_full.py` to backfill ~10K tickers (script is ready, needs to be run)
 - [ ] Compute weekly/monthly candles from daily data
 
 #### Phase 2: Charting & Basic Dashboard (Weeks 5–8) — next
@@ -224,6 +226,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | 5 | 2026-03-14 | Economic calendar full stack (model, fetcher, service, API, Celery, Streamlit, 32 tests) | PR #3 |
 | 6 | 2026-03-15 | Copilot code review fixes (9 items: asyncio, datetime parsing, bulk upsert, validation) | PR #3 |
 | 7 | 2026-03-16 | Session workflow document (this file) | PR #5 |
+| 8 | 2026-03-16 | Production backfill script, daily OHLCV/macro Celery tasks, 33 new tests (95 total) | PR #6 |
 
 ---
 

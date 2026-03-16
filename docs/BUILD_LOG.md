@@ -502,3 +502,67 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - `docs/CHANGELOG.md` — documented new workflow document
 
 #### Test Count: 62 (unchanged)
+
+---
+
+### Session 8 — 2026-03-16: Production Backfill Script & Daily Task Implementation
+
+#### What We Did
+1. ✅ **Created `scripts/backfill_full.py`** — production-grade full market backfill
+   - **Smart ticker filtering** — only `Common Stock` + `ETF` asset types (skips warrants, preferred shares, units, OTC junk). Filters from 49K → ~10K tickers
+   - **Async concurrency** — configurable semaphore (default 5 parallel requests) to stay well under EODHD's 1K calls/min limit
+   - **Real-time progress tracking** — `data/backfill_live.log` (one line per ticker, `tail -f` friendly) + `data/backfill_progress.json` (full snapshot with ETA, completed/failed lists)
+   - **Checkpoint/resume** — `--resume` flag reads the progress JSON, skips already-completed tickers. Safe to Ctrl+C and restart
+   - **Failed ticker retry** — failed tickers are collected and retried sequentially at the end (single retry attempt)
+   - **Incremental start date** — if `stock.latest_date` exists, fetches from `latest_date - 5 days` (overlap for corrections) instead of full 30+ year history
+   - **Dry-run mode** — `--dry-run` shows what would be fetched without calling the API
+   - **CLI options** — `--concurrency`, `--asset-type`, `--skip-splits-divs`, `--start-date`
+   - Longer timeout (60s vs default 30s) for heavy historical pulls
+
+2. ✅ **Implemented `daily_ohlcv_update` Celery task** — replaced TODO stub
+   - Uses `EODHDFetcher.fetch_bulk_eod()` — single API call returns all US tickers' EOD for a date
+   - Matches bulk data against `stocks` table for `stock_id` lookup
+   - Upserts into `daily_ohlcv` with ON CONFLICT
+   - Updates `stock.latest_date` for every affected stock after successful upsert
+   - Retry logic: max 3 retries with 5-minute delay (`bind=True`, `self.retry(exc=exc)`)
+
+3. ✅ **Implemented `daily_macro_update` Celery task** — replaced TODO stub
+   - Fetches only the **last 7 days** of observations per FRED series (incremental, not full re-fetch)
+   - Upserts with ON CONFLICT deduplication
+   - Same retry logic as OHLCV task
+
+4. ✅ **Made `EODHDFetcher` timeout configurable**
+   - Added `timeout` parameter to constructor (default 30s for normal use, 60s for backfill)
+
+5. ✅ **Wrote 33 new tests** (95 total, up from 62)
+   - `test_backfill_full.py` — 4 test classes:
+     - `TestFilterBackfillTickers` (14 tests) — all asset type filtering edge cases
+     - `TestBackfillProgressTracker` (12 tests) — success/failure recording, JSON persistence, resume, summary, ETA, atomic writes
+     - `TestLoadCheckpoint` (3 tests) — nonexistent, valid, corrupt checkpoint files
+     - `TestIncrementalDateLogic` (4 tests) — incremental start date calculation with overlap
+
+#### Architecture Decisions
+- **New script, not modifying `backfill_data.py`** — the existing script works for small ad-hoc runs (`--test`, `--tickers`). The new script is purpose-built for the full 10K+ ticker production run
+- **Progress file as checkpoint** — JSON is human-readable, can be `cat`'d to check status, and doubles as the resume checkpoint
+- **Atomic file writes** — progress JSON is written to `.tmp` then renamed to avoid corruption on crash
+- **Bulk endpoint for daily updates** — EODHD's `eod-bulk-last-day` endpoint returns all tickers in one call (vs. 10K individual calls), massively more efficient for daily updates
+- **5-day overlap on incremental** — ensures we catch any late corrections/adjustments from the exchange
+
+#### Files Created
+- `scripts/backfill_full.py` (new) — production backfill script
+- `backend/tests/test_backfill_full.py` (new) — 33 tests for backfill logic
+
+#### Files Modified
+- `backend/tasks/data_tasks.py` — implemented `daily_ohlcv_update`, `daily_macro_update`, updated `backfill_stock` and `backfill_all_stocks`
+- `backend/services/data_pipeline/eodhd_fetcher.py` — added `timeout` parameter to `EODHDFetcher.__init__`
+- `.gitignore` — added `data/backfill_progress.json`, `data/backfill_progress.tmp`, `data/backfill_live.log`
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+- `WORKFLOW.md` — updated current state, phase status, session log
+
+#### Test Count: 95 (was 62, +33 new)
+
+#### Lessons Learned
+- EODHD has a `eod-bulk-last-day` endpoint that returns all tickers in one call — much more efficient for daily updates than per-ticker requests
+- The `stocks` table has 49K tickers but only ~10K are Common Stock or ETF — the rest are warrants, preferred, units, OTC junk
+- Atomic file writes (write to .tmp, then rename) prevent checkpoint corruption on crash
