@@ -101,8 +101,8 @@ Branch types: `feat/`, `fix/`, `docs/`, `refactor/`, `ci/`, `test/`, `chore/`
 ./scripts/ci_check.sh
 
 # Option B: Run each check individually
-ruff check backend/ scripts/ streamlit_app/
-ruff format --check backend/ scripts/ streamlit_app/
+ruff check backend/ scripts/
+ruff format --check backend/ scripts/
 mypy backend/ --ignore-missing-imports
 pytest --tb=short -q
 ```
@@ -184,7 +184,7 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 docker compose up -d          # Start all 5 services
 docker compose down           # Stop all services
 docker compose logs -f app    # Follow FastAPI logs
-docker exec -it praxialpha-db-1 psql -U praxialpha -d praxialpha  # SQL shell
+docker compose exec db psql -U praxialpha -d praxialpha  # SQL shell
 ```
 
 ### Local CI
