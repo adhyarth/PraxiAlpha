@@ -4,6 +4,7 @@ PraxiAlpha — Economic Calendar Integration Tests
 Tests for EconomicCalendarService (service layer) and calendar helpers.
 """
 
+import importlib.util
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -227,8 +228,8 @@ class TestEconomicCalendarTask:
     """Tests for the daily_economic_calendar_sync Celery task."""
 
     @pytest.mark.skipif(
-        not pytest.importorskip("celery", reason="celery not installed in CI"),
-        reason="celery not installed",
+        importlib.util.find_spec("celery") is None,
+        reason="celery not installed in CI",
     )
     def test_task_is_registered(self):
         """The task should be importable and callable."""

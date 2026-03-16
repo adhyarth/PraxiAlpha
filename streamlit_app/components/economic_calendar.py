@@ -10,6 +10,7 @@ unavailable, it falls back to a direct TradingEconomics API call.
 """
 
 import asyncio
+import os
 from datetime import datetime
 
 import streamlit as st
@@ -31,9 +32,10 @@ def _fetch_events_from_api(days: int = 7, importance: int | None = 3) -> list[di
         if importance is not None:
             params["importance"] = importance
 
-        response = httpx.get(
-            "http://localhost:8000/api/v1/calendar/upcoming", params=params, timeout=5
-        )
+        base_url = os.getenv("BACKEND_BASE_URL", "http://localhost:8000").rstrip("/")
+        url = f"{base_url}/api/v1/calendar/upcoming"
+
+        response = httpx.get(url, params=params, timeout=5)
         if response.status_code == 200:
             result: list[dict] = response.json().get("events", [])
             return result
@@ -57,8 +59,14 @@ def _fetch_events_direct(days: int = 7, importance: int | None = 3) -> list[dict
             await fetcher.close()
 
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
+        # Prefer asyncio.run() when no event loop is running.
+        try:
+            asyncio.get_running_loop()
+            loop_is_running = True
+        except RuntimeError:
+            loop_is_running = False
+
+        if loop_is_running:
             # Streamlit runs its own event loop — use a new one
             import concurrent.futures
 
@@ -68,7 +76,7 @@ def _fetch_events_direct(days: int = 7, importance: int | None = 3) -> list[dict
                 )
                 return events_result
         else:
-            sync_result: list[dict] = loop.run_until_complete(_fetch())
+            sync_result: list[dict] = asyncio.run(_fetch())
             return sync_result
     except Exception as exc:
         st.warning(f"Could not fetch economic calendar: {exc}")

@@ -14,7 +14,7 @@ Upgrade to Professional API plan for full access + WebSocket streaming.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -165,20 +165,59 @@ class TradingEconomicsFetcher:
         return events
 
     @staticmethod
+    def _parse_datetime(value: Any) -> datetime | None:
+        """
+        Best-effort parsing of TradingEconomics date/time values into
+        timezone-aware datetimes (UTC). Returns None if parsing fails.
+        """
+        if value is None or value == "":
+            return None
+
+        if isinstance(value, datetime):
+            # Ensure timezone-aware (assume UTC if naive)
+            if value.tzinfo is None:
+                return value.replace(tzinfo=UTC)
+            return value
+
+        if isinstance(value, str):
+            text = value.strip()
+            if not text:
+                return None
+            # Normalize trailing 'Z' (UTC) so fromisoformat can handle it
+            if text.endswith("Z"):
+                text = text[:-1] + "+00:00"
+            try:
+                dt = datetime.fromisoformat(text)
+            except ValueError:
+                logger.warning("Failed to parse TradingEconomics datetime value: %r", value)
+                return None
+            # Attach UTC if no timezone info was provided
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return dt
+
+        logger.warning(
+            "Unexpected type for TradingEconomics datetime value: %r (%s)", value, type(value)
+        )
+        return None
+
+    @staticmethod
     def parse_event(raw: dict[str, Any]) -> dict[str, Any]:
         """
         Parse a raw TradingEconomics event dict into our model-friendly format.
 
         Maps TradingEconomics field names → EconomicCalendarEvent columns.
+        Timestamp fields (date, reference_date, te_last_update) are parsed
+        into timezone-aware datetime objects for safe SQLAlchemy insertion.
         """
         return {
             "calendar_id": str(raw.get("CalendarId", "")),
-            "date": raw.get("Date"),
+            "date": TradingEconomicsFetcher._parse_datetime(raw.get("Date")),
             "country": raw.get("Country", ""),
             "category": raw.get("Category", ""),
             "event": raw.get("Event", ""),
             "reference": raw.get("Reference"),
-            "reference_date": raw.get("ReferenceDate"),
+            "reference_date": TradingEconomicsFetcher._parse_datetime(raw.get("ReferenceDate")),
             "actual": raw.get("Actual"),
             "previous": raw.get("Previous"),
             "forecast": raw.get("Forecast"),
@@ -191,5 +230,5 @@ class TradingEconomicsFetcher:
             "currency": raw.get("Currency"),
             "unit": raw.get("Unit"),
             "ticker": raw.get("Ticker"),
-            "te_last_update": raw.get("LastUpdate"),
+            "te_last_update": TradingEconomicsFetcher._parse_datetime(raw.get("LastUpdate")),
         }

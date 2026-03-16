@@ -104,6 +104,6 @@ def daily_economic_calendar_sync():
             await session.commit()
         return count, pruned
 
-    count, pruned = asyncio.get_event_loop().run_until_complete(_sync())
+    count, pruned = asyncio.run(_sync())
     logger.info(f"✅ Economic calendar sync complete: {count} upserted, {pruned} pruned")
     return {"upserted": count, "pruned": pruned}

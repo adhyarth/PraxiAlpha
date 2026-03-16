@@ -86,34 +86,123 @@ class EconomicCalendarService:
         Upsert a list of parsed event dicts into the database.
 
         Uses PostgreSQL INSERT ... ON CONFLICT (calendar_id) DO UPDATE
-        so re-syncing the same window is idempotent.
+        so re-syncing the same window is idempotent. Validates each event
+        before insertion and skips malformed ones (missing calendar_id or
+        unparseable date).
         """
         if not events:
             return 0
 
-        count = 0
-        for event in events:
-            stmt = (
-                pg_insert(EconomicCalendarEvent)
-                .values(**event)
-                .on_conflict_do_update(
-                    constraint="uq_economic_calendar_id",
-                    set_={
-                        "actual": event.get("actual"),
-                        "previous": event.get("previous"),
-                        "forecast": event.get("forecast"),
-                        "te_forecast": event.get("te_forecast"),
-                        "revised": event.get("revised"),
-                        "importance": event.get("importance"),
-                        "te_last_update": event.get("te_last_update"),
-                    },
-                )
-            )
-            await self.session.execute(stmt)
-            count += 1
+        # Validate and normalize events, dropping any with bad data
+        valid_events: list[dict] = []
+        for raw_event in events:
+            prepared = self._prepare_event_for_upsert(raw_event)
+            if prepared is not None:
+                valid_events.append(prepared)
 
+        if not valid_events:
+            return 0
+
+        # Bulk upsert — single statement for all events
+        insert_stmt = pg_insert(EconomicCalendarEvent).values(valid_events)
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            constraint="uq_economic_calendar_id",
+            set_={
+                # Update fields that can change between syncs
+                "date": insert_stmt.excluded.date,
+                "country": insert_stmt.excluded.country,
+                "category": insert_stmt.excluded.category,
+                "event": insert_stmt.excluded.event,
+                "actual": insert_stmt.excluded.actual,
+                "previous": insert_stmt.excluded.previous,
+                "forecast": insert_stmt.excluded.forecast,
+                "te_forecast": insert_stmt.excluded.te_forecast,
+                "revised": insert_stmt.excluded.revised,
+                "importance": insert_stmt.excluded.importance,
+                "te_last_update": insert_stmt.excluded.te_last_update,
+            },
+        )
+        await self.session.execute(upsert_stmt)
         await self.session.flush()
-        return count
+        return len(valid_events)
+
+    def _prepare_event_for_upsert(self, event: dict) -> dict | None:
+        """
+        Validate and normalize a single event dict before upsert.
+
+        Ensures required fields are present and timestamp fields are
+        converted to timezone-aware datetimes. Returns a new, safe dict,
+        or None if the event should be skipped.
+        """
+        # Require a stable identifier and a date; skip if missing.
+        calendar_id = event.get("calendar_id")
+        raw_date = event.get("date")
+        if not calendar_id or not raw_date:
+            logger.warning(
+                "Skipping economic calendar event due to missing calendar_id or date: %s",
+                event,
+            )
+            return None
+
+        normalized = dict(event)
+
+        # Normalize the primary date field.
+        if isinstance(raw_date, str):
+            parsed_date = self._parse_timestamp(raw_date)
+            if parsed_date is None:
+                logger.warning(
+                    "Skipping economic calendar event due to unparseable date '%s': %s",
+                    raw_date,
+                    event,
+                )
+                return None
+            normalized["date"] = parsed_date
+
+        # Normalize TradingEconomics "last update" timestamp if present.
+        te_last_update = normalized.get("te_last_update")
+        if isinstance(te_last_update, str):
+            parsed_update = self._parse_timestamp(te_last_update)
+            if parsed_update is None:
+                logger.warning(
+                    "Skipping economic calendar event due to unparseable te_last_update '%s': %s",
+                    te_last_update,
+                    event,
+                )
+                return None
+            normalized["te_last_update"] = parsed_update
+
+        # Normalize reference_date if present.
+        reference_date = normalized.get("reference_date")
+        if isinstance(reference_date, str):
+            normalized["reference_date"] = self._parse_timestamp(reference_date)
+            # reference_date is optional — None is fine if unparseable
+
+        return normalized
+
+    @staticmethod
+    def _parse_timestamp(value: str) -> datetime | None:
+        """
+        Parse a timestamp string into a timezone-aware datetime.
+
+        Returns None if parsing fails.
+        """
+        if not value:
+            return None
+
+        # Handle common ISO-8601 formats, including a trailing "Z"
+        text = value.strip()
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+
+        try:
+            dt = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+
+        # Ensure the datetime is timezone-aware; default to UTC if naive.
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
 
     async def prune_old_events(self, retention_days: int = RETENTION_DAYS) -> int:
         """

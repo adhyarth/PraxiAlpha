@@ -18,6 +18,7 @@
   - Dashboard page (`pages/dashboard.py`) — tabbed widget with "High Impact" and "All Events" views
   - 18 new integration tests: service (sync, prune, query, is_high_impact), API serialization, Celery task registration, and widget helpers (badges, countdown, edge cases)
   - `__init__.py` files for `streamlit_app/`, `streamlit_app/components/`, `streamlit_app/pages/` (fixes mypy module resolution)
+  - `calendar_helpers.py` — pure helper module (`importance_badge`, `days_until`, `serialize_event`) with zero heavy deps, safe for lightweight CI
 - **Economic calendar infrastructure** — placeholder model, fetcher, and tests for TradingEconomics API integration
   - `EconomicCalendarEvent` SQLAlchemy model with all TE fields (calendar_id, importance, actual/previous/forecast, etc.)
   - `TradingEconomicsFetcher` async fetcher with retry logic, country/importance/date filtering, and `parse_event()` mapper
@@ -42,6 +43,15 @@
 - **Git pre-push hook** — automatically runs `ci_check.sh` before every `git push`, blocking pushes that would fail CI
 
 ### Fixed
+- **Celery task `RuntimeError` on Python 3.11+** — `daily_economic_calendar_sync` used `asyncio.get_event_loop().run_until_complete()` which can raise `RuntimeError` when no loop exists; replaced with `asyncio.run()`
+- **Raw string timestamps in `parse_event()`** — `TradingEconomicsFetcher.parse_event()` returned raw strings for `date`, `reference_date`, and `te_last_update` but the model expects `DateTime(timezone=True)`; added `_parse_datetime()` to produce timezone-aware datetimes
+- **Malformed events crash full sync** — a single event with missing `calendar_id` or unparseable `date` would crash the entire upsert batch; added `_prepare_event_for_upsert()` validation/normalization in `EconomicCalendarService`
+- **Stale fields on upsert** — ON CONFLICT `set_=` only updated `actual`/`forecast`/`previous` etc.; now also updates `date`, `country`, `category`, `event` so rescheduled events are reflected
+- **N+1 upsert queries** — replaced per-event INSERT loop with a single bulk `pg_insert(...).values(events).on_conflict_do_update(...)` using `insert_stmt.excluded` references
+- **Streamlit `RuntimeError` on Python 3.11+** — `_fetch_events_direct()` used `asyncio.get_event_loop()` which can raise `RuntimeError`; replaced with `asyncio.get_running_loop()` + fallback to `asyncio.run()`
+- **Hardcoded backend URL** — Streamlit widget's `_fetch_events_from_api()` used `http://localhost:8000`; now reads `BACKEND_BASE_URL` env var
+- **`pytest.importorskip` side effect** — `skipif` condition called `pytest.importorskip("celery")` which raises a skip during collection, potentially skipping the entire file; replaced with `importlib.util.find_spec("celery") is None`
+- **Corrupted DESIGN_DOC.md schema** — ASCII box-drawing for `watchlists`/`alerts`/`trades` tables was corrupted (missing headers, unclosed boxes); rebuilt with clean box-drawing characters
 - **Mypy type errors** — fixed 3 `[no-any-return]` errors in `eodhd_fetcher.py` and `fred_fetcher.py` by adding explicit type annotations for `response.json()` return values
 - **Discontinued FRED series** — removed `GOLDAMGBD228NLBM` (Gold Price, no longer available on FRED) from the macro series registry
 - **Ruff lint failures** — removed unused imports (`MagicMock`, `AsyncMock`, `patch`) from test files; added `N806` ignore for test files in `pyproject.toml` (PascalCase mock variables are conventional)
