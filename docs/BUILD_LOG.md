@@ -472,3 +472,33 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - `docs/BUILD_LOG.md` — this entry
 
 #### Test Count: 62 (unchanged)
+
+---
+
+### Session 7 — 2026-03-16: Session Workflow Document
+
+#### What We Did
+1. ✅ **Created `WORKFLOW.md`** — session entry point document for Copilot chat sessions
+   - **§1 Current Project State** — table of all components and their status, current phase, remaining tasks, next phase preview, key files to read
+   - **§2 Session Workflow** — 7-step checklist (orientation → branch → implement → docs → CI → PR → cleanup) with exact commands and conventions
+   - **§3 Common Pitfalls** — 8 lessons distilled from Sessions 1–6 (build log ordering, index corruption, asyncio, docs drift, etc.)
+   - **§4 Quick Reference** — Docker, CI, Git, and API cheat sheet
+   - **§5 Session Log Summary** — one-line summary table of all sessions with PR references
+   - Includes a **copy-paste prompt** for starting new chat sessions
+
+2. ✅ **Motivation:** Ensure consistency across chat sessions — same workflow every time, no ad-hoc steps, no documentation drift, no build log ordering issues
+
+#### Architecture Decisions
+- **Workflow doc lives at project root** (`WORKFLOW.md`) — it's the entry point, not buried in `docs/`
+- **Step 0 (Orientation)** is explicit — Copilot must read WORKFLOW.md, BUILD_LOG latest session, and DESIGN_DOC phase roadmap before writing any code
+- **Documentation is part of the implementation step**, not a separate afterthought — this prevents the build log duplication and ordering bugs from Sessions 5–6
+- **Session Log Summary table** in WORKFLOW.md gives a quick birds-eye view without reading the full BUILD_LOG
+
+#### Files Created
+- `WORKFLOW.md` (new) — session workflow, current state, quick reference
+
+#### Files Modified
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented new workflow document
+
+#### Test Count: 62 (unchanged)

@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- **`WORKFLOW.md` — session workflow document** — entry point for every Copilot chat session; includes current project state, 7-step session workflow, common pitfalls, quick reference, and session log summary
 - **Economic calendar full integration** — service layer, API, Celery scheduler, and Streamlit dashboard widget
   - `EconomicCalendarService` — orchestrates fetch/upsert/query/prune operations for calendar events (PostgreSQL upsert with ON CONFLICT)
   - `GET /api/v1/calendar/upcoming` — query upcoming events with `days`, `importance`, and `limit` filters
