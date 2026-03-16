@@ -1,7 +1,7 @@
 """
 PraxiAlpha — Economic Calendar Integration Tests
 
-Tests for EconomicCalendarService (service layer) and calendar API routes.
+Tests for EconomicCalendarService (service layer) and calendar helpers.
 """
 
 from datetime import UTC, datetime, timedelta
@@ -10,6 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from backend.models.economic_calendar import EconomicCalendarEvent
+from backend.services.data_pipeline.calendar_helpers import (
+    days_until,
+    importance_badge,
+    serialize_event,
+)
 from backend.services.data_pipeline.economic_calendar_service import (
     EconomicCalendarService,
 )
@@ -157,16 +162,14 @@ class TestEconomicCalendarService:
         assert EconomicCalendarService.is_high_impact(event) is False
 
 
-# ---- API Serialization Tests ----
+# ---- Serialization Tests ----
 
 
 class TestCalendarAPISerialization:
-    """Tests for the _serialize_event helper."""
+    """Tests for the serialize_event helper."""
 
     def test_serialize_event_full(self):
         """Should serialize all fields from a model instance."""
-        from backend.api.routes.calendar import _serialize_event
-
         event = MagicMock(spec=EconomicCalendarEvent)
         event.id = 1
         event.calendar_id = "384241"
@@ -184,7 +187,7 @@ class TestCalendarAPISerialization:
         event.currency = "USD"
         event.unit = "%"
 
-        result = _serialize_event(event)
+        result = serialize_event(event)
 
         assert result["id"] == 1
         assert result["calendar_id"] == "384241"
@@ -196,8 +199,6 @@ class TestCalendarAPISerialization:
 
     def test_serialize_event_none_date(self):
         """Should handle None date gracefully."""
-        from backend.api.routes.calendar import _serialize_event
-
         event = MagicMock(spec=EconomicCalendarEvent)
         event.id = 2
         event.calendar_id = "999"
@@ -215,7 +216,7 @@ class TestCalendarAPISerialization:
         event.currency = None
         event.unit = None
 
-        result = _serialize_event(event)
+        result = serialize_event(event)
         assert result["date"] is None
 
 
@@ -225,6 +226,10 @@ class TestCalendarAPISerialization:
 class TestEconomicCalendarTask:
     """Tests for the daily_economic_calendar_sync Celery task."""
 
+    @pytest.mark.skipif(
+        not pytest.importorskip("celery", reason="celery not installed in CI"),
+        reason="celery not installed",
+    )
     def test_task_is_registered(self):
         """The task should be importable and callable."""
         from backend.tasks.data_tasks import daily_economic_calendar_sync
@@ -232,56 +237,41 @@ class TestEconomicCalendarTask:
         assert callable(daily_economic_calendar_sync)
 
 
-# ---- Dashboard Widget Tests ----
+# ---- Helper Function Tests ----
+# These test the pure helpers from calendar_helpers.py (no heavy deps).
 
 
 class TestDashboardWidgetHelpers:
-    """Tests for the Streamlit widget helper functions."""
+    """Tests for the calendar helper functions (importance_badge, days_until)."""
 
     def test_importance_badge_high(self):
-        from streamlit_app.components.economic_calendar import _importance_badge
-
-        assert "High" in _importance_badge(3)
+        assert "High" in importance_badge(3)
 
     def test_importance_badge_medium(self):
-        from streamlit_app.components.economic_calendar import _importance_badge
-
-        assert "Medium" in _importance_badge(2)
+        assert "Medium" in importance_badge(2)
 
     def test_importance_badge_low(self):
-        from streamlit_app.components.economic_calendar import _importance_badge
-
-        assert "Low" in _importance_badge(1)
+        assert "Low" in importance_badge(1)
 
     def test_importance_badge_unknown(self):
-        from streamlit_app.components.economic_calendar import _importance_badge
-
-        assert "Unknown" in _importance_badge(99)
+        assert "Unknown" in importance_badge(99)
 
     def test_days_until_today(self):
-        from streamlit_app.components.economic_calendar import _days_until
-
         # Use a time a few hours in the future to ensure it's still "today"
         now = datetime.now() + timedelta(hours=2)
-        result = _days_until(now.isoformat())
+        result = days_until(now.isoformat())
         assert result in ("Today", "Tomorrow")  # Could be either near midnight
 
     def test_days_until_future(self):
-        from streamlit_app.components.economic_calendar import _days_until
-
         future = (datetime.now() + timedelta(days=5, hours=12)).isoformat()
-        result = _days_until(future)
+        result = days_until(future)
         assert "days" in result  # Should be "In N days" for N >= 2
 
     def test_days_until_past(self):
-        from streamlit_app.components.economic_calendar import _days_until
-
         past = (datetime.now() - timedelta(days=3)).isoformat()
-        result = _days_until(past)
+        result = days_until(past)
         assert result == "Past"
 
     def test_days_until_invalid(self):
-        from streamlit_app.components.economic_calendar import _days_until
-
-        assert _days_until("not-a-date") == ""
-        assert _days_until(None) == ""
+        assert days_until("not-a-date") == ""
+        assert days_until(None) == ""

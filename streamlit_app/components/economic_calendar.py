@@ -14,29 +14,12 @@ from datetime import datetime
 
 import streamlit as st
 
-
-def _importance_badge(level: int) -> str:
-    """Return a colored emoji badge for importance level."""
-    return {3: "🔴 High", 2: "🟡 Medium", 1: "🟢 Low"}.get(level, "⚪ Unknown")
-
-
-def _days_until(date_str: str | None) -> str:
-    """Human-readable countdown from now to event date."""
-    if not date_str:
-        return ""
-    try:
-        event_dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        now = datetime.now(event_dt.tzinfo) if event_dt.tzinfo else datetime.now()
-        delta = (event_dt - now).days
-        if delta < 0:
-            return "Past"
-        if delta == 0:
-            return "Today"
-        if delta == 1:
-            return "Tomorrow"
-        return f"In {delta} days"
-    except (ValueError, TypeError):
-        return ""
+from backend.services.data_pipeline.calendar_helpers import (
+    days_until as _days_until,
+)
+from backend.services.data_pipeline.calendar_helpers import (
+    importance_badge as _importance_badge,
+)
 
 
 def _fetch_events_from_api(days: int = 7, importance: int | None = 3) -> list[dict] | None:

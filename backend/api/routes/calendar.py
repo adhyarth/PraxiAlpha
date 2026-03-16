@@ -9,32 +9,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_db
+from backend.services.data_pipeline.calendar_helpers import serialize_event
 from backend.services.data_pipeline.economic_calendar_service import (
     EconomicCalendarService,
 )
 
 router = APIRouter(prefix="/calendar", tags=["Economic Calendar"])
-
-
-def _serialize_event(e) -> dict:  # type: ignore[no-untyped-def]
-    """Convert an EconomicCalendarEvent model to a JSON-friendly dict."""
-    return {
-        "id": e.id,
-        "calendar_id": e.calendar_id,
-        "date": e.date.isoformat() if e.date else None,
-        "country": e.country,
-        "category": e.category,
-        "event": e.event,
-        "reference": e.reference,
-        "actual": e.actual,
-        "previous": e.previous,
-        "forecast": e.forecast,
-        "te_forecast": e.te_forecast,
-        "importance": e.importance,
-        "source": e.source,
-        "currency": e.currency,
-        "unit": e.unit,
-    }
 
 
 @router.get("/upcoming")
@@ -55,7 +35,7 @@ async def upcoming_events(
     events = await svc.get_upcoming_events(days=days, importance=importance, limit=limit)
     return {
         "count": len(events),
-        "events": [_serialize_event(e) for e in events],
+        "events": [serialize_event(e) for e in events],
     }
 
 
@@ -74,7 +54,7 @@ async def high_impact_events(
     events = await svc.get_high_impact_events(days=days, limit=limit)
     return {
         "count": len(events),
-        "events": [_serialize_event(e) for e in events],
+        "events": [serialize_event(e) for e in events],
     }
 
 
