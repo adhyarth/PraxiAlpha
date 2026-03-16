@@ -8,6 +8,24 @@
 ## [Unreleased]
 
 ### Added
+- **Economic calendar full integration** — service layer, API, Celery scheduler, and Streamlit dashboard widget
+  - `EconomicCalendarService` — orchestrates fetch/upsert/query/prune operations for calendar events (PostgreSQL upsert with ON CONFLICT)
+  - `GET /api/v1/calendar/upcoming` — query upcoming events with `days`, `importance`, and `limit` filters
+  - `GET /api/v1/calendar/high-impact` — convenience endpoint for dashboard (importance=3 only)
+  - `POST /api/v1/calendar/sync` — manual trigger for TradingEconomics sync (for dev/testing)
+  - `daily_economic_calendar_sync` Celery Beat task — runs at 7 AM ET daily, syncs 14-day lookahead, prunes events >90 days old
+  - Streamlit `render_economic_calendar_widget()` — shows upcoming events with importance badges, countdown timers, and forecast/actual/previous values; falls back to direct TE API if backend is unavailable
+  - Dashboard page (`pages/dashboard.py`) — tabbed widget with "High Impact" and "All Events" views
+  - 18 new integration tests: service (sync, prune, query, is_high_impact), API serialization, Celery task registration, and widget helpers (badges, countdown, edge cases)
+  - `__init__.py` files for `streamlit_app/`, `streamlit_app/components/`, `streamlit_app/pages/` (fixes mypy module resolution)
+  - `calendar_helpers.py` — pure helper module (`importance_badge`, `days_until`, `serialize_event`) with zero heavy deps, safe for lightweight CI
+- **Economic calendar infrastructure** — placeholder model, fetcher, and tests for TradingEconomics API integration
+  - `EconomicCalendarEvent` SQLAlchemy model with all TE fields (calendar_id, importance, actual/previous/forecast, etc.)
+  - `TradingEconomicsFetcher` async fetcher with retry logic, country/importance/date filtering, and `parse_event()` mapper
+  - `US_HIGH_IMPACT_EVENTS` registry of 19 key US events (NFP, CPI, FOMC, GDP, etc.)
+  - 14 unit tests covering model, registry, and fetcher (44 total tests now)
+  - `te_api_key` config setting with `guest:guest` free-tier fallback
+- **Mental Model #14: "Economic events are noise, price action is signal"** — calendar events create short-term volatility but the tape is set by smart money; use the calendar defensively, not as a trading signal
 - **GitHub Pro upgrade** — enables full branch protection for private repos
 - **Branch protection on `main`** — require PRs, block direct pushes (including admins), block force pushes, require linear history, block branch deletion
 - **Squash-and-merge enforcement** — only squash merge is allowed for PRs; PR title becomes commit message, PR body becomes commit description
@@ -25,6 +43,15 @@
 - **Git pre-push hook** — automatically runs `ci_check.sh` before every `git push`, blocking pushes that would fail CI
 
 ### Fixed
+- **Celery task `RuntimeError` on Python 3.11+** — `daily_economic_calendar_sync` used `asyncio.get_event_loop().run_until_complete()` which can raise `RuntimeError` when no loop exists; replaced with `asyncio.run()`
+- **Raw string timestamps in `parse_event()`** — `TradingEconomicsFetcher.parse_event()` returned raw strings for `date`, `reference_date`, and `te_last_update` but the model expects `DateTime(timezone=True)`; added `_parse_datetime()` to produce timezone-aware datetimes
+- **Malformed events crash full sync** — a single event with missing `calendar_id` or unparseable `date` would crash the entire upsert batch; added `_prepare_event_for_upsert()` validation/normalization in `EconomicCalendarService`
+- **Stale fields on upsert** — ON CONFLICT `set_=` only updated `actual`/`forecast`/`previous` etc.; now also updates `date`, `country`, `category`, `event` so rescheduled events are reflected
+- **N+1 upsert queries** — replaced per-event INSERT loop with a single bulk `pg_insert(...).values(events).on_conflict_do_update(...)` using `insert_stmt.excluded` references
+- **Streamlit `RuntimeError` on Python 3.11+** — `_fetch_events_direct()` used `asyncio.get_event_loop()` which can raise `RuntimeError`; replaced with `asyncio.get_running_loop()` + fallback to `asyncio.run()`
+- **Hardcoded backend URL** — Streamlit widget's `_fetch_events_from_api()` used `http://localhost:8000`; now reads `BACKEND_BASE_URL` env var
+- **`pytest.importorskip` side effect** — `skipif` condition called `pytest.importorskip("celery")` which raises a skip during collection, potentially skipping the entire file; replaced with `importlib.util.find_spec("celery") is None`
+- **Corrupted DESIGN_DOC.md schema** — ASCII box-drawing for `watchlists`/`alerts`/`trades` tables was corrupted (missing headers, unclosed boxes); rebuilt with clean box-drawing characters
 - **Mypy type errors** — fixed 3 `[no-any-return]` errors in `eodhd_fetcher.py` and `fred_fetcher.py` by adding explicit type annotations for `response.json()` return values
 - **Discontinued FRED series** — removed `GOLDAMGBD228NLBM` (Gold Price, no longer available on FRED) from the macro series registry
 - **Ruff lint failures** — removed unused imports (`MagicMock`, `AsyncMock`, `patch`) from test files; added `N806` ignore for test files in `pyproject.toml` (PascalCase mock variables are conventional)
@@ -36,6 +63,7 @@
 - **Null filter test** — `test_backfill_macro_filters_null_values` accessed internal SQLAlchemy `stmt._values` which is `None`; simplified to verify `build_macro_records` output directly
 
 ### Changed
+- **DESIGN_DOC.md** — Added Mental Model #14, economic calendar data type, TradingEconomics as data provider, updated pipeline diagram, database schema, Phase 2 roadmap, cost table, architecture diagrams, and project structure
 - **FRED series registry** — replaced Gold Price (`GOLDAMGBD228NLBM`) with 10-Year Breakeven Inflation Rate (`T10YIE`) for better macro coverage
 - **CI test install** — split `[dev]` optional dependencies into `[test]` (lightweight) + `[dev]` (full); CI uses explicit lightweight install to avoid building unused heavy packages
 - **Macro backfill tests** — `TestBackfillMacroRecordBuilding` now tests the extracted `build_macro_records()` function directly instead of duplicating production logic

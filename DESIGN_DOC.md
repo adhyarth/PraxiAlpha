@@ -2,9 +2,9 @@
 
 > *"Disciplined action that generates alpha."*
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Created:** March 12, 2026  
-**Updated:** March 13, 2026  
+**Updated:** March 14, 2026  
 **Author:** Adhyarth Varia  
 **Status:** Draft — Finalized for Phase 1  
 
@@ -58,6 +58,7 @@ These principles are the foundation of PraxiAlpha and will be woven into every m
 11. **Understand the fear/greed machine** — Wall Street manufactures narratives to create fear at bottoms and greed at tops. Nobody wants a stock at $10, but when it hits $50 it becomes the talk of the town and "everyone" wants in. By the time retail investors hear about a "hot stock," the smart money is often already selling. Recognizing this cycle — accumulation in silence, distribution in hype — is the single most valuable edge a retail investor can develop. The crowd is almost always late; your job is to act *before* the narrative, not because of it
 12. **Be a contrarian with conviction** — The best trades feel uncomfortable. Buying when headlines scream doom and selling when euphoria is everywhere requires understanding that markets are driven by human psychology, not logic. Fear and greed are predictable — exploit them, don't fall victim to them
 13. **The market is a discounting machine** — The stock market prices in the future, not the present. By the time any news reaches a retail investor, it is already reflected in the price. Institutional players have faster data, deeper research, and algorithmic systems that act on information before it becomes a headline. Public knowledge = no edge. Your edge comes from reading *what the smart money is doing* (price/volume), not *what the media is saying*. This mental model is the foundation of humility — it prevents you from trading on "obvious" information that the market has already digested
+14. **Economic events are noise, price action is signal** — Scheduled economic releases (CPI, NFP, FOMC decisions, GDP) dominate financial media and create short-term volatility. Retail investors often panic-trade around these events, but in the grand scheme of things, they are mostly noise. The tape is set by big/smart money — institutions will do whatever they want irrespective of what the calendar says. A Fed rate decision might cause a 2% intraday swing, but the 6-12 month trend is determined by institutional accumulation and distribution patterns, not by a single data release. **Use the economic calendar as situational awareness, not as a trading signal.** Know what's coming so you're not blindsided, but never let a calendar event override your price/volume analysis. The best use of the calendar is *defensive* — avoid opening new positions right before a high-impact release, and understand why a stock might gap up or down on a given day
 
 ### Design Principle: Simplicity-First
 PraxiAlpha's strategies, UI, and decision-making framework must resist the temptation of complexity. Specifically:
@@ -229,8 +230,9 @@ Automated data ingestion, storage, and maintenance.
 | **Bond Yields** | FRED API | Daily | 30+ years |
 | **Dividends & Splits** | EODHD | As-issued | Full history |
 | **Stock Screener Data** | EODHD + computed | Daily | Current |
+| **Economic Calendar** | TradingEconomics API | Near real-time | Current + 7-day lookahead |
 
-> **Data Provider Strategy:** Start with EODHD EOD Historical Data plan ($19.99/mo) for Phase 1-2 (daily OHLCV only). Upgrade to EODHD All-In-One ($99.99/mo) when fundamentals and intraday data are needed (Phase 3+). FRED API (free) supplements macro data regardless of plan.
+> **Data Provider Strategy:** Start with EODHD EOD Historical Data plan ($19.99/mo) for Phase 1-2 (daily OHLCV only). Upgrade to EODHD All-In-One ($99.99/mo) when fundamentals and intraday data are needed (Phase 3+). FRED API (free) supplements macro data regardless of plan. TradingEconomics (free developer tier) provides the economic calendar for situational awareness.
 
 #### Pipeline Architecture
 ```
@@ -242,6 +244,7 @@ Automated data ingestion, storage, and maintenance.
         ├── EODHD API → OHLCV, Dividends, Splits
         ├── EODHD API → Fundamentals (when on All-In-One plan)
         ├── FRED API → Macro indicators (yields, VIX, DXY, commodities)
+        ├── TradingEconomics API → Economic calendar (upcoming events)
         │
         ▼
 [Data Validation & Cleaning]
@@ -611,39 +614,68 @@ This layer sits **between every signal and every trade execution**. No trade byp
 └──────────────────┘     │ parameters (JSON)│     ├──────────────────┤
                          │ backtest_results │     │ id (PK)          │
 ┌──────────────────┐     └──────────────────┘     │ stock_id (FK)    │
-│   watchlists     │                               │ strategy_id (FK) │
-├──────────────────┤     ┌──────────────────┐     │ direction        │
-│ id (PK)          │     │   alerts         │     │ side (buy/sell)  │
-│ user_id (FK)     │     ├──────────────────┤     │ quantity         │
-│ name             │     │ id (PK)          │     │ price            │
-│ tickers (array)  │     │ stock_id (FK)    │     │ timestamp        │
-│ created_date     │     │ condition        │     │ status           │
-└──────────────────┘     │ is_triggered     │     │ pnl              │
-                         │ created_date     │     │ is_paper         │
-                         └──────────────────┘     │ conviction_level │
+│ economic_calendar│
+├──────────────────┤
+│ id (PK)          │
+│ calendar_id (UQ) │
+│ date             │
+│ country          │
+│ category         │
+│ event            │
+│ actual           │
+│ previous         │
+│ forecast         │
+│ te_forecast      │
+│ importance (1-3) │
+│ source           │
+│ source_url       │
+│ currency         │
+│ unit             │
+│ ticker           │
+│ last_update      │
+│ fetched_at       │
+└──────────────────┘
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   watchlists     │     │     alerts       │     │     trades       │
+├──────────────────┤     ├──────────────────┤     ├──────────────────┤
+│ id (PK)          │     │ id (PK)          │     │ id (PK)          │
+│ user_id (FK)     │     │ stock_id (FK)    │     │ stock_id (FK)    │
+│ name             │     │ condition        │     │ strategy_id (FK) │
+│ tickers (array)  │     │ is_triggered     │     │ direction        │
+│ created_date     │     │ created_date     │     │ side (buy/sell)  │
+└──────────────────┘     └──────────────────┘     │ quantity         │
+                                                   │ price            │
+                                                   │ timestamp        │
+                                                   │ status           │
+                                                   │ pnl              │
+                                                   │ is_paper         │
+                                                   │ conviction_level │
                                                    │ market_regime    │
-┌──────────────────┐     ┌──────────────────┐     │ journal_id (FK)  │
-│ trade_journal    │     │ journal_tags     │     └──────────────────┘
-├──────────────────┤     ├──────────────────┤
-│ id (PK)          │     │ id (PK)          │
-│ trade_id (FK)    │     │ journal_id (FK)  │
-│ entry_type       │     │ tag_name         │     ┌──────────────────┐
-│  (entry/exit)    │     └──────────────────┘     │ portfolio_       │
-│ auto_notes (JSON)│                               │  snapshots       │
-│  - strategy_name │                               ├──────────────────┤
-│  - technical_    │                               │ id (PK)          │
-│    setup         │                               │ date             │
-│  - trend_context │                               │ total_value      │
-│  - macro_context │                               │ cash_balance     │
-│  - risk_reward   │                               │ invested_value   │
-│  - stop_loss     │                               │ daily_pnl        │
-│  - mfe           │                               │ total_pnl        │
-│  - mae           │                               │ drawdown_pct     │
-│ user_notes       │                               │ market_regime    │
-│ emotional_state  │                               │ positions (JSON) │
-│ trade_grade      │                               │ sector_exposure  │
-│  (A/B/C/D/F)    │                               │  (JSON)          │
-│ chart_screenshot │                               └──────────────────┘
+                                                   │ journal_id (FK)  │
+                                                   └──────────────────┘
+
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│ trade_journal    │     │ journal_tags     │     │ portfolio_       │
+├──────────────────┤     ├──────────────────┤     │  snapshots       │
+│ id (PK)          │     │ id (PK)          │     ├──────────────────┤
+│ trade_id (FK)    │     │ journal_id (FK)  │     │ id (PK)          │
+│ entry_type       │     │ tag_name         │     │ date             │
+│  (entry/exit)    │     └──────────────────┘     │ total_value      │
+│ auto_notes (JSON)│                               │ cash_balance     │
+│  - strategy_name │                               │ invested_value   │
+│  - technical_    │                               │ daily_pnl        │
+│    setup         │                               │ total_pnl        │
+│  - trend_context │                               │ drawdown_pct     │
+│  - macro_context │                               │ market_regime    │
+│  - risk_reward   │                               │ positions (JSON) │
+│  - stop_loss     │                               │ sector_exposure  │
+│  - mfe           │                               │  (JSON)          │
+│  - mae           │                               └──────────────────┘
+│ user_notes       │
+│ emotional_state  │
+│ trade_grade      │
+│  (A/B/C/D/F)    │
+│ chart_screenshot │
 │  _url            │
 │ created_at       │
 │ updated_at       │
@@ -660,6 +692,7 @@ This layer sits **between every signal and every trade execution**. No trade byp
 | Macro data (50 indicators × 30 years × 252 days) | ~378K rows | ~55 MB |
 | Technical indicators (computed) | ~75.6M rows | ~19 GB |
 | Trade journal & portfolio snapshots | Growing | ~50 MB (initial) |
+| Economic calendar events | ~20K rows/year (US high-importance) | ~5 MB |
 | **Total estimated** | | **~33 GB** |
 
 This runs entirely on your local Mac (280 GB available — plenty of headroom) during development via Docker. Even on AWS in production, 33 GB of PostgreSQL storage costs ~$4/month. Very manageable.
@@ -700,6 +733,9 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 - [ ] Implement daily/weekly/monthly chart toggle
 - [ ] Build watchlist management UI
 - [ ] Add basic stock search functionality
+- [ ] Integrate TradingEconomics economic calendar (fetch upcoming US events)
+- [ ] Build economic calendar widget on dashboard (high/medium importance events)
+- [ ] Add event importance filtering (Low/Medium/High) and country filtering
 
 **Deliverable:** Working dashboard where you can view charts for any stock in your database
 
@@ -885,6 +921,21 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
   - Position and account info
 - **Docs:** https://docs.alpaca.markets/
 
+#### Economic Calendar: **TradingEconomics** ⭐ (Free Developer Tier)
+- **Plan:** Free developer account (limited to public datasets; calendar API uses `guest:guest` for basic access)
+- **Upgrade Path:** Professional API plan (contact for pricing) — adds streaming, full REST API, more data
+- **Why:** Best economic calendar on the web, covers ~1,600 events/month across 150+ countries, importance ranking (1-3), actual/forecast/previous values, near real-time updates
+- **Key Endpoints:**
+  - `/calendar` — All upcoming events
+  - `/calendar/country/{country}` — Filter by country (e.g., `united states`)
+  - `/calendar/country/All/{start}/{end}` — Filter by date range
+  - `/calendar?importance={1|2|3}` — Filter by importance (3 = high)
+  - `/calendar/country/All/{start}/{end}?importance=3` — Combined filters
+  - `/calendar/updates` — Recently modified events
+- **Key Fields:** `CalendarId`, `Date`, `Country`, `Category`, `Event`, `Actual`, `Previous`, `Forecast`, `TEForecast`, `Importance`, `LastUpdate`
+- **Usage in PraxiAlpha:** Situational awareness widget on dashboard — shows upcoming high-impact US events (NFP, CPI, FOMC, GDP, etc.) so you're never blindsided by a data release. **Not used as a trading signal** — aligns with Mental Model #14 (economic events are noise, price action is signal)
+- **Docs:** https://docs.tradingeconomics.com/economic_calendar/snapshot/
+
 #### AI: **Anthropic Claude API** or **OpenAI GPT-4 API**
 - **Plan:** Pay-per-use (~$3-15 per million tokens for Claude, similar for GPT-4)
 - **Why:** Powers the AI chat mentor
@@ -901,9 +952,11 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 |-------|---------|------|------|
 | **Phases 1-2** | EODHD | EOD Historical Data | $19.99/mo |
 | | FRED API | Free | $0 |
+| | TradingEconomics | Free Developer | $0 |
 | | **Subtotal** | | **~$20/mo** |
 | **Phases 3-4** | EODHD | EOD Historical Data | $19.99/mo |
 | | FRED API | Free | $0 |
+| | TradingEconomics | Free Developer | $0 |
 | | **Subtotal** | | **~$20/mo** |
 | **Phases 5-6** | EODHD | EOD Historical Data | $19.99/mo |
 | | AI API (Claude/GPT-4) | Pay-per-use | ~$10/mo |
@@ -967,7 +1020,7 @@ Docker Compose
 └─────────────────────────────────────────────┘
 ```
 
-### AWS Cost Estimate (Monthly — Phase 8+ Only)
+### AWS Cost Estimate (Monthly - Phase 8+)
 | Service | Spec | Cost |
 |---------|------|------|
 | ECS Fargate (3 containers) | 0.5 vCPU, 1GB each | ~$35/mo |
@@ -1216,6 +1269,7 @@ graph TB
         L[FRED API]
         M[Alpaca API]
         N[Claude/GPT API]
+        TE[TradingEconomics API]
     end
 
     subgraph "Infrastructure"
@@ -1238,6 +1292,7 @@ graph TB
 
     D --> J
     D --> L
+    D --> TE
     F --> M
     G --> N
 
@@ -1267,6 +1322,7 @@ flowchart LR
     subgraph "Data Sources"
         A1[EODHD API] 
         A2[FRED API]
+        A3[TradingEconomics API]
     end
 
     subgraph "Ingestion"
@@ -1296,6 +1352,7 @@ flowchart LR
 
     A1 --> B2
     A2 --> B2
+    A3 --> B2
     B1 -->|triggers| B2
     B2 --> C1
     C1 --> D1
@@ -1435,6 +1492,7 @@ PraxiAlpha/
 │   │   ├── ohlcv.py
 │   │   ├── fundamentals.py
 │   │   ├── macro.py
+│   │   ├── economic_calendar.py
 │   │   ├── strategy.py
 │   │   ├── trade.py
 │   │   ├── journal.py             # Trade journal entries
@@ -1447,6 +1505,7 @@ PraxiAlpha/
 │   │   ├── data_pipeline/
 │   │   │   ├── eodhd_fetcher.py
 │   │   │   ├── fred_fetcher.py
+│   │   │   ├── trading_economics_fetcher.py
 │   │   │   └── data_validator.py
 │   │   │
 │   │   ├── analysis/
@@ -1560,21 +1619,3 @@ PraxiAlpha/
 ```
 
 ---
-
-## Getting Started (Phase 1, Week 1)
-
-When you're ready to begin, the first session will cover:
-
-1. Initialize the Git repository (private)
-2. Set up the Python project structure (pyproject.toml, virtual environment)
-3. Create Docker Compose for local PostgreSQL + TimescaleDB + Redis
-4. Design and create the database schema
-5. Get your EODHD and FRED API keys
-6. Build the first data fetcher (daily OHLCV from EODHD)
-7. Validate with 5-10 test stocks, then backfill all US tickers
-
-**Estimated time for first session: 2-3 hours**
-
----
-
-*PraxiAlpha — Disciplined action that generates alpha.* 🎯

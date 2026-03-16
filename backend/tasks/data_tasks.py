@@ -5,6 +5,7 @@ Async tasks for fetching, validating, and storing market data.
 These tasks are executed by Celery workers.
 """
 
+import asyncio
 import logging
 
 from backend.tasks.celery_app import celery_app
@@ -75,3 +76,34 @@ def backfill_all_stocks():
     # 2. For each, dispatch backfill_stock task
     # 3. Track progress
     logger.info("✅ All backfill tasks dispatched")
+
+
+@celery_app.task(name="backend.tasks.data_tasks.daily_economic_calendar_sync")
+def daily_economic_calendar_sync():
+    """
+    Daily task: Sync economic calendar events from TradingEconomics.
+
+    Runs at 7 AM ET daily (before market open) via Celery Beat.
+    Fetches high & medium importance events for the next 14 days,
+    upserts them into the DB, and prunes old records.
+    """
+    logger.info("🔄 Starting economic calendar sync...")
+
+    async def _sync():
+        from backend.database import async_session_factory
+        from backend.services.data_pipeline.economic_calendar_service import (
+            EconomicCalendarService,
+        )
+
+        async with async_session_factory() as session:
+            svc = EconomicCalendarService(session)
+            # Sync all importance levels (1, 2, 3) for the next 14 days
+            count = await svc.sync_upcoming_events(days=14, importance=None)
+            # Prune events older than 90 days
+            pruned = await svc.prune_old_events()
+            await session.commit()
+        return count, pruned
+
+    count, pruned = asyncio.run(_sync())
+    logger.info(f"✅ Economic calendar sync complete: {count} upserted, {pruned} pruned")
+    return {"upserted": count, "pruned": pruned}

@@ -51,4 +51,10 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=18, minute=30),  # 6:30 PM ET
         "options": {"queue": "data_pipeline"},
     },
+    # Daily economic calendar sync — runs at 7 AM ET (before market open)
+    "daily-economic-calendar-sync": {
+        "task": "backend.tasks.data_tasks.daily_economic_calendar_sync",
+        "schedule": crontab(hour=7, minute=0),  # 7:00 AM ET
+        "options": {"queue": "data_pipeline"},
+    },
 }
