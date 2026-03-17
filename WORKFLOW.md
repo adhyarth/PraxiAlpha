@@ -46,6 +46,21 @@
 
 > See `DESIGN_DOC.md` § "Phase Roadmap" for the full 9-phase plan.
 
+### Upcoming Sessions (pick up here after any break)
+
+Each session below is self-contained: one branch, one PR, one merge. Work top-to-bottom.
+
+| # | Session | Scope | Key Files to Create/Modify | Depends On |
+|---|---------|-------|---------------------------|------------|
+| **13** | **Stock Search** | Typeahead search component — query `stocks` table by ticker/name, return top-N matches. API endpoint `GET /api/v1/stocks/search?q=`. Streamlit search widget in sidebar. Tests for service + API + widget. | `backend/services/stock_search.py`, `backend/api/routes/stocks.py` (add search), `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` | Session 12 ✅ |
+| **14** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 13 |
+| **15** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 14 |
+| **16** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 15 |
+| **17** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 16 |
+
+> **How to resume:** Start a new chat, paste the prompt at the bottom of this file, and say
+> *"Let's do Session N"* (where N is the first unchecked session above).
+
 ### Key Files to Read for Context
 | File | What It Tells You |
 |------|-------------------|
