@@ -4,30 +4,32 @@
 > Paste it (or reference it) at the start of every new conversation so Copilot
 > has full context on where we left off, what comes next, and how we work.
 >
-> **Last updated:** 2026-03-16 (Session 7)
+> **Last updated:** 2026-03-17 (Session 9)
 
 ---
 
 ## 1. Current Project State
 
-### What Exists (as of Session 6)
+### What Exists (as of Session 9)
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Database** | ✅ Running | PostgreSQL 16 + TimescaleDB via Docker |
-| **Tables** | ✅ Populated | `stocks` (49K), `daily_ohlcv` (68K test), `macro_data` (81K), `stock_splits`, `stock_dividends`, `economic_calendar_events` |
+| **Tables** | ✅ Populated | `stocks` (49K), `daily_ohlcv` (58.2M), `macro_data` (81K), `stock_splits` (18.4K), `stock_dividends` (634K), `economic_calendar_events` |
 | **Data Pipeline** | ✅ Working | EODHD fetcher (OHLCV, splits, dividends), FRED fetcher (14 macro series), TradingEconomics fetcher (economic calendar) |
+| **Backfill** | ✅ Done | `scripts/backfill_full.py` — 23,714 tickers backfilled (1990–2026), 58.2M OHLCV records, 18.4K splits, 634K dividends |
+| **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint), daily macro (7-day incremental), daily calendar |
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/` |
-| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV, daily macro, daily economic calendar (7 AM ET) |
+| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget (high-impact + all events) |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (62 tests) |
-| **Tests** | ✅ 62 passing | Model, fetcher, service, API, task, widget, helpers |
-| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (6 sessions), CHANGELOG, CONTRIBUTING |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (95 tests) |
+| **Tests** | ✅ 95 passing | Model, fetcher, service, API, task, widget, helpers, backfill |
+| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (8 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
 
 ### Current Phase
 **Phase 1: Foundation (Weeks 1–4)** — mostly complete.
 
 #### Phase 1 Remaining Tasks
-- [ ] Backfill ALL active US stocks + ETFs (~10,000 tickers) → full 30+ year history
+- [x] **Run full backfill** — ✅ completed: 23,714 tickers, 58.2M OHLCV records (1990-01-02 → 2026-03-16)
 - [ ] Compute weekly/monthly candles from daily data
 
 #### Phase 2: Charting & Basic Dashboard (Weeks 5–8) — next
@@ -162,7 +164,7 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 
 ---
 
-## 3. Common Pitfalls (lessons from Sessions 1–6)
+## 3. Common Pitfalls (lessons from Sessions 1–9)
 
 | # | Pitfall | Prevention |
 |---|---------|------------|
@@ -174,6 +176,9 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 | 6 | Heavy deps in CI test job | CI installs only lightweight test deps, not full `[dev]` extras. Keep tests decoupled from streamlit/celery/plotly. |
 | 7 | `asyncio.get_event_loop()` on Python 3.11+ | Use `asyncio.run()` in tasks, `asyncio.get_running_loop()` with fallback in Streamlit. |
 | 8 | Docs lagging behind code | Update docs in the same commit as code changes, not as an afterthought. |
+| 9 | DB parameter overflow on large batch inserts | PostgreSQL has a ~32K parameter limit. With 8 columns per row, the main task path uses `DB_BATCH_SIZE=1000` → 8K params, safely under the limit. For any new batch writers, keep `batch_size × columns` well under 32K. |
+| 10 | `--resume` re-fetching failed tickers from API on every run | Resume must skip both completed AND failed tickers. Failed tickers are retried only in the end-of-run retry phase, not re-fetched from the API in the main pass. |
+| 11 | Empty `DATABASE_URL=` overriding `.env` defaults | When running scripts locally, either export the full `DATABASE_URL` or don't set it at all. `DATABASE_URL=` (empty) overrides `.env` and causes auth failures. |
 
 ---
 
@@ -224,6 +229,8 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | 5 | 2026-03-14 | Economic calendar full stack (model, fetcher, service, API, Celery, Streamlit, 32 tests) | PR #3 |
 | 6 | 2026-03-15 | Copilot code review fixes (9 items: asyncio, datetime parsing, bulk upsert, validation) | PR #3 |
 | 7 | 2026-03-16 | Session workflow document (this file) | PR #5 |
+| 8 | 2026-03-16 | Production backfill script, daily OHLCV/macro Celery tasks, 33 new tests (95 total) | PR #6 |
+| 9 | 2026-03-17 | Full backfill run (58.2M records), DB crash fixes, resume bug fix, batch size & retry hardening | PR #6 |
 
 ---
 

@@ -36,19 +36,23 @@ class EODHDFetcher:
         fetcher = EODHDFetcher()
         tickers = await fetcher.fetch_us_tickers()
         ohlcv = await fetcher.fetch_daily_ohlcv("AAPL", start="1990-01-01")
+
+        # For heavy historical pulls (30+ years), use a longer timeout:
+        fetcher = EODHDFetcher(timeout=60.0)
     """
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, timeout: float = REQUEST_TIMEOUT):
         self.api_key = api_key or settings.eodhd_api_key
         if not self.api_key:
             raise ValueError("EODHD API key not set. Set EODHD_API_KEY in .env file.")
         self._client: httpx.AsyncClient | None = None
+        self._timeout = timeout
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create an async HTTP client."""
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
-                timeout=REQUEST_TIMEOUT,
+                timeout=self._timeout,
                 headers={"Accept": "application/json"},
             )
         return self._client

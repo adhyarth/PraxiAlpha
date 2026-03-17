@@ -8,6 +8,41 @@
 ## [Unreleased]
 
 ### Added
+- **Full market backfill completed** — 58.2M OHLCV records, 18.4K splits, 634K dividends across 23,714 tickers (1990–2026)
+- **Production backfill script (`scripts/backfill_full.py`)** — full market backfill for ~20K+ active US stocks & ETFs
+  - Smart ticker filtering: only Common Stock + ETF (skips warrants, preferred, units, OTC)
+  - Async concurrency with configurable semaphore (default 5 parallel requests)
+  - Real-time `data/backfill_live.log` for `tail -f` monitoring (one line per ticker)
+  - `data/backfill_progress.json` checkpoint file — tracks completed/failed tickers, records count, ETA
+  - Resume from checkpoint after crash (`--resume` flag)
+  - Dry-run mode (`--dry-run`) to preview without API calls
+  - Failed ticker retry queue (automatic sequential retry after main pass)
+  - Incremental start date: uses `stock.latest_date - 5 days` overlap to avoid re-fetching full history
+  - CLI flags: `--concurrency`, `--asset-type`, `--skip-splits-divs`, `--start-date`
+- **Implemented `daily_ohlcv_update` Celery task** — replaces TODO stub with working incremental logic
+  - Uses EODHD bulk endpoint (single API call for all tickers on a given date)
+  - Updates `stock.latest_date` after successful upsert
+  - Includes retry logic (max 3 retries, 5-minute delay)
+- **Implemented `daily_macro_update` Celery task** — replaces TODO stub with working incremental logic
+  - Fetches only last 7 days of observations per FRED series (incremental, not full re-fetch)
+  - Upserts with ON CONFLICT deduplication
+- **33 new tests** (95 total) — ticker filtering, progress tracker, checkpoint load/save, incremental date calculation
+
+### Changed
+- `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
+- `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`
+- `.gitignore` updated to exclude backfill progress/log files
+- **`daily_ohlcv_update` bulk `latest_date` update** — replaced N+1 per-stock SELECT+UPDATE loop with a single bulk `UPDATE ... WHERE id IN (...)` statement
+- **Celery `DB_BATCH_SIZE` aligned to 1000** — `data_tasks.py` batch size now matches `backfill_full.py` (was still 3000)
+- **Splits/dividends rowcount accuracy** — `_backfill_splits_dividends` now uses `result.rowcount` from `on_conflict_do_nothing` instead of blindly incrementing per row; skipped duplicates no longer inflate the count
+
+### Fixed
+- **DB parameter overflow crash** — reduced `DB_BATCH_SIZE` from 3000 → 1000 (24K params → 8K params) to stay safely under PostgreSQL's ~32K parameter limit
+- **DB retry with backoff** — upsert operations now retry up to 3 times with progressive backoff (10s/20s/30s) on `OperationalError` (handles transient DB restarts/recovery)
+- **Resume >100% progress bug** — `--resume` now skips both completed AND failed tickers; previously-failed tickers are retried only in the end-of-run retry phase, not re-fetched from the API in the main pass
+- **`record_success` not cleaning failed dict** — successful retries now remove the ticker from `tickers_failed`, preventing tickers from appearing in both completed and failed lists
+- **Retry loop `KeyError`** — changed `del tracker.failed[ticker]` → `tracker.failed.pop(ticker, None)` to handle checkpoint-sourced tickers not yet in the tracker
+
 - **`WORKFLOW.md` — session workflow document** — entry point for every Copilot chat session; includes current project state, 7-step session workflow, common pitfalls, quick reference, and session log summary
 - **Economic calendar full integration** — service layer, API, Celery scheduler, and Streamlit dashboard widget
   - `EconomicCalendarService` — orchestrates fetch/upsert/query/prune operations for calendar events (PostgreSQL upsert with ON CONFLICT)
