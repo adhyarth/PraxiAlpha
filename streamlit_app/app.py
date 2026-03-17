@@ -19,17 +19,17 @@ st.markdown("*Disciplined action that generates alpha.*")
 
 st.divider()
 
-st.info(
-    "**Phase 1 in progress** — Building data pipeline and populating database. "
-    "The dashboard will come alive in Phase 2!"
+st.success(
+    "**Phase 2 in progress** — Charting & dashboard features are coming online. "
+    "Use the sidebar to navigate to Charts or Dashboard."
 )
 
 # Sidebar
 with st.sidebar:
     st.header("Navigation")
     st.markdown("""
-    - 📊 Dashboard *(Phase 2)*
-    - 📈 Charts *(Phase 2)*
+    - 📊 [Dashboard](/Dashboard)
+    - 📈 [Charts](/Charts) ✨ *New*
     - 📋 Reports *(Phase 3)*
     - 🔍 Screener *(Phase 3)*
     - 🧪 Backtesting *(Phase 4)*
@@ -41,4 +41,4 @@ with st.sidebar:
     """)
 
     st.divider()
-    st.caption("PraxiAlpha v0.1.0 — Phase 1")
+    st.caption("PraxiAlpha v0.2.0 — Phase 2")

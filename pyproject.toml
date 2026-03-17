@@ -78,7 +78,8 @@ ignore = ["E501", "B008"]  # B008: Depends() in FastAPI is the standard pattern
 
 [tool.ruff.lint.per-file-ignores]
 "scripts/*" = ["E402", "N806"]  # E402: sys.path manipulation before imports; N806: UPPER_CASE constants
-"backend/tests/*" = ["N806"]  # Allow PascalCase mock variables (MockFetcher, MockSession)
+"backend/tests/*" = ["N806", "E402"]  # N806: PascalCase mock variables; E402: pytest.importorskip guard before imports
+"data/migrations/*" = ["F401"]  # Model imports needed for Alembic metadata registration
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
