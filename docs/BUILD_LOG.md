@@ -695,3 +695,55 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - `str(engine.url)` in SQLAlchemy masks the password with `***` — never use it to build raw connection strings. Use `settings.async_database_url` (the original config value) instead
 - TimescaleDB's `refresh_continuous_aggregate()` is a stored procedure (`CALL`), not a function (`SELECT`) — it cannot run inside a transaction block. This is a common gotcha when using SQLAlchemy which wraps everything in transactions
 - When running scripts locally against a Dockerized DB, the hostname is `localhost` (not the Docker service name `db`). Override via `DATABASE_URL` env var or `POSTGRES_HOST=localhost`
+
+---
+
+### Session 11 — 2026-03-18: Technical Indicators Service (Phase 2)
+
+#### What We Did
+1. ✅ **Implemented technical indicators service** (`backend/services/analysis/technical_indicators.py`)
+   - **SMA** — Simple Moving Average with configurable period (default 20)
+   - **EMA** — Exponential Moving Average using span-based smoothing (default 20)
+   - **RSI** — Relative Strength Index with Wilder's smoothing method (default period 14)
+   - **MACD** — Moving Average Convergence/Divergence returning macd_line, signal_line, histogram (default 12/26/9)
+   - **Bollinger Bands** — Middle/Upper/Lower bands with configurable period and num_std (default 20, 2σ)
+   - All functions are pure, stateless, side-effect-free — accept `pd.Series`, return `pd.Series` or `pd.DataFrame`
+   - Shared `_validate_inputs()` helper for consistent error handling across all indicators
+   - Population-level std dev (`ddof=0`) for Bollinger Bands to match industry convention
+
+2. ✅ **Updated analysis package exports** (`backend/services/analysis/__init__.py`)
+   - Exports all five indicator functions via `__all__`
+   - Clean public API: `from backend.services.analysis import sma, ema, rsi, macd, bollinger_bands`
+
+3. ✅ **Wrote 52 new tests** (`backend/tests/test_analysis.py`)
+   - `TestValidation` (5 tests) — type checking, empty series, zero/negative period
+   - `TestSMA` (7 tests) — basic computation, period=1, period=length, constant series, defaults, edge cases
+   - `TestEMA` (7 tests) — basic, no NaNs, period=1, constant, EMA-vs-SMA reactivity, defaults, edge cases
+   - `TestRSI` (8 tests) — basic, range [0,100], leading NaNs, all-gains (100), all-losses (0), constant price, defaults, edge cases
+   - `TestMACD` (10 tests) — DataFrame shape, histogram=line−signal, constant series, custom periods, fast≥slow rejection, zero/negative period, empty series
+   - `TestBollingerBands` (11 tests) — DataFrame shape, middle=SMA, upper≥middle, lower≤middle, symmetry, constant series, wider with more σ, defaults, zero/negative num_std, invalid period
+   - `TestIntegration` (3 tests) — RSI of EMA, EMA-based Bollinger Bands, all indicators same length
+
+#### Architecture Decisions
+- **Pure pandas, no external TA library** — keeps dependencies minimal and gives us full control over the smoothing method (Wilder's for RSI, standard EWM for EMA/MACD). TA-Lib can be added later as an optional accelerator if needed.
+- **Wilder's smoothing for RSI** (`com = period − 1`) — matches the canonical RSI definition used by TradingView, Bloomberg, and most institutional platforms. Many libraries incorrectly use SMA-based RSI.
+- **Population std dev (`ddof=0`) for Bollinger Bands** — matches the standard Bollinger Band definition. Sample std dev (`ddof=1`) would produce slightly wider bands.
+- **NaN for insufficient data** — rather than forward-filling or guessing, we return NaN where the look-back window has insufficient data. This prevents misleading signals at series boundaries.
+- **Functions, not classes** — indicators are stateless mathematical transformations. Functions compose better than classes for this use case (e.g., `rsi(ema(close, 5), 14)`).
+
+#### Files Created / Modified
+- `backend/services/analysis/technical_indicators.py` (replaced stub) — 5 indicator functions + shared validator
+- `backend/services/analysis/__init__.py` (replaced stub) — public API exports
+- `backend/tests/test_analysis.py` (replaced stub) — 52 comprehensive tests
+
+#### Files Updated
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+- `WORKFLOW.md` — updated state table, phase checklist, session log
+
+#### Test Count: 171 (was 119, +52 technical indicator tests)
+
+#### Lessons Learned
+- Wilder's smoothing factor `α = 1/period` maps to pandas `ewm(com=period-1)`, not `ewm(span=period)`. Using `span` gives the standard EMA smoothing factor `α = 2/(period+1)`, which is subtly different and produces incorrect RSI values
+- `ddof=0` vs `ddof=1` in rolling std affects Bollinger Band width — industry standard is population std dev (`ddof=0`)
+- RSI with constant prices produces `0/0` (no gains, no losses) → NaN via pandas, which is the mathematically correct result. Some platforms display 50 for this edge case, but NaN is more honest

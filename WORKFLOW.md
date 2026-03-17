@@ -4,13 +4,13 @@
 > Paste it (or reference it) at the start of every new conversation so Copilot
 > has full context on where we left off, what comes next, and how we work.
 >
-> **Last updated:** 2026-03-17 (Session 10)
+> **Last updated:** 2026-03-18 (Session 11)
 
 ---
 
 ## 1. Current Project State
 
-### What Exists (as of Session 10)
+### What Exists (as of Session 11)
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Database** | ✅ Running | PostgreSQL 16 + TimescaleDB via Docker |
@@ -21,10 +21,11 @@
 | **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint) → candle aggregate refresh, daily macro (7-day incremental), daily calendar |
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/charts/` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
+| **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget (high-impact + all events) |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (119 tests) |
-| **Tests** | ✅ 119 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service |
-| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (10 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (171 tests) |
+| **Tests** | ✅ 171 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators |
+| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (11 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
 
 ### Current Phase
 **Phase 1: Foundation (Weeks 1–4)** — mostly complete.
@@ -33,9 +34,9 @@
 - [x] **Run full backfill** — ✅ completed: 23,714 tickers, 58.2M OHLCV records (1990-01-02 → 2026-03-16)
 - [x] Compute weekly/monthly/quarterly candles from daily data — ✅ TimescaleDB continuous aggregates (13.5M weekly, 3.4M monthly, 1.2M quarterly)
 
-#### Phase 2: Charting & Basic Dashboard (Weeks 5–8) — next
+#### Phase 2: Charting & Basic Dashboard (Weeks 5–8) — in progress
+- [x] Technical indicator overlays (RSI, MACD, MAs, Bollinger Bands) — ✅ pure pandas service (Session 11)
 - [ ] Interactive candlestick charts (Plotly / Lightweight Charts)
-- [ ] Technical indicator overlays (RSI, MACD, MAs, Bollinger Bands)
 - [ ] Volume subplot
 - [ ] Daily/weekly/monthly chart toggle
 - [ ] Watchlist management UI
@@ -253,6 +254,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | 8 | 2026-03-16 | Production backfill script, daily OHLCV/macro Celery tasks, 33 new tests (95 total) | PR #6 |
 | 9 | 2026-03-17 | Full backfill run (58.2M records), DB crash fixes, resume bug fix, batch size & retry hardening | PR #6 |
 | 10 | 2026-03-17 | Weekly/monthly/quarterly candle aggregates, charts API, candle service, Celery refresh task, 22 new tests (117 total) | PR #7 |
+| 11 | 2026-03-18 | Technical indicators service (SMA, EMA, RSI, MACD, Bollinger Bands), 52 new tests (171 total) | PR #8 |
 
 ---
 

@@ -8,6 +8,14 @@
 ## [Unreleased]
 
 ### Added
+- **Technical indicators service** (`backend/services/analysis/technical_indicators.py`) — pure Python/pandas implementations
+  - `sma()` — Simple Moving Average (configurable period, default 20)
+  - `ema()` — Exponential Moving Average (span-based, default 20)
+  - `rsi()` — Relative Strength Index with Wilder's smoothing (default period 14)
+  - `macd()` — MACD line, signal line, histogram (default 12/26/9)
+  - `bollinger_bands()` — Middle/Upper/Lower bands (default 20-period, 2σ)
+- **Analysis package public API** (`backend/services/analysis/__init__.py`) — exports all five indicator functions
+- **52 new tests** (171 total) — comprehensive coverage for all indicators including edge cases, validation, and integration tests
 - **Weekly/Monthly/Quarterly candle aggregates** — TimescaleDB continuous aggregates on the `daily_ohlcv` hypertable
   - `weekly_ohlcv` (13.5M rows), `monthly_ohlcv` (3.4M rows), `quarterly_ohlcv` (1.2M rows)
   - Auto-refresh policies: every 1 hour with appropriate lookback windows
