@@ -4,33 +4,34 @@
 > Paste it (or reference it) at the start of every new conversation so Copilot
 > has full context on where we left off, what comes next, and how we work.
 >
-> **Last updated:** 2026-03-17 (Session 9)
+> **Last updated:** 2026-03-17 (Session 10)
 
 ---
 
 ## 1. Current Project State
 
-### What Exists (as of Session 9)
+### What Exists (as of Session 10)
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Database** | ✅ Running | PostgreSQL 16 + TimescaleDB via Docker |
 | **Tables** | ✅ Populated | `stocks` (49K), `daily_ohlcv` (58.2M), `macro_data` (81K), `stock_splits` (18.4K), `stock_dividends` (634K), `economic_calendar_events` |
+| **Candle Aggregates** | ✅ Populated | `weekly_ohlcv` (13.5M), `monthly_ohlcv` (3.4M), `quarterly_ohlcv` (1.2M) — TimescaleDB continuous aggregates with auto-refresh |
 | **Data Pipeline** | ✅ Working | EODHD fetcher (OHLCV, splits, dividends), FRED fetcher (14 macro series), TradingEconomics fetcher (economic calendar) |
 | **Backfill** | ✅ Done | `scripts/backfill_full.py` — 23,714 tickers backfilled (1990–2026), 58.2M OHLCV records, 18.4K splits, 634K dividends |
-| **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint), daily macro (7-day incremental), daily calendar |
-| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/` |
+| **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint) → candle aggregate refresh, daily macro (7-day incremental), daily calendar |
+| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/charts/` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget (high-impact + all events) |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (95 tests) |
-| **Tests** | ✅ 95 passing | Model, fetcher, service, API, task, widget, helpers, backfill |
-| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (8 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (119 tests) |
+| **Tests** | ✅ 119 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service |
+| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (10 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
 
 ### Current Phase
 **Phase 1: Foundation (Weeks 1–4)** — mostly complete.
 
 #### Phase 1 Remaining Tasks
 - [x] **Run full backfill** — ✅ completed: 23,714 tickers, 58.2M OHLCV records (1990-01-02 → 2026-03-16)
-- [ ] Compute weekly/monthly candles from daily data
+- [x] Compute weekly/monthly/quarterly candles from daily data — ✅ TimescaleDB continuous aggregates (13.5M weekly, 3.4M monthly, 1.2M quarterly)
 
 #### Phase 2: Charting & Basic Dashboard (Weeks 5–8) — next
 - [ ] Interactive candlestick charts (Plotly / Lightweight Charts)
@@ -149,11 +150,24 @@ gh pr create \
 - `path/to/file` — description
 ```
 
-### Step 6: Developer Review & Merge
-1. Developer reviews the PR on GitHub
-2. If changes are needed → Copilot makes fixes → push to same branch → PR updates automatically
-3. Developer approves → squash-merges on GitHub
-4. Feature branch is auto-deleted after merge
+### Step 6: PR Review & Fix Cycle
+1. Developer requests a review on GitHub (Copilot code review or human reviewer)
+2. Once the review is complete, developer tells Copilot: **"PR review is done on PR #N, fetch and fix the comments"**
+3. **Copilot fetches review comments** using these commands:
+
+```bash
+# Fetch the PR overview and review body
+gh pr view <PR_NUMBER> --comments --json reviews,comments
+
+# Fetch inline review comments (the specific code suggestions)
+gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments \
+  --jq '.[] | "---\nFile: \(.path):\(.line // .original_line)\nBody: \(.body)\n"'
+```
+
+4. Copilot reads all comments, implements fixes, runs CI, and pushes to the same branch
+5. PR auto-updates → developer reviews again or approves
+6. Developer squash-merges on GitHub
+7. Feature branch is auto-deleted after merge
 
 ### Step 7: Post-Merge Cleanup
 ```bash
@@ -179,6 +193,10 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 | 9 | DB parameter overflow on large batch inserts | PostgreSQL has a ~32K parameter limit. With 8 columns per row, the main task path uses `DB_BATCH_SIZE=1000` → 8K params, safely under the limit. For any new batch writers, keep `batch_size × columns` well under 32K. |
 | 10 | `--resume` re-fetching failed tickers from API on every run | Resume must skip both completed AND failed tickers. Failed tickers are retried only in the end-of-run retry phase, not re-fetched from the API in the main pass. |
 | 11 | Empty `DATABASE_URL=` overriding `.env` defaults | When running scripts locally, either export the full `DATABASE_URL` or don't set it at all. `DATABASE_URL=` (empty) overrides `.env` and causes auth failures. |
+| 12 | `str(engine.url)` masks passwords with `***` | Never use `str(engine.url)` to build raw connection strings. Use `settings.async_database_url` (the original config value) instead. |
+| 13 | `CALL refresh_continuous_aggregate` inside SQLAlchemy transaction | TimescaleDB's `refresh_continuous_aggregate()` cannot run inside a transaction block. Use raw asyncpg connection, not `engine.begin()`. |
+| 14 | `time_bucket('7 days', date)` doesn't align to ISO weeks | TimescaleDB's default `time_bucket` origin is the Unix epoch (a Thursday). Always pass `origin => '<a-monday>'` for weekly buckets. |
+| 15 | `SELECT count(*)` on large hypertables/aggregates | Exact counts scan millions of rows. Use `pg_class.reltuples` for approximate O(1) counts in monitoring/health endpoints. |
 
 ---
 
@@ -215,6 +233,9 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | GET | `/api/v1/calendar/upcoming` | Upcoming economic events |
 | GET | `/api/v1/calendar/high-impact` | High-impact events only |
 | POST | `/api/v1/calendar/sync` | Manual calendar sync |
+| GET | `/charts/{ticker}/candles` | Candle data by timeframe |
+| GET | `/charts/{ticker}/summary` | Multi-timeframe summary |
+| GET | `/charts/stats` | Aggregate statistics |
 
 ---
 
@@ -231,6 +252,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | 7 | 2026-03-16 | Session workflow document (this file) | PR #5 |
 | 8 | 2026-03-16 | Production backfill script, daily OHLCV/macro Celery tasks, 33 new tests (95 total) | PR #6 |
 | 9 | 2026-03-17 | Full backfill run (58.2M records), DB crash fixes, resume bug fix, batch size & retry hardening | PR #6 |
+| 10 | 2026-03-17 | Weekly/monthly/quarterly candle aggregates, charts API, candle service, Celery refresh task, 22 new tests (117 total) | PR #7 |
 
 ---
 

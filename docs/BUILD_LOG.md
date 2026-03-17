@@ -619,3 +619,79 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - Resume logic must skip **both** completed and failed tickers to avoid re-fetching from the API. Failed tickers should only be retried in a dedicated retry phase, not re-processed from scratch
 - Setting `DATABASE_URL=` (empty string) as an env var override will mask the `.env` file default — either export the full URL or don't set the variable at all
 - The backfill completed 23,714 tickers with only 468 genuine failures (no data / invalid), a 98% success rate
+
+### Session 10 — 2026-03-17: Weekly/Monthly/Quarterly Candle Aggregates
+
+#### What We Did
+1. ✅ **Created TimescaleDB continuous aggregates** for weekly, monthly, and quarterly OHLCV candles
+   - `weekly_ohlcv` — 7-day time buckets (Monday-aligned via explicit origin), auto-refresh every hour with 4-week lookback
+   - `monthly_ohlcv` — 1-month time buckets, auto-refresh every hour with 3-month lookback
+   - `quarterly_ohlcv` — 3-month time buckets, auto-refresh every hour with 6-month lookback
+   - Each aggregate computes: `open` (first), `high` (max), `low` (min), `close` (last), `adjusted_close` (last), `volume` (sum), `trading_days` (count)
+   - Indexes: `(stock_id, bucket DESC)` on all three views for fast lookups
+   - Setup script: `scripts/create_candle_aggregates.py` with `--drop` flag for recreation
+
+2. ✅ **Initial data refresh** — populated all aggregates from 58.2M daily rows
+   - Weekly: **13,524,873 rows**
+   - Monthly: **3,393,032 rows**
+   - Quarterly: **1,185,118 rows**
+   - Verified with AAPL sample data across all three timeframes
+
+3. ✅ **Created unified candle service** (`backend/services/candle_service.py`)
+   - `get_candles(ticker, timeframe, start, end, limit)` — queries the appropriate aggregate view
+   - `get_candle_summary(ticker)` — returns latest candle + data range for all timeframes
+   - `get_aggregate_stats()` — returns row counts and freshness for all aggregates
+   - Supports timeframes: `daily`, `weekly`, `monthly`, `quarterly`
+
+4. ✅ **Created charts API endpoints** (`backend/api/routes/charts.py`)
+   - `GET /charts/{ticker}/candles` — query candles by timeframe with date range and limit filters
+   - `GET /charts/{ticker}/summary` — multi-timeframe summary for a ticker
+   - `GET /charts/stats` — aggregate health/stats endpoint
+   - Registered in `backend/main.py` under `/charts` prefix
+
+5. ✅ **Created Celery task** for aggregate refresh (`refresh_candle_aggregates`)
+   - Runs automatically after `daily_ohlcv_update` completes
+   - Uses raw asyncpg connection (required for `CALL refresh_continuous_aggregate`)
+   - Refreshes each view with appropriate lookback window
+
+6. ✅ **Wrote 19 new tests** (`backend/tests/test_candle_service.py`)
+   - Service layer: `get_candles` (all timeframes, date filters, default limit), `get_candle_summary`, `get_aggregate_stats`
+   - API layer: candle endpoint (default, with params), summary endpoint, stats endpoint, invalid ticker/timeframe handling
+   - Celery task: `refresh_candle_aggregates` registration check
+
+7. ✅ **Fixed `str(engine.url)` password masking bug**
+   - `str(engine.url)` replaces the password with `***`, causing authentication failures for raw asyncpg connections
+   - Fixed in `scripts/create_candle_aggregates.py` and `backend/tasks/data_tasks.py` to use `settings.async_database_url` directly
+
+#### Architecture Decisions
+- **TimescaleDB continuous aggregates** over manual materialized views — auto-refresh only recomputes changed time buckets, orders of magnitude faster than raw `GROUP BY` on 58M rows
+- **Raw asyncpg for CALL statements** — `refresh_continuous_aggregate()` cannot run inside a transaction block; SQLAlchemy's `engine.begin()` always opens a transaction. Used `asyncpg.connect()` directly with the URL from settings
+- **Unified service layer** — single `CandleService` handles all timeframes, abstracting the view names and query patterns from the API layer
+- **3M quarterly buckets** — user requested quarterly in addition to weekly/monthly for longer-term analysis
+
+#### Files Created
+- `scripts/create_candle_aggregates.py` (new) — aggregate creation, refresh policies, indexes, initial refresh, verification
+- `backend/services/candle_service.py` (new) — unified candle query service
+- `backend/api/routes/charts.py` (new) — charts API endpoints
+- `backend/tests/test_candle_service.py` (new) — 19 tests for service, API, and task
+
+#### Files Modified
+- `backend/main.py` — registered charts router
+- `backend/tasks/data_tasks.py` — added `refresh_candle_aggregates` task, wired to daily update chain, fixed `str(engine.url)` password masking
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+- `WORKFLOW.md` — updated state table, phase status, API endpoints, session log
+
+#### Database State Update
+| View | Rows | Refresh |
+|------|------|---------|
+| `weekly_ohlcv` | 13,524,873 | Every 1h, 4-week lookback |
+| `monthly_ohlcv` | 3,393,032 | Every 1h, 3-month lookback |
+| `quarterly_ohlcv` | 1,185,118 | Every 1h, 6-month lookback |
+
+#### Test Count: 117 (was 95, +22 including candle service tests + prior session additions)
+
+#### Lessons Learned
+- `str(engine.url)` in SQLAlchemy masks the password with `***` — never use it to build raw connection strings. Use `settings.async_database_url` (the original config value) instead
+- TimescaleDB's `refresh_continuous_aggregate()` is a stored procedure (`CALL`), not a function (`SELECT`) — it cannot run inside a transaction block. This is a common gotcha when using SQLAlchemy which wraps everything in transactions
+- When running scripts locally against a Dockerized DB, the hostname is `localhost` (not the Docker service name `db`). Override via `DATABASE_URL` env var or `POSTGRES_HOST=localhost`
