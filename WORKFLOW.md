@@ -166,9 +166,15 @@ gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments \
 ```
 
 4. Copilot reads all comments, implements fixes, runs CI, and pushes to the same branch
-5. PR auto-updates → developer reviews again or approves
-6. Developer squash-merges on GitHub
-7. Feature branch is auto-deleted after merge
+5. **Document the review fixes** in `docs/BUILD_LOG.md` — append a `#### PR Review Fixes` section to the current session entry. For each fix, document:
+   - **What was changed** — the concrete code/doc change
+   - **Why** — the reviewer's reasoning and the underlying principle
+   - **Impact if not fixed** — what could go wrong at scale, in CI, or in the broader project if this was left as-is
+   > This section is added *after* the initial session entry, not as a separate session.
+   > CHANGELOG is **not** updated for review fixes — they are pre-merge quality improvements, not new user-facing changes.
+6. PR auto-updates → developer reviews again or approves
+7. Developer squash-merges on GitHub
+8. Feature branch is auto-deleted after merge
 
 ### Step 7: Post-Merge Cleanup
 ```bash
