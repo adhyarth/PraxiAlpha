@@ -176,7 +176,7 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 | 6 | Heavy deps in CI test job | CI installs only lightweight test deps, not full `[dev]` extras. Keep tests decoupled from streamlit/celery/plotly. |
 | 7 | `asyncio.get_event_loop()` on Python 3.11+ | Use `asyncio.run()` in tasks, `asyncio.get_running_loop()` with fallback in Streamlit. |
 | 8 | Docs lagging behind code | Update docs in the same commit as code changes, not as an afterthought. |
-| 9 | DB parameter overflow on large batch inserts | PostgreSQL has a ~32K parameter limit. With 8 columns per row, `DB_BATCH_SIZE=3000` → 24K params, right at the edge. Reduced to 1000 (8K params). Always keep batch × columns well under 32K. |
+| 9 | DB parameter overflow on large batch inserts | PostgreSQL has a ~32K parameter limit. With 8 columns per row, the main task path uses `DB_BATCH_SIZE=1000` → 8K params, safely under the limit. For any new batch writers, keep `batch_size × columns` well under 32K. |
 | 10 | `--resume` re-fetching failed tickers from API on every run | Resume must skip both completed AND failed tickers. Failed tickers are retried only in the end-of-run retry phase, not re-fetched from the API in the main pass. |
 | 11 | Empty `DATABASE_URL=` overriding `.env` defaults | When running scripts locally, either export the full `DATABASE_URL` or don't set it at all. `DATABASE_URL=` (empty) overrides `.env` and causes auth failures. |
 

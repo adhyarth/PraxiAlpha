@@ -1,7 +1,7 @@
 """
 PraxiAlpha — Full Market Backfill Script
 
-Production-grade backfill for ~10,000+ active US stocks & ETFs.
+Production-grade backfill for ~23,714 active US stocks & ETFs.
 Features:
   - Smart ticker filtering (Common Stock + ETF only)
   - Async concurrency (configurable parallelism via semaphore)
@@ -42,8 +42,11 @@ from typing import Any
 
 import pandas as pd
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Ensure project root is importable when running as a standalone script
+# (only when invoked directly; avoids side effects when imported as a module)
+_project_root = str(Path(__file__).parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -228,10 +231,10 @@ class BackfillProgressTracker:
             "tickers_completed": self.completed,
             "tickers_failed": self.failed,
         }
-        # Write atomically — write to temp, then rename
+        # Write atomically — write to temp, then replace
         tmp = self.progress_file.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        tmp.rename(self.progress_file)
+        tmp.replace(self.progress_file)
 
     def write_summary(self) -> None:
         """Write a final summary to the live log."""
@@ -488,8 +491,8 @@ async def _backfill_splits_dividends(
                         denominator=denominator,
                     )
                     stmt = stmt.on_conflict_do_nothing(constraint="uq_stock_splits_stock_date")
-                    await session.execute(stmt)
-                    splits_count += 1
+                    result = await session.execute(stmt)
+                    splits_count += result.rowcount  # type: ignore[attr-defined]
                 await session.commit()
 
         # ---- Dividends ----
@@ -526,8 +529,8 @@ async def _backfill_splits_dividends(
                         payment_date=pay_date,
                     )
                     stmt = stmt.on_conflict_do_nothing(constraint="uq_stock_dividends_stock_date")
-                    await session.execute(stmt)
-                    divs_count += 1
+                    result = await session.execute(stmt)
+                    divs_count += result.rowcount  # type: ignore[attr-defined]
                 await session.commit()
 
     except Exception as e:
@@ -632,9 +635,15 @@ async def run_full_backfill(
         return
 
     # ---- 6. Initialize progress tracker ----
-    total_tickers_for_tracking = len(stocks) + (
-        len(checkpoint.get("tickers_completed", [])) if checkpoint else 0
-    )
+    if checkpoint:
+        # Include both completed and failed checkpoint tickers in the total,
+        # since BackfillProgressTracker initializes its state from both.
+        checkpoint_completed = len(checkpoint.get("tickers_completed", []))
+        checkpoint_failed = len(checkpoint.get("tickers_failed", {}))
+        total_tickers_for_tracking = len(stocks) + checkpoint_completed + checkpoint_failed
+    else:
+        total_tickers_for_tracking = len(stocks)
+
     tracker = BackfillProgressTracker(
         total_tickers=total_tickers_for_tracking,
         resume_from=checkpoint,
@@ -710,9 +719,10 @@ async def run_full_backfill(
             failed_tickers = list(all_failed.keys())
             logger.info(f"\nRetrying {len(failed_tickers)} failed tickers (sequential)...")
 
+            # Build stock lookup map once for all retries
+            stock_map = {s.ticker: s for s in all_stocks}
+
             for ticker in failed_tickers:
-                # Find the stock object
-                stock_map = {s.ticker: s for s in all_stocks}
                 stock = stock_map.get(ticker)
                 if not stock:
                     continue

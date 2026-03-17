@@ -509,7 +509,7 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 
 #### What We Did
 1. ✅ **Created `scripts/backfill_full.py`** — production-grade full market backfill
-   - **Smart ticker filtering** — only `Common Stock` + `ETF` asset types (skips warrants, preferred shares, units, OTC junk). Filters from 49K → ~10K tickers
+   - **Smart ticker filtering** — only `Common Stock` + `ETF` asset types (skips warrants, preferred shares, units, OTC junk). Filters from 49K → 23,714 tickers
    - **Async concurrency** — configurable semaphore (default 5 parallel requests) to stay well under EODHD's 1K calls/min limit
    - **Real-time progress tracking** — `data/backfill_live.log` (one line per ticker, `tail -f` friendly) + `data/backfill_progress.json` (full snapshot with ETA, completed/failed lists)
    - **Checkpoint/resume** — `--resume` flag reads the progress JSON, skips already-completed tickers. Safe to Ctrl+C and restart

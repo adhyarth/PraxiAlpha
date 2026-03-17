@@ -9,7 +9,7 @@
 
 ### Added
 - **Full market backfill completed** — 58.2M OHLCV records, 18.4K splits, 634K dividends across 23,714 tickers (1990–2026)
-- **Production backfill script (`scripts/backfill_full.py`)** — full market backfill for ~10K+ active US stocks & ETFs
+- **Production backfill script (`scripts/backfill_full.py`)** — full market backfill for ~20K+ active US stocks & ETFs
   - Smart ticker filtering: only Common Stock + ETF (skips warrants, preferred, units, OTC)
   - Async concurrency with configurable semaphore (default 5 parallel requests)
   - Real-time `data/backfill_live.log` for `tail -f` monitoring (one line per ticker)
@@ -32,6 +32,9 @@
 - `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
 - `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`
 - `.gitignore` updated to exclude backfill progress/log files
+- **`daily_ohlcv_update` bulk `latest_date` update** — replaced N+1 per-stock SELECT+UPDATE loop with a single bulk `UPDATE ... WHERE id IN (...)` statement
+- **Celery `DB_BATCH_SIZE` aligned to 1000** — `data_tasks.py` batch size now matches `backfill_full.py` (was still 3000)
+- **Splits/dividends rowcount accuracy** — `_backfill_splits_dividends` now uses `result.rowcount` from `on_conflict_do_nothing` instead of blindly incrementing per row; skipped duplicates no longer inflate the count
 
 ### Fixed
 - **DB parameter overflow crash** — reduced `DB_BATCH_SIZE` from 3000 → 1000 (24K params → 8K params) to stay safely under PostgreSQL's ~32K parameter limit

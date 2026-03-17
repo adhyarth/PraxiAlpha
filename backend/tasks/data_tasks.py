@@ -17,8 +17,8 @@ from backend.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
-# Batch size for DB upserts (3000 × 8 cols = 24K params, under PG ~32K limit)
-DB_BATCH_SIZE = 3000
+# Batch size for DB upserts (1000 × 8 cols = 8K params, well under PG ~32K limit)
+DB_BATCH_SIZE = 1000
 
 
 @celery_app.task(
@@ -35,7 +35,7 @@ def daily_ohlcv_update(self):
     Uses EODHD bulk endpoint for efficiency — a single API call
     returns all tickers' EOD data for a given date.
 
-    Updates each stock's latest_date and total_records metadata
+    Updates each stock's latest_date metadata
     so future runs know where to pick up.
     """
     logger.info("🔄 Starting daily OHLCV update...")
@@ -112,20 +112,21 @@ def daily_ohlcv_update(self):
                         await session.execute(stmt)
                     await session.commit()
 
-                # Update latest_date for all affected stocks
+                # Bulk-update latest_date for all affected stocks in one statement
                 if records:
+                    from sqlalchemy import update
+
                     record_date = records[0]["date"]
-                    affected_ids = [r["stock_id"] for r in records]
+                    affected_ids = list({r["stock_id"] for r in records})
                     async with async_session_factory() as session:
-                        for stock_id in affected_ids:
-                            stock_q = await session.execute(
-                                select(Stock).where(Stock.id == stock_id)
+                        await session.execute(
+                            update(Stock)
+                            .where(
+                                Stock.id.in_(affected_ids),
+                                (Stock.latest_date.is_(None)) | (Stock.latest_date < record_date),
                             )
-                            stock = stock_q.scalar_one_or_none()
-                            if stock and (
-                                stock.latest_date is None or record_date > stock.latest_date
-                            ):
-                                stock.latest_date = record_date
+                            .values(latest_date=record_date)
+                        )
                         await session.commit()
 
             logger.info(f"✅ Daily OHLCV update: {len(records)} upserted, {skipped} skipped")
@@ -287,10 +288,13 @@ def backfill_all_stocks():
     """
     Backfill ALL active US stocks.
 
-    This is the big one — ~10,000 tickers × 30+ years.
-    Dispatches individual backfill_stock tasks for parallel processing
-    via the Celery worker pool.
+    This is the big one — ~23,714 tickers × 30+ years.
+    Dispatches individual backfill_stock tasks in batches of 500
+    with brief pauses between batches to avoid overwhelming the
+    Celery broker/worker pool.
     """
+    import time
+
     logger.info("🔄 Starting full US market backfill...")
 
     async def _get_tickers():
@@ -307,13 +311,32 @@ def backfill_all_stocks():
         return [s.ticker for s in filtered]
 
     tickers = asyncio.run(_get_tickers())
-    logger.info(f"Dispatching backfill tasks for {len(tickers)} tickers...")
+    total = len(tickers)
+    logger.info(f"Dispatching backfill tasks for {total} tickers...")
 
-    for ticker in tickers:
-        backfill_stock.delay(ticker)
+    # Dispatch in batches to avoid overwhelming the broker/worker pool
+    batch_size = 500
+    pause_seconds = 0.5
+    dispatched = 0
 
-    logger.info(f"✅ {len(tickers)} backfill tasks dispatched")
-    return {"dispatched": len(tickers)}
+    for start in range(0, total, batch_size):
+        batch = tickers[start : start + batch_size]
+        for ticker in batch:
+            backfill_stock.delay(ticker)
+            dispatched += 1
+
+        logger.info(
+            "Dispatched backfill tasks for tickers %d–%d of %d",
+            start + 1,
+            min(start + len(batch), total),
+            total,
+        )
+        # Brief pause between batches to reduce burst load on the broker
+        if start + batch_size < total:
+            time.sleep(pause_seconds)
+
+    logger.info(f"✅ {dispatched} backfill tasks dispatched")
+    return {"dispatched": dispatched}
 
 
 @celery_app.task(name="backend.tasks.data_tasks.daily_economic_calendar_sync")

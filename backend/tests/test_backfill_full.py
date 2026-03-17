@@ -9,12 +9,15 @@ Tests for the production backfill script:
 """
 
 import asyncio
+import importlib.util
 import json
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
+
+import pytest
 
 from scripts.backfill_full import (
     ALLOWED_ASSET_TYPES,
@@ -391,3 +394,37 @@ class TestIncrementalDateLogic:
             overlap_start = stock.latest_date - timedelta(days=5)
             effective_start = max(overlap_start.isoformat(), default_start)
         assert effective_start == "2026-03-10"
+
+
+# ============================================================
+# Celery Task Registration Tests
+# ============================================================
+class TestCeleryTaskRegistration:
+    """Verify Celery tasks are importable and registered (skip if celery not installed)."""
+
+    @pytest.mark.skipif(
+        importlib.util.find_spec("celery") is None,
+        reason="celery not installed in CI",
+    )
+    def test_daily_ohlcv_update_is_registered(self):
+        from backend.tasks.data_tasks import daily_ohlcv_update
+
+        assert callable(daily_ohlcv_update)
+
+    @pytest.mark.skipif(
+        importlib.util.find_spec("celery") is None,
+        reason="celery not installed in CI",
+    )
+    def test_daily_macro_update_is_registered(self):
+        from backend.tasks.data_tasks import daily_macro_update
+
+        assert callable(daily_macro_update)
+
+    @pytest.mark.skipif(
+        importlib.util.find_spec("celery") is None,
+        reason="celery not installed in CI",
+    )
+    def test_backfill_all_stocks_is_registered(self):
+        from backend.tasks.data_tasks import backfill_all_stocks
+
+        assert callable(backfill_all_stocks)
