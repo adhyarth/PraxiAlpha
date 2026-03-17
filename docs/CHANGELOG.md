@@ -8,6 +8,21 @@
 ## [Unreleased]
 
 ### Added
+- **Weekly/Monthly/Quarterly candle aggregates** — TimescaleDB continuous aggregates on the `daily_ohlcv` hypertable
+  - `weekly_ohlcv` (13.5M rows), `monthly_ohlcv` (3.4M rows), `quarterly_ohlcv` (1.2M rows)
+  - Auto-refresh policies: every 1 hour with appropriate lookback windows
+  - Composite indexes `(stock_id, bucket DESC)` for fast queries
+  - Setup script: `scripts/create_candle_aggregates.py` with `--drop` flag
+- **Candle service layer** (`backend/services/candle_service.py`) — unified queries across all timeframes (daily/weekly/monthly/quarterly)
+  - `get_candles()` — query candles with ticker, timeframe, date range, and limit
+  - `get_candle_summary()` — latest candle + data range per timeframe
+  - `get_aggregate_stats()` — row counts and freshness for aggregate health monitoring
+- **Charts API endpoints** (`backend/api/routes/charts.py`)
+  - `GET /charts/{ticker}/candles` — candle data by timeframe with date range/limit filters
+  - `GET /charts/{ticker}/summary` — multi-timeframe summary for a ticker
+  - `GET /charts/stats` — aggregate statistics and health
+- **Celery task `refresh_candle_aggregates`** — refreshes all three aggregates after daily OHLCV update, uses raw asyncpg connection for `CALL refresh_continuous_aggregate`
+- **22 new tests** (117 total) — candle service, charts API, Celery task registration
 - **Full market backfill completed** — 58.2M OHLCV records, 18.4K splits, 634K dividends across 23,714 tickers (1990–2026)
 - **Production backfill script (`scripts/backfill_full.py`)** — full market backfill for ~20K+ active US stocks & ETFs
   - Smart ticker filtering: only Common Stock + ETF (skips warrants, preferred, units, OTC)
@@ -32,11 +47,13 @@
 - `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
 - `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`
 - `.gitignore` updated to exclude backfill progress/log files
+- **`daily_ohlcv_update` now chains `refresh_candle_aggregates`** — weekly/monthly/quarterly aggregates are refreshed automatically after each daily OHLCV update
 - **`daily_ohlcv_update` bulk `latest_date` update** — replaced N+1 per-stock SELECT+UPDATE loop with a single bulk `UPDATE ... WHERE id IN (...)` statement
 - **Celery `DB_BATCH_SIZE` aligned to 1000** — `data_tasks.py` batch size now matches `backfill_full.py` (was still 3000)
 - **Splits/dividends rowcount accuracy** — `_backfill_splits_dividends` now uses `result.rowcount` from `on_conflict_do_nothing` instead of blindly incrementing per row; skipped duplicates no longer inflate the count
 
 ### Fixed
+- **`str(engine.url)` password masking** — `str(engine.url)` replaces the password with `***`, causing raw asyncpg connection failures; fixed to use `settings.async_database_url` directly
 - **DB parameter overflow crash** — reduced `DB_BATCH_SIZE` from 3000 → 1000 (24K params → 8K params) to stay safely under PostgreSQL's ~32K parameter limit
 - **DB retry with backoff** — upsert operations now retry up to 3 times with progressive backoff (10s/20s/30s) on `OperationalError` (handles transient DB restarts/recovery)
 - **Resume >100% progress bug** — `--resume` now skips both completed AND failed tickers; previously-failed tickers are retried only in the end-of-run retry phase, not re-fetched from the API in the main pass

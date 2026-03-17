@@ -137,6 +137,8 @@ def daily_ohlcv_update(self):
 
     try:
         result = asyncio.run(_run())
+        # Chain: refresh candle aggregates after successful OHLCV update
+        refresh_candle_aggregates.delay()
         return result
     except Exception as exc:
         logger.error(f"❌ Daily OHLCV update failed: {exc}")
@@ -368,3 +370,51 @@ def daily_economic_calendar_sync():
     count, pruned = asyncio.run(_sync())
     logger.info(f"✅ Economic calendar sync complete: {count} upserted, {pruned} pruned")
     return {"upserted": count, "pruned": pruned}
+
+
+@celery_app.task(name="backend.tasks.data_tasks.refresh_candle_aggregates")
+def refresh_candle_aggregates():
+    """
+    Refresh TimescaleDB continuous aggregates for weekly/monthly/quarterly candles.
+
+    Called after the daily OHLCV update to ensure aggregates include the latest data.
+    TimescaleDB also auto-refreshes via its own policy (every 1 hour), but this
+    task provides an immediate refresh after new data lands.
+    """
+    logger.info("🔄 Refreshing candle aggregates...")
+
+    async def _refresh():
+        # refresh_continuous_aggregate() cannot run inside a transaction block,
+        # so we use a raw asyncpg connection
+        import asyncpg
+
+        from backend.config import get_settings
+
+        settings = get_settings()
+        raw_url = settings.async_database_url.replace("+asyncpg", "")
+        conn = await asyncpg.connect(raw_url)
+        refreshed = {}
+        try:
+            for view, lookback in [
+                ("weekly_ohlcv", "4 weeks"),
+                ("monthly_ohlcv", "3 months"),
+                ("quarterly_ohlcv", "6 months"),
+            ]:
+                try:
+                    await conn.execute(
+                        f"CALL refresh_continuous_aggregate('{view}', "
+                        f"now() - '{lookback}'::interval, now()::date);"
+                    )
+                    count = await conn.fetchval(f"SELECT count(*) FROM {view}")
+                    refreshed[view] = count or 0
+                    logger.info(f"   ✅ {view}: {refreshed[view]:,} rows")
+                except Exception as e:
+                    logger.warning(f"   ❌ {view}: {e}")
+                    refreshed[view] = -1
+        finally:
+            await conn.close()
+        return refreshed
+
+    result = asyncio.run(_refresh())
+    logger.info(f"✅ Candle aggregate refresh complete: {result}")
+    return result
