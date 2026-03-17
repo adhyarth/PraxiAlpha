@@ -695,3 +695,64 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - `str(engine.url)` in SQLAlchemy masks the password with `***` — never use it to build raw connection strings. Use `settings.async_database_url` (the original config value) instead
 - TimescaleDB's `refresh_continuous_aggregate()` is a stored procedure (`CALL`), not a function (`SELECT`) — it cannot run inside a transaction block. This is a common gotcha when using SQLAlchemy which wraps everything in transactions
 - When running scripts locally against a Dockerized DB, the hostname is `localhost` (not the Docker service name `db`). Override via `DATABASE_URL` env var or `POSTGRES_HOST=localhost`
+
+---
+
+### Session 11 — 2026-03-18: Technical Indicators Service (Phase 2)
+
+#### What We Did
+1. ✅ **Implemented technical indicators service** (`backend/services/analysis/technical_indicators.py`)
+   - **SMA** — Simple Moving Average with configurable period (default 20)
+   - **EMA** — Exponential Moving Average using span-based smoothing (default 20)
+   - **RSI** — Relative Strength Index with Wilder's smoothing method (default period 14)
+   - **MACD** — Moving Average Convergence/Divergence returning macd_line, signal_line, histogram (default 12/26/9)
+   - **Bollinger Bands** — Middle/Upper/Lower bands with configurable period and num_std (default 20, 2σ)
+   - All functions are pure, stateless, side-effect-free — accept `pd.Series`, return `pd.Series` or `pd.DataFrame`
+   - Shared `_validate_inputs()` helper for consistent error handling across all indicators
+   - Population-level std dev (`ddof=0`) for Bollinger Bands to match industry convention
+
+2. ✅ **Updated analysis package exports** (`backend/services/analysis/__init__.py`)
+   - Exports all five indicator functions via `__all__`
+   - Clean public API: `from backend.services.analysis import sma, ema, rsi, macd, bollinger_bands`
+
+3. ✅ **Wrote 52 new tests** (`backend/tests/test_analysis.py`)
+   - `TestValidation` (5 tests) — type checking, empty series, zero/negative period
+   - `TestSMA` (7 tests) — basic computation, period=1, period=length, constant series, defaults, edge cases
+   - `TestEMA` (7 tests) — basic, no NaNs, period=1, constant, EMA-vs-SMA reactivity, defaults, edge cases
+   - `TestRSI` (8 tests) — basic, range [0,100], leading NaNs, all-gains (100), all-losses (0), constant price, defaults, edge cases
+   - `TestMACD` (10 tests) — DataFrame shape, histogram=line−signal, constant series, custom periods, fast≥slow rejection, zero/negative period, empty series
+   - `TestBollingerBands` (11 tests) — DataFrame shape, middle=SMA, upper≥middle, lower≤middle, symmetry, constant series, wider with more σ, defaults, zero/negative num_std, invalid period
+   - `TestIntegration` (3 tests) — RSI of EMA, EMA-based Bollinger Bands, all indicators same length
+
+#### Architecture Decisions
+- **Pure pandas, no external TA library** — keeps dependencies minimal and gives us full control over the smoothing method (Wilder's for RSI, standard EWM for EMA/MACD). TA-Lib can be added later as an optional accelerator if needed.
+- **Wilder's smoothing for RSI** (`com = period − 1`) — matches the canonical RSI definition used by TradingView, Bloomberg, and most institutional platforms. Many libraries incorrectly use SMA-based RSI.
+- **Population std dev (`ddof=0`) for Bollinger Bands** — matches the standard Bollinger Band definition. Sample std dev (`ddof=1`) would produce slightly wider bands.
+- **NaN for insufficient data** — rather than forward-filling or guessing, we return NaN where the look-back window has insufficient data. This prevents misleading signals at series boundaries.
+- **Functions, not classes** — indicators are stateless mathematical transformations. Functions compose better than classes for this use case (e.g., `rsi(ema(close, 5), 14)`).
+
+#### Files Created / Modified
+- `backend/services/analysis/technical_indicators.py` (replaced stub) — 5 indicator functions + shared validator
+- `backend/services/analysis/__init__.py` (replaced stub) — public API exports
+- `backend/tests/test_analysis.py` (replaced stub) — 52 comprehensive tests
+
+#### Files Updated
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+- `WORKFLOW.md` — updated state table, phase checklist, session log
+
+#### Test Count: 171 (was 119, +52 technical indicator tests)
+
+#### Lessons Learned
+- Wilder's smoothing factor `α = 1/period` maps to pandas `ewm(com=period-1)`, not `ewm(span=period)`. Using `span` gives the standard EMA smoothing factor `α = 2/(period+1)`, which is subtly different and produces incorrect RSI values
+- `ddof=0` vs `ddof=1` in rolling std affects Bollinger Band width — industry standard is population std dev (`ddof=0`)
+- RSI with constant prices produces `0/0` (no gains, no losses) → NaN via pandas, which is the mathematically correct result. Some platforms display 50 for this edge case, but NaN is more honest
+
+#### PR Review Fixes (PR #8 — 4 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Replaced `np.random.seed(42)` with `np.random.default_rng(42)`** in `test_analysis.py` `realistic_series` fixture | `np.random.seed()` mutates NumPy's global RNG state. If any other test in the suite relies on random output, execution order could produce different results — classic source of flaky tests. | As the test suite grows (171 → 500+), order-dependent failures would appear sporadically and be extremely hard to diagnose. In CI with parallel test execution, this becomes even worse. Using a local generator isolates randomness to the fixture. |
+| 2 | **Clarified module docstring** — distinguished rolling-window indicators (SMA, RSI, Bollinger → leading NaNs) from EWM-based indicators (EMA, MACD → seeded from index 0, no leading NaNs) | The original docstring said "NaN is used where there is insufficient data" which is only true for rolling-window indicators. EMA/MACD produce values starting at index 0. | Misleading docstrings compound over time. A future developer (or Copilot in a later session) building chart overlays would assume all indicators have leading NaNs and add unnecessary NaN-handling logic, or worse, skip valid data points. Accurate docs prevent phantom bugs in downstream consumers. |
+| 3 | **Replaced Unicode `≥` with ASCII `>=`** in MACD validation error message | Codebase convention uses ASCII operators in error messages. Unicode characters can cause encoding issues in log aggregators, grep searches, and test assertions that use string matching. | In production, log pipelines (ELK, Datadog, CloudWatch) may silently drop or mangle Unicode in error messages. `grep ">=1"` wouldn't find `"≥ 1"`. As the project scales to more services, inconsistent encoding in error messages makes incident debugging harder. |
+| 4 | **Replaced Unicode `≥` with ASCII `>=`** in `_validate_inputs()` error message | Same reasoning as #3 — consistency and searchability. This function is the shared validator called by every indicator, so the impact is multiplied. | Every indicator (SMA, EMA, RSI, Bollinger) routes through `_validate_inputs()`. A single encoding inconsistency here would affect error handling for all 5 indicators and any future indicators that use the same validator. |
