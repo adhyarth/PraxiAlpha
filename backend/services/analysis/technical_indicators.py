@@ -4,8 +4,12 @@ PraxiAlpha — Technical Indicators Service
 Pure Python / pandas implementations of common technical indicators.
 Each function accepts a ``pandas.Series`` (typically the *close* price)
 and returns a ``pandas.Series`` or ``pandas.DataFrame`` with the
-computed indicator values.  NaN is used where there is insufficient
-data for the look-back window.
+computed indicator values.
+
+Rolling-window indicators (SMA, RSI, Bollinger Bands) return NaN for
+positions where the look-back window has insufficient data.  EWM-based
+indicators (EMA, MACD) are seeded from the first value and produce
+output starting at index 0 (no leading NaNs).
 
 Supported indicators
 --------------------
@@ -170,7 +174,7 @@ def macd(
         is empty.
     """
     if fast_period < 1 or slow_period < 1 or signal_period < 1:
-        raise ValueError("All MACD periods must be ≥ 1.")
+        raise ValueError("All MACD periods must be >= 1.")
     if fast_period >= slow_period:
         raise ValueError("fast_period must be < slow_period.")
     _validate_inputs(series, 1)  # just validate series is non-empty
@@ -257,4 +261,4 @@ def _validate_inputs(series: pd.Series, period: int) -> None:
     if series.empty:
         raise ValueError("Input series must not be empty.")
     if period < 1:
-        raise ValueError(f"Period must be ≥ 1, got {period}.")
+        raise ValueError(f"Period must be >= 1, got {period}.")

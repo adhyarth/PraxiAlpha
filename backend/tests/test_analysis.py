@@ -66,8 +66,8 @@ def alternating_series() -> pd.Series:
 @pytest.fixture
 def realistic_series() -> pd.Series:
     """30 semi-realistic daily closes for integration-style checks."""
-    np.random.seed(42)
-    return pd.Series(np.cumsum(np.random.randn(30)) + 200)
+    rng = np.random.default_rng(42)
+    return pd.Series(np.cumsum(rng.standard_normal(30)) + 200)
 
 
 # ============================================================
