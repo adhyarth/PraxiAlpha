@@ -73,10 +73,12 @@ class CandleService:
             timeframe: daily, weekly, monthly, or quarterly
             start: Start date filter (inclusive)
             end: End date filter (inclusive)
-            limit: Maximum number of candles to return (newest first)
+            limit: Maximum number of candles to return (most recent N)
 
         Returns:
-            List of candle dicts, ordered by date ascending (oldest first).
+            List of candle dicts, ordered by date ascending (oldest → newest).
+            Internally selects the last `limit` rows by date DESC, then
+            re-sorts ascending for charting libraries.
             Each dict has: date, open, high, low, close, adjusted_close,
             volume, and (for aggregates) trading_days.
         """
@@ -141,6 +143,44 @@ class CandleService:
         candles = await self.get_candles(stock_id, timeframe, limit=1)
         return candles[0] if candles else None
 
+    async def get_candle_summary(
+        self,
+        stock_id: int,
+    ) -> dict[str, dict[str, Any]]:
+        """
+        Get count + date range for all timeframes in one query per timeframe.
+
+        Combines count, min, and max into a single query per timeframe to
+        reduce DB round-trips (was 2 queries × 4 timeframes = 8, now 4 total).
+        """
+        summary: dict[str, dict[str, Any]] = {}
+        for tf in Timeframe:
+            table = _TIMEFRAME_TABLE[tf]
+            date_col = _DATE_COLUMN[tf]
+            result = await self.session.execute(
+                text(
+                    f"SELECT count(*) AS cnt, "
+                    f"min({date_col}) AS earliest, "
+                    f"max({date_col}) AS latest "
+                    f"FROM {table} WHERE stock_id = :stock_id"
+                ),
+                {"stock_id": stock_id},
+            )
+            row = result.fetchone()
+            if row and row.earliest is not None:
+                summary[tf.value] = {
+                    "count": row.cnt,
+                    "earliest": row.earliest.isoformat(),
+                    "latest": row.latest.isoformat(),
+                }
+            else:
+                summary[tf.value] = {
+                    "count": 0,
+                    "earliest": None,
+                    "latest": None,
+                }
+        return summary
+
     async def get_candle_count(
         self,
         stock_id: int,
@@ -178,10 +218,37 @@ class CandleService:
         }
 
     async def get_aggregate_stats(self) -> dict[str, Any]:
-        """Get row counts for all candle views (for monitoring/health checks)."""
+        """
+        Get approximate row counts and freshness for all candle views.
+
+        Uses pg_class.reltuples for O(1) approximate counts instead of
+        exact count(*) which would scan millions of rows.
+        Also returns the latest bucket/date per view as a freshness signal.
+        """
         stats: dict[str, Any] = {}
         for tf in Timeframe:
             table = _TIMEFRAME_TABLE[tf]
-            result = await self.session.execute(text(f"SELECT count(*) FROM {table}"))
-            stats[tf.value] = result.scalar() or 0
+            date_col = _DATE_COLUMN[tf]
+
+            # Approximate row count from pg_class (updated by ANALYZE/autovacuum)
+            count_result = await self.session.execute(
+                text(
+                    "SELECT reltuples::bigint AS approx_count FROM pg_class WHERE relname = :table"
+                ),
+                {"table": table},
+            )
+            count_row = count_result.fetchone()
+            approx_count = int(count_row.approx_count) if count_row else 0
+
+            # Latest date as freshness signal (cheap — hits the index)
+            latest_result = await self.session.execute(
+                text(f"SELECT max({date_col}) AS latest FROM {table}")
+            )
+            latest_row = latest_result.fetchone()
+            latest = latest_row.latest.isoformat() if latest_row and latest_row.latest else None
+
+            stats[tf.value] = {
+                "approx_rows": max(approx_count, 0),
+                "latest": latest,
+            }
         return stats

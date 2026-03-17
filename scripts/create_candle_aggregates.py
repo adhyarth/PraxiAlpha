@@ -29,13 +29,16 @@ from sqlalchemy import text
 from backend.database import engine
 
 # ---- Continuous Aggregate Definitions ----
-# Weekly: ISO week (Monday–Friday trading week)
+# Weekly: ISO week (Monday-aligned via explicit origin)
+# NOTE: time_bucket('7 days', date) without an origin anchors to the Unix epoch
+# (1970-01-01, a Thursday), producing non-ISO week boundaries.
+# We use origin => '2026-01-05' (a Monday) so every 7-day bucket starts on Monday.
 WEEKLY_AGG_SQL = """
 CREATE MATERIALIZED VIEW IF NOT EXISTS weekly_ohlcv
 WITH (timescaledb.continuous) AS
 SELECT
     stock_id,
-    time_bucket('7 days'::interval, date) AS bucket,
+    time_bucket('7 days'::interval, date, origin => '2026-01-05'::date) AS bucket,
     first(open, date)       AS open,
     max(high)               AS high,
     min(low)                AS low,
@@ -44,7 +47,7 @@ SELECT
     sum(volume)             AS volume,
     count(*)                AS trading_days
 FROM daily_ohlcv
-GROUP BY stock_id, time_bucket('7 days'::interval, date)
+GROUP BY stock_id, time_bucket('7 days'::interval, date, origin => '2026-01-05'::date)
 WITH NO DATA;
 """
 

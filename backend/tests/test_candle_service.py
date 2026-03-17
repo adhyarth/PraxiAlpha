@@ -255,22 +255,88 @@ class TestCandleService:
         assert dr["latest"] is None
 
     @pytest.mark.asyncio
-    async def test_get_aggregate_stats(self, service, mock_session):
-        """Should return counts for all timeframes."""
-        counts = [58_000_000, 12_000_000, 3_000_000, 1_000_000]
+    async def test_get_candle_summary(self, service, mock_session):
+        """Should return count + date range for all timeframes in consolidated queries."""
+        # 4 timeframes, 1 query each (combined count + min + max)
         mock_results = []
-        for c in counts:
+        for cnt, earliest, latest in [
+            (8500, date(1993, 2, 1), date(2026, 3, 16)),
+            (1700, date(1993, 2, 1), date(2026, 3, 10)),
+            (396, date(1993, 2, 1), date(2026, 3, 1)),
+            (133, date(1993, 4, 1), date(2026, 1, 1)),
+        ]:
+            row = MagicMock()
+            row.cnt = cnt
+            row.earliest = earliest
+            row.latest = latest
             mr = MagicMock()
-            mr.scalar.return_value = c
+            mr.fetchone.return_value = row
             mock_results.append(mr)
+        mock_session.execute.side_effect = mock_results
+
+        summary = await service.get_candle_summary(stock_id=1)
+
+        assert summary["daily"]["count"] == 8500
+        assert summary["daily"]["earliest"] == "1993-02-01"
+        assert summary["daily"]["latest"] == "2026-03-16"
+        assert summary["weekly"]["count"] == 1700
+        assert summary["quarterly"]["count"] == 133
+        assert summary["quarterly"]["latest"] == "2026-01-01"
+
+    @pytest.mark.asyncio
+    async def test_get_candle_summary_no_data(self, service, mock_session):
+        """Should return zero counts and null dates when stock has no data."""
+        mock_row = MagicMock()
+        mock_row.cnt = 0
+        mock_row.earliest = None
+        mock_row.latest = None
+        mock_result = MagicMock()
+        mock_result.fetchone.return_value = mock_row
+        mock_session.execute.return_value = mock_result
+
+        summary = await service.get_candle_summary(stock_id=999)
+
+        for tf in ["daily", "weekly", "monthly", "quarterly"]:
+            assert summary[tf]["count"] == 0
+            assert summary[tf]["earliest"] is None
+            assert summary[tf]["latest"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_aggregate_stats(self, service, mock_session):
+        """Should return approximate counts and freshness for all timeframes."""
+        # Each timeframe does 2 queries: pg_class approx count + max(date_col)
+        mock_count_rows = [
+            MagicMock(approx_count=58_000_000),
+            MagicMock(approx_count=12_000_000),
+            MagicMock(approx_count=3_000_000),
+            MagicMock(approx_count=1_000_000),
+        ]
+        mock_latest_rows = [
+            MagicMock(latest=date(2026, 3, 16)),
+            MagicMock(latest=date(2026, 3, 10)),
+            MagicMock(latest=date(2026, 3, 1)),
+            MagicMock(latest=date(2026, 1, 1)),
+        ]
+        mock_results = []
+        for count_row, latest_row in zip(mock_count_rows, mock_latest_rows, strict=True):
+            # First call: pg_class query
+            mr_count = MagicMock()
+            mr_count.fetchone.return_value = count_row
+            mock_results.append(mr_count)
+            # Second call: max(date_col) query
+            mr_latest = MagicMock()
+            mr_latest.fetchone.return_value = latest_row
+            mock_results.append(mr_latest)
         mock_session.execute.side_effect = mock_results
 
         stats = await service.get_aggregate_stats()
 
-        assert stats["daily"] == 58_000_000
-        assert stats["weekly"] == 12_000_000
-        assert stats["monthly"] == 3_000_000
-        assert stats["quarterly"] == 1_000_000
+        assert stats["daily"]["approx_rows"] == 58_000_000
+        assert stats["daily"]["latest"] == "2026-03-16"
+        assert stats["weekly"]["approx_rows"] == 12_000_000
+        assert stats["monthly"]["approx_rows"] == 3_000_000
+        assert stats["quarterly"]["approx_rows"] == 1_000_000
+        assert stats["quarterly"]["latest"] == "2026-01-01"
 
 
 # ============================================================

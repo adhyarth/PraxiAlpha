@@ -22,8 +22,8 @@
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/charts/` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget (high-impact + all events) |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (117 tests) |
-| **Tests** | ✅ 117 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (119 tests) |
+| **Tests** | ✅ 119 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (10 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
 
 ### Current Phase
@@ -150,11 +150,24 @@ gh pr create \
 - `path/to/file` — description
 ```
 
-### Step 6: Developer Review & Merge
-1. Developer reviews the PR on GitHub
-2. If changes are needed → Copilot makes fixes → push to same branch → PR updates automatically
-3. Developer approves → squash-merges on GitHub
-4. Feature branch is auto-deleted after merge
+### Step 6: PR Review & Fix Cycle
+1. Developer requests a review on GitHub (Copilot code review or human reviewer)
+2. Once the review is complete, developer tells Copilot: **"PR review is done on PR #N, fetch and fix the comments"**
+3. **Copilot fetches review comments** using these commands:
+
+```bash
+# Fetch the PR overview and review body
+gh pr view <PR_NUMBER> --comments --json reviews,comments
+
+# Fetch inline review comments (the specific code suggestions)
+gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments \
+  --jq '.[] | "---\nFile: \(.path):\(.line // .original_line)\nBody: \(.body)\n"'
+```
+
+4. Copilot reads all comments, implements fixes, runs CI, and pushes to the same branch
+5. PR auto-updates → developer reviews again or approves
+6. Developer squash-merges on GitHub
+7. Feature branch is auto-deleted after merge
 
 ### Step 7: Post-Merge Cleanup
 ```bash
@@ -182,6 +195,8 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 | 11 | Empty `DATABASE_URL=` overriding `.env` defaults | When running scripts locally, either export the full `DATABASE_URL` or don't set it at all. `DATABASE_URL=` (empty) overrides `.env` and causes auth failures. |
 | 12 | `str(engine.url)` masks passwords with `***` | Never use `str(engine.url)` to build raw connection strings. Use `settings.async_database_url` (the original config value) instead. |
 | 13 | `CALL refresh_continuous_aggregate` inside SQLAlchemy transaction | TimescaleDB's `refresh_continuous_aggregate()` cannot run inside a transaction block. Use raw asyncpg connection, not `engine.begin()`. |
+| 14 | `time_bucket('7 days', date)` doesn't align to ISO weeks | TimescaleDB's default `time_bucket` origin is the Unix epoch (a Thursday). Always pass `origin => '<a-monday>'` for weekly buckets. |
+| 15 | `SELECT count(*)` on large hypertables/aggregates | Exact counts scan millions of rows. Use `pg_class.reltuples` for approximate O(1) counts in monitoring/health endpoints. |
 
 ---
 

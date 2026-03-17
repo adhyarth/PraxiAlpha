@@ -405,12 +405,13 @@ def refresh_candle_aggregates():
                         f"CALL refresh_continuous_aggregate('{view}', "
                         f"now() - '{lookback}'::interval, now()::date);"
                     )
-                    count = await conn.fetchval(f"SELECT count(*) FROM {view}")
-                    refreshed[view] = count or 0
-                    logger.info(f"   ✅ {view}: {refreshed[view]:,} rows")
+                    # Use max(bucket) as a cheap freshness signal instead of count(*)
+                    latest = await conn.fetchval(f"SELECT max(bucket) FROM {view}")
+                    refreshed[view] = str(latest) if latest else "empty"
+                    logger.info(f"   ✅ {view}: refreshed (latest bucket: {refreshed[view]})")
                 except Exception as e:
                     logger.warning(f"   ❌ {view}: {e}")
-                    refreshed[view] = -1
+                    refreshed[view] = f"error: {e}"
         finally:
             await conn.close()
         return refreshed

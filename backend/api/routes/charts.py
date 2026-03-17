@@ -88,14 +88,7 @@ async def get_chart_summary(
         raise HTTPException(status_code=404, detail=f"Stock '{ticker.upper()}' not found")
 
     service = CandleService(db)
-    summary = {}
-    for tf in Timeframe:
-        count = await service.get_candle_count(stock_row.id, tf)
-        date_range = await service.get_date_range(stock_row.id, tf)
-        summary[tf.value] = {
-            "count": count,
-            **date_range,
-        }
+    summary = await service.get_candle_summary(stock_row.id)
 
     return {
         "ticker": stock_row.ticker,

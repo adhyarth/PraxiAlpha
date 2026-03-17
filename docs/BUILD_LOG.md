@@ -624,7 +624,7 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 
 #### What We Did
 1. ✅ **Created TimescaleDB continuous aggregates** for weekly, monthly, and quarterly OHLCV candles
-   - `weekly_ohlcv` — 7-day time buckets (ISO week), auto-refresh every hour with 4-week lookback
+   - `weekly_ohlcv` — 7-day time buckets (Monday-aligned via explicit origin), auto-refresh every hour with 4-week lookback
    - `monthly_ohlcv` — 1-month time buckets, auto-refresh every hour with 3-month lookback
    - `quarterly_ohlcv` — 3-month time buckets, auto-refresh every hour with 6-month lookback
    - Each aggregate computes: `open` (first), `high` (max), `low` (min), `close` (last), `adjusted_close` (last), `volume` (sum), `trading_days` (count)
