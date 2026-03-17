@@ -13,9 +13,9 @@ from backend.config import get_settings
 from backend.database import Base
 
 # Import all models so they are registered with Base.metadata
-from backend.models.stock import Stock
-from backend.models.ohlcv import DailyOHLCV
 from backend.models.macro import MacroData
+from backend.models.ohlcv import DailyOHLCV
+from backend.models.stock import Stock
 
 # Alembic Config object
 config = context.config

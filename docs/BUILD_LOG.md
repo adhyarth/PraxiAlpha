@@ -756,3 +756,81 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 2 | **Clarified module docstring** — distinguished rolling-window indicators (SMA, RSI, Bollinger → leading NaNs) from EWM-based indicators (EMA, MACD → seeded from index 0, no leading NaNs) | The original docstring said "NaN is used where there is insufficient data" which is only true for rolling-window indicators. EMA/MACD produce values starting at index 0. | Misleading docstrings compound over time. A future developer (or Copilot in a later session) building chart overlays would assume all indicators have leading NaNs and add unnecessary NaN-handling logic, or worse, skip valid data points. Accurate docs prevent phantom bugs in downstream consumers. |
 | 3 | **Replaced Unicode `≥` with ASCII `>=`** in MACD validation error message | Codebase convention uses ASCII operators in error messages. Unicode characters can cause encoding issues in log aggregators, grep searches, and test assertions that use string matching. | In production, log pipelines (ELK, Datadog, CloudWatch) may silently drop or mangle Unicode in error messages. `grep ">=1"` wouldn't find `"≥ 1"`. As the project scales to more services, inconsistent encoding in error messages makes incident debugging harder. |
 | 4 | **Replaced Unicode `≥` with ASCII `>=`** in `_validate_inputs()` error message | Same reasoning as #3 — consistency and searchability. This function is the shared validator called by every indicator, so the impact is multiplied. | Every indicator (SMA, EMA, RSI, Bollinger) routes through `_validate_inputs()`. A single encoding inconsistency here would affect error handling for all 5 indicators and any future indicators that use the same validator. |
+
+---
+
+### Session 12 — 2026-03-17: Candlestick Chart Component (Phase 2)
+
+#### What We Did
+1. ✅ **Implemented candlestick chart builder** (`streamlit_app/components/candlestick_chart.py`)
+   - **`candles_to_dataframe()`** — converts API response (list of dicts) to a DatetimeIndex DataFrame with OHLCV columns
+   - **`build_candlestick_figure()`** — builds a complete Plotly figure with:
+     - OHLCV candlestick trace with bull/bear coloring
+     - Optional volume subplot with colored bars (green=up, red=down)
+     - Optional indicator overlays: SMA, EMA, RSI, MACD, Bollinger Bands
+     - Dynamic subplot layout (1–4 rows depending on indicators selected)
+     - Dark theme styling matching PraxiAlpha design language
+   - Helper functions for each indicator overlay (`_add_ma_overlays`, `_add_bollinger_overlay`, `_add_rsi_panel`, `_add_macd_panel`, `_add_volume_bars`)
+   - Uses the `backend.services.analysis` technical indicators service for all calculations
+
+2. ✅ **Implemented Charts page** (`streamlit_app/pages/charts.py`)
+   - Sidebar controls: ticker input, timeframe selector (daily/weekly/monthly/quarterly), candle limit slider
+   - Indicator panel: toggles for SMA, EMA, RSI, MACD, Bollinger Bands with configurable periods
+   - Fetches candle data from the FastAPI backend (`/api/v1/charts/{ticker}/candles`)
+   - Renders the chart with `st.plotly_chart()` at full container width
+   - Info section showing ticker, timeframe, candle count, and latest price summary (open/high/low/close with change)
+
+3. ✅ **Updated main app** (`streamlit_app/app.py`)
+   - Updated Phase 2 status from "In progress" to reflect charting capabilities
+   - Added navigation entry for the Charts page
+
+4. ✅ **Wrote chart builder tests** (`backend/tests/test_candlestick_chart.py`)
+   - Guarded with `pytest.importorskip("plotly")` so tests skip gracefully in CI if plotly is not installed
+   - Tests for `candles_to_dataframe()`: column names, DatetimeIndex, row count, data types
+   - Tests for `build_candlestick_figure()`: figure creation, volume subplot, indicator overlays, subplot count
+   - Uses local RNG (`np.random.default_rng(99)`) per PR #8 feedback
+
+5. ✅ **Fixed all CI issues**
+   - Added `E402` ignore for `backend/tests/*` in `pyproject.toml` (pytest.importorskip guard pattern requires imports after guard)
+   - Added `F401` ignore for `data/migrations/*` (model imports needed for Alembic metadata registration)
+   - Fixed `zip()` without `strict=` parameter (B905) in candlestick chart builder
+   - Fixed import sorting (I001) in charts page and test file via `ruff check --fix`
+   - Fixed mypy type error: annotated `params` dict in charts page as `dict[str, str | int]`
+
+#### Architecture Decisions
+- **Plotly over Lightweight Charts** — Plotly integrates natively with Streamlit via `st.plotly_chart()` and supports subplots (volume, RSI, MACD below price). Lightweight Charts would require custom HTML embedding and wouldn't get Streamlit's built-in interactivity (zoom, pan, hover).
+- **Chart builder as a component, not a page** — separating the Plotly figure construction (`candlestick_chart.py`) from the Streamlit page logic (`charts.py`) keeps the chart builder testable without Streamlit. Tests only need plotly, not a running Streamlit session.
+- **Dynamic subplot layout** — the number of subplot rows adapts to selected indicators (1=price only, up to 4=price+volume+RSI+MACD). This prevents empty whitespace when fewer indicators are selected.
+- **`pytest.importorskip("plotly")` guard** — allows the chart tests to run locally (where plotly is installed) while gracefully skipping in CI environments that only have lightweight dependencies. No CI failure, no conditional test discovery hacks.
+
+#### Files Created
+- `streamlit_app/components/candlestick_chart.py` — Plotly chart builder (510 lines)
+- `streamlit_app/pages/charts.py` — Streamlit charts page (211 lines)
+- `backend/tests/test_candlestick_chart.py` — chart builder tests (268 lines)
+
+#### Files Modified
+- `streamlit_app/pages/charts.py` — Streamlit charts page (211 lines)
+- `backend/tests/test_candlestick_chart.py` — chart builder tests (268 lines)
+
+#### Files Modified
+- `streamlit_app/app.py` — updated Phase 2 status and navigation
+- `pyproject.toml` — added `E402` for test files, `F401` for migrations
+- `data/migrations/env.py` — sorted model imports alphabetically (auto-fix)
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+- `WORKFLOW.md` — updated state table, phase checklist, session log
+
+#### Test Count: 196 (was 171, +25 candlestick chart tests)
+
+#### PR Review Fixes (PR #9 — 8 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Fixed subplot layout count "1–3" → "1–4"** in BUILD_LOG, CHANGELOG | The chart builder can produce 4 rows (price + volume + RSI + MACD). Documentation said max 3 rows. | Developers reading the docs would assume max 3 rows and might not handle the 4-row case when extending or testing the chart layout. |
+| 2 | **Fixed helper function names** in BUILD_LOG — `_add_sma`/`_add_ema`/`_add_bollinger` → `_add_ma_overlays`/`_add_bollinger_overlay`/`_add_rsi_panel`/`_add_macd_panel`/`_add_volume_bars` | Documentation listed non-existent function names. The actual implementation uses different naming. | Someone searching the codebase for `_add_sma` would find nothing, causing confusion when trying to modify or extend indicator overlays. |
+| 3 | **Fixed API path `/charts/` → `/api/v1/charts/`** in WORKFLOW state table, endpoints table, BUILD_LOG, and CHANGELOG | The FastAPI app mounts the charts router under `/api/v1` prefix (`app.include_router(charts.router, prefix="/api/v1")`). | Any developer or script following the docs would get 404 errors trying `/charts/{ticker}/candles` instead of `/api/v1/charts/{ticker}/candles`. |
+| 4 | **Fixed API URL in charts page** — `{base_url}/charts/{tk}/candles` → `{base_url}/api/v1/charts/{tk}/candles` | Same as #3 — the Streamlit page was constructing the wrong URL. Would 404 at runtime. | The charts page would fail silently with "API error: 404" for every ticker lookup, making the entire charting feature non-functional. |
+| 5 | **Removed "Timeframe toggle" from chart builder docstring** — replaced with "Timeframe label in the chart title" | The `candlestick_chart.py` module only receives a timeframe string for the title; the actual timeframe selection is handled by the Streamlit page, not the chart builder. | Misleading docstring implies the figure builder handles timeframe switching, which could lead a developer to look for toggle logic in the wrong module. |
+| 6 | **Fixed info section description** in BUILD_LOG — "data source, candle count, and date range" → "ticker, timeframe, candle count, and latest price summary" | The actual UI shows ticker/timeframe/count metrics and an OHLC price summary with change, not a date range or data source. | Documentation wouldn't match what users actually see, creating confusion during demos or onboarding. |
+| 7 | **Narrowed `E402` ignore** from `backend/tests/*` to `backend/tests/test_candlestick_chart.py` only | Only one test file uses `pytest.importorskip` (which requires imports after the guard). Blanket E402 ignore would mask real import-order issues in other test files. | As the test suite grows, a real E402 violation in another test file would be silently suppressed, potentially hiding circular imports or sys.path issues. |
+| 8 | **Fixed Session 12 date** in WORKFLOW session log — `2026-03-17` → `2026-03-18` | Session 11 is dated 2026-03-18 but Session 12 was listed as 2026-03-17, breaking the chronological convention. | The session log would appear to go backwards in time, confusing anyone reading the project history or trying to correlate sessions with git log dates. |
