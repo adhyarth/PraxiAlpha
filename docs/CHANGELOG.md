@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- **Full market backfill completed** — 58.2M OHLCV records, 18.4K splits, 634K dividends across 23,714 tickers (1990–2026)
 - **Production backfill script (`scripts/backfill_full.py`)** — full market backfill for ~10K+ active US stocks & ETFs
   - Smart ticker filtering: only Common Stock + ETF (skips warrants, preferred, units, OTC)
   - Async concurrency with configurable semaphore (default 5 parallel requests)
@@ -31,6 +32,13 @@
 - `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
 - `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`
 - `.gitignore` updated to exclude backfill progress/log files
+
+### Fixed
+- **DB parameter overflow crash** — reduced `DB_BATCH_SIZE` from 3000 → 1000 (24K params → 8K params) to stay safely under PostgreSQL's ~32K parameter limit
+- **DB retry with backoff** — upsert operations now retry up to 3 times with progressive backoff (10s/20s/30s) on `OperationalError` (handles transient DB restarts/recovery)
+- **Resume >100% progress bug** — `--resume` now skips both completed AND failed tickers; previously-failed tickers are retried only in the end-of-run retry phase, not re-fetched from the API in the main pass
+- **`record_success` not cleaning failed dict** — successful retries now remove the ticker from `tickers_failed`, preventing tickers from appearing in both completed and failed lists
+- **Retry loop `KeyError`** — changed `del tracker.failed[ticker]` → `tracker.failed.pop(ticker, None)` to handle checkpoint-sourced tickers not yet in the tracker
 
 - **`WORKFLOW.md` — session workflow document** — entry point for every Copilot chat session; includes current project state, 7-step session workflow, common pitfalls, quick reference, and session log summary
 - **Economic calendar full integration** — service layer, API, Celery scheduler, and Streamlit dashboard widget

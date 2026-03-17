@@ -47,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import OperationalError
 
 from backend.database import async_session_factory
 from backend.models.dividend import StockDividend
@@ -67,7 +68,7 @@ logger = logging.getLogger("backfill_full")
 PROJECT_ROOT = Path(__file__).parent.parent
 PROGRESS_FILE = PROJECT_ROOT / "data" / "backfill_progress.json"
 LIVE_LOG_FILE = PROJECT_ROOT / "data" / "backfill_live.log"
-DB_BATCH_SIZE = 3000  # 3000 rows × 8 cols = 24K params (under PG limit of ~32K)
+DB_BATCH_SIZE = 1000  # 1000 rows × 8 cols = 8K params (well under PG limit of ~32K)
 DEFAULT_START_DATE = "1990-01-01"
 DEFAULT_CONCURRENCY = 5  # parallel API requests (EODHD allows 1K/min)
 REQUEST_TIMEOUT = 60.0  # seconds — longer than default for heavy historical pulls
@@ -177,6 +178,8 @@ class BackfillProgressTracker:
         """Record a successful ticker backfill."""
         async with self._lock:
             self.completed.append(ticker)
+            # Remove from failed dict if this was a retry that succeeded
+            self.failed.pop(ticker, None)
             self.total_records += records
             self.total_splits += splits
             self.total_dividends += dividends
@@ -379,47 +382,68 @@ async def backfill_single_stock(
                 }
             )
 
-        # Upsert in batches
+        # Upsert in batches (with DB retry for transient failures)
         if records:
-            async with async_session_factory() as session:
-                for batch_start in range(0, len(records), DB_BATCH_SIZE):
-                    batch = records[batch_start : batch_start + DB_BATCH_SIZE]
-                    stmt = pg_insert(DailyOHLCV).values(batch)
-                    stmt = stmt.on_conflict_do_update(
-                        index_elements=["stock_id", "date"],
-                        set_={
-                            "open": stmt.excluded.open,
-                            "high": stmt.excluded.high,
-                            "low": stmt.excluded.low,
-                            "close": stmt.excluded.close,
-                            "adjusted_close": stmt.excluded.adjusted_close,
-                            "volume": stmt.excluded.volume,
-                        },
-                    )
-                    await session.execute(stmt)
+            max_db_retries = 3
+            for attempt in range(1, max_db_retries + 1):
+                try:
+                    async with async_session_factory() as session:
+                        for batch_start in range(0, len(records), DB_BATCH_SIZE):
+                            batch = records[batch_start : batch_start + DB_BATCH_SIZE]
+                            stmt = pg_insert(DailyOHLCV).values(batch)
+                            stmt = stmt.on_conflict_do_update(
+                                index_elements=["stock_id", "date"],
+                                set_={
+                                    "open": stmt.excluded.open,
+                                    "high": stmt.excluded.high,
+                                    "low": stmt.excluded.low,
+                                    "close": stmt.excluded.close,
+                                    "adjusted_close": stmt.excluded.adjusted_close,
+                                    "volume": stmt.excluded.volume,
+                                },
+                            )
+                            await session.execute(stmt)
 
-                # Update stock metadata
-                stock_q = await session.execute(select(Stock).where(Stock.id == stock.id))
-                stock_record = stock_q.scalar_one()
-                # For earliest_date: keep the older date (existing or new)
-                new_earliest = df["date"].min()
-                if stock_record.earliest_date is None or new_earliest < stock_record.earliest_date:
-                    stock_record.earliest_date = new_earliest
-                # For latest_date: keep the newer date
-                new_latest = df["date"].max()
-                if stock_record.latest_date is None or new_latest > stock_record.latest_date:
-                    stock_record.latest_date = new_latest
-                # For total_records: query actual row count from DB
-                from sqlalchemy import func
+                        # Update stock metadata
+                        stock_q = await session.execute(select(Stock).where(Stock.id == stock.id))
+                        stock_record = stock_q.scalar_one()
+                        # For earliest_date: keep the older date (existing or new)
+                        new_earliest = df["date"].min()
+                        if (
+                            stock_record.earliest_date is None
+                            or new_earliest < stock_record.earliest_date
+                        ):
+                            stock_record.earliest_date = new_earliest
+                        # For latest_date: keep the newer date
+                        new_latest = df["date"].max()
+                        if (
+                            stock_record.latest_date is None
+                            or new_latest > stock_record.latest_date
+                        ):
+                            stock_record.latest_date = new_latest
+                        # For total_records: query actual row count from DB
+                        from sqlalchemy import func
 
-                count_q = await session.execute(
-                    select(func.count())
-                    .select_from(DailyOHLCV)
-                    .where(DailyOHLCV.stock_id == stock.id)
-                )
-                stock_record.total_records = count_q.scalar() or 0
+                        count_q = await session.execute(
+                            select(func.count())
+                            .select_from(DailyOHLCV)
+                            .where(DailyOHLCV.stock_id == stock.id)
+                        )
+                        stock_record.total_records = count_q.scalar() or 0
 
-                await session.commit()
+                        await session.commit()
+                    break  # Success — exit retry loop
+
+                except OperationalError as db_err:
+                    if attempt < max_db_retries:
+                        wait = attempt * 10  # 10s, 20s, 30s
+                        logger.warning(
+                            f"{stock.ticker} DB error (attempt {attempt}/{max_db_retries}), "
+                            f"retrying in {wait}s: {db_err}"
+                        )
+                        await asyncio.sleep(wait)
+                    else:
+                        raise  # Let the outer except catch it
 
         result["records"] = len(records)
         result["date_range"] = f"{df['date'].min()} → {df['date'].max()}"
@@ -576,13 +600,18 @@ async def run_full_backfill(
     if resume:
         checkpoint = load_checkpoint()
 
-    # ---- 4. Skip already-completed tickers ----
+    # ---- 4. Skip already-completed AND already-failed tickers ----
+    # On resume, skip both completed tickers (already have data) AND
+    # previously failed tickers (will be retried in the retry phase at the end).
+    # This prevents re-fetching from the API for tickers that already failed
+    # and avoids the >100% progress bug from repeated resumes.
     if checkpoint:
         completed_set = set(checkpoint.get("tickers_completed", []))
-        original_count = len(stocks)
-        stocks = [s for s in stocks if s.ticker not in completed_set]
+        failed_set = set(checkpoint.get("tickers_failed", {}).keys())
+        skip_set = completed_set | failed_set
+        stocks = [s for s in stocks if s.ticker not in skip_set]
         logger.info(
-            f"Resume: skipping {original_count - len(stocks)} already-completed tickers, "
+            f"Resume: skipping {len(completed_set)} completed + {len(failed_set)} failed tickers, "
             f"{len(stocks)} remaining"
         )
 
@@ -668,8 +697,17 @@ async def run_full_backfill(
             )
 
         # ---- 9. Retry failed tickers (one attempt, sequential) ----
-        if tracker.failed:
-            failed_tickers = list(tracker.failed.keys())
+        # This includes both newly failed tickers AND previously failed ones
+        # from the checkpoint (which were skipped in step 4).
+        all_failed = dict(tracker.failed)  # Copy current failures
+        if checkpoint:
+            # Add back previously-failed tickers that weren't retried yet
+            for ticker, err in checkpoint.get("tickers_failed", {}).items():
+                if ticker not in all_failed and ticker not in tracker.completed_set:
+                    all_failed[ticker] = err
+
+        if all_failed:
+            failed_tickers = list(all_failed.keys())
             logger.info(f"\nRetrying {len(failed_tickers)} failed tickers (sequential)...")
 
             for ticker in failed_tickers:
@@ -681,7 +719,7 @@ async def run_full_backfill(
 
                 # Remove from failed dict so we can re-record
                 async with tracker._lock:
-                    del tracker.failed[ticker]
+                    tracker.failed.pop(ticker, None)
 
                 retry_result = await backfill_single_stock(
                     fetcher,

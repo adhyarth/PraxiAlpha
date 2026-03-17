@@ -566,3 +566,56 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - EODHD has a `eod-bulk-last-day` endpoint that returns all tickers in one call — much more efficient for daily updates than per-ticker requests
 - The `stocks` table has 49K tickers but only ~10K are Common Stock or ETF — the rest are warrants, preferred, units, OTC junk
 - Atomic file writes (write to .tmp, then rename) prevent checkpoint corruption on crash
+
+### Session 9 — 2026-03-17: Full Backfill Production Run & Hardening
+
+#### What We Did
+1. ✅ **Ran full production backfill** — 23,714 tickers backfilled from 1990-01-02 → 2026-03-16
+   - **58,153,151 OHLCV records** inserted via upsert (ON CONFLICT)
+   - **18,438 stock splits** and **634,313 dividends** loaded
+   - Ran across ~18 hours with 11 resume cycles
+
+2. ✅ **Fixed DB crash from parameter overflow**
+   - **Root cause:** `DB_BATCH_SIZE=3000` → 3000 rows × 8 columns = 24,000 SQL parameters, right at PostgreSQL's ~32K parameter limit. A large ticker with 3,000+ records caused the DB to crash into recovery mode
+   - **Cascade:** 695 tickers failed with "database system is in recovery mode" / "not yet accepting connections", 36 with "connection was closed in the middle of operation"
+   - **Fix:** Reduced `DB_BATCH_SIZE` from 3000 → 1000 (8K params, well under 32K limit)
+
+3. ✅ **Added DB retry logic with backoff**
+   - Wrapped the upsert block with `OperationalError` catch and retry (up to 3 attempts with 10s/20s/30s backoff)
+   - Prevents transient DB restarts from permanently failing tickers
+
+4. ✅ **Fixed `record_success` to clean up failed dict**
+   - When a previously-failed ticker succeeds on retry, it's now removed from `tickers_failed` dict
+   - Prevents tickers from appearing in both completed and failed lists
+
+5. ✅ **Fixed resume logic — skip both completed AND failed tickers**
+   - **Root cause of >100% progress bug:** `--resume` only skipped completed tickers but re-processed failed ones in the main pass. Each resume re-fetched ~742 failed tickers from the API, even though the retry phase at the end had already handled them
+   - **Fix:** Resume now skips both `tickers_completed` and `tickers_failed` from the checkpoint. Previously-failed tickers are retried only in the end-of-run retry phase (step 9)
+   - Added checkpoint-aware retry: step 9 now merges both new failures and checkpoint failures for a single retry pass
+
+6. ✅ **Fixed retry loop `KeyError`**
+   - Changed `del tracker.failed[ticker]` → `tracker.failed.pop(ticker, None)` to handle tickers from the checkpoint that aren't in the current tracker's failed dict
+
+#### Final Database State
+| Table | Records |
+|-------|---------|
+| `daily_ohlcv` | 58,153,151 |
+| `stock_splits` | 18,438 |
+| `stock_dividends` | 634,313 |
+| Unique stocks with OHLCV data | 23,714 |
+| Date range | 1990-01-02 → 2026-03-16 |
+| Permanently failed (no data / invalid) | 468 |
+
+#### Files Modified
+- `scripts/backfill_full.py` — batch size reduction, DB retry logic, resume bug fix, record_success cleanup
+- `WORKFLOW.md` — updated state table, marked backfill ✅ Done, added pitfalls #9–#11, session log
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all fixes
+
+#### Test Count: 95 (unchanged — fixes were in production logic, not test-facing)
+
+#### Lessons Learned
+- PostgreSQL has a ~32,767 parameter limit per query. With N columns per row, keep `batch_size × N` well under that limit. We used 3000 × 8 = 24K and it was too close to the edge under load
+- Resume logic must skip **both** completed and failed tickers to avoid re-fetching from the API. Failed tickers should only be retried in a dedicated retry phase, not re-processed from scratch
+- Setting `DATABASE_URL=` (empty string) as an env var override will mask the `.env` file default — either export the full URL or don't set the variable at all
+- The backfill completed 23,714 tickers with only 468 genuine failures (no data / invalid), a 98% success rate
