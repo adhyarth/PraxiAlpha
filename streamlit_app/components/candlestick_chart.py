@@ -4,7 +4,7 @@ PraxiAlpha — Candlestick Chart Component
 Builds interactive Plotly candlestick charts with:
 - Volume subplot (bar chart below the candles)
 - Technical indicator overlays (SMA, EMA, RSI, MACD, Bollinger Bands)
-- Timeframe toggle (daily/weekly/monthly/quarterly)
+- Timeframe label in the chart title (selection is handled by the Streamlit page)
 - Responsive layout with dark theme
 
 This module produces a ``plotly.graph_objects.Figure`` and has NO Streamlit

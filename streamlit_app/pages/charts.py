@@ -36,7 +36,7 @@ def _fetch_candles(tk: str, tf: str, lim: int) -> dict[str, Any] | None:
         import httpx
 
         base_url = os.getenv("BACKEND_BASE_URL", "http://localhost:8000").rstrip("/")
-        url = f"{base_url}/charts/{tk}/candles"
+        url = f"{base_url}/api/v1/charts/{tk}/candles"
         params: dict[str, str | int] = {"timeframe": tf, "limit": lim}
 
         response = httpx.get(url, params=params, timeout=10)

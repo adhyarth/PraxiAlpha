@@ -19,14 +19,14 @@
 | **Data Pipeline** | ✅ Working | EODHD fetcher (OHLCV, splits, dividends), FRED fetcher (14 macro series), TradingEconomics fetcher (economic calendar) |
 | **Backfill** | ✅ Done | `scripts/backfill_full.py` — 23,714 tickers backfilled (1990–2026), 58.2M OHLCV records, 18.4K splits, 634K dividends |
 | **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint) → candle aggregate refresh, daily macro (7-day incremental), daily calendar |
-| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/charts/` |
+| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (196 tests) |
 | **Tests** | ✅ 196 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder |
-| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (11 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
+| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (12 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
 
 ### Current Phase
 **Phase 1: Foundation (Weeks 1–4)** — mostly complete.
@@ -241,9 +241,9 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | GET | `/api/v1/calendar/upcoming` | Upcoming economic events |
 | GET | `/api/v1/calendar/high-impact` | High-impact events only |
 | POST | `/api/v1/calendar/sync` | Manual calendar sync |
-| GET | `/charts/{ticker}/candles` | Candle data by timeframe |
-| GET | `/charts/{ticker}/summary` | Multi-timeframe summary |
-| GET | `/charts/stats` | Aggregate statistics |
+| GET | `/api/v1/charts/{ticker}/candles` | Candle data by timeframe |
+| GET | `/api/v1/charts/{ticker}/summary` | Multi-timeframe summary |
+| GET | `/api/v1/charts/stats` | Aggregate statistics |
 
 ---
 
@@ -262,7 +262,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | 9 | 2026-03-17 | Full backfill run (58.2M records), DB crash fixes, resume bug fix, batch size & retry hardening | PR #6 |
 | 10 | 2026-03-17 | Weekly/monthly/quarterly candle aggregates, charts API, candle service, Celery refresh task, 22 new tests (117 total) | PR #7 |
 | 11 | 2026-03-18 | Technical indicators service (SMA, EMA, RSI, MACD, Bollinger Bands), 52 new tests (171 total) | PR #8 |
-| 12 | 2026-03-17 | Candlestick chart component (Plotly), charts page, volume subplot, indicator overlays, 25 new tests (196 total) | PR #9 |
+| 12 | 2026-03-18 | Candlestick chart component (Plotly), charts page, volume subplot, indicator overlays, 25 new tests (196 total) | PR #9 |
 
 ---
 

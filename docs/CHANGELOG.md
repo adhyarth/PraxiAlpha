@@ -13,12 +13,12 @@
   - `build_candlestick_figure()` — builds OHLCV candlestick chart with configurable overlays
   - Volume subplot with bull/bear color coding
   - Indicator overlays: SMA, EMA, RSI, MACD, Bollinger Bands (via technical indicators service)
-  - Dynamic subplot layout (1–3 rows based on selected indicators)
+  - Dynamic subplot layout (1–4 rows based on selected indicators)
   - Dark theme styling with custom color palette
 - **Charts page** (`streamlit_app/pages/charts.py`) — Streamlit interactive charting page
   - Sidebar controls: ticker, timeframe (daily/weekly/monthly/quarterly), candle limit
   - Indicator toggles with configurable periods for all 5 indicators
-  - Backend integration via `/charts/{ticker}/candles` API endpoint
+  - Backend integration via `/api/v1/charts/{ticker}/candles` API endpoint
 - **25 new tests** (196 total) — candlestick chart builder: data prep, figure structure, indicator overlays, subplot layout
 - **Technical indicators service** (`backend/services/analysis/technical_indicators.py`) — pure Python/pandas implementations
   - `sma()` — Simple Moving Average (configurable period, default 20)
