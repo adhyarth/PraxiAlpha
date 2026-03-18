@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Added
+- **Stock search service** (`backend/services/stock_search.py`) — typeahead search across the `stocks` table by ticker (prefix match) and company name (substring match), with relevance ranking (exact → prefix → name)
+- **Stock search API endpoint** — `GET /api/v1/stocks/search?q=<query>` with `limit`, `active_only`, `asset_type` filters
+- **Stock search Streamlit widget** (`streamlit_app/components/stock_search.py`) — reusable typeahead component with selectbox for search results
+- **19 new tests** (215 total) — serialization, edge cases, limit clamping, API endpoint, widget helpers
 - **`docs/PROGRESS.md`** — new file for full project status, phase checklists, session history, and upcoming sessions roadmap
 - **Candlestick chart component** (`streamlit_app/components/candlestick_chart.py`) — Plotly-based interactive chart builder
   - `candles_to_dataframe()` — converts API candle response to DatetimeIndex DataFrame
@@ -66,6 +70,7 @@
 - **33 new tests** (95 total) — ticker filtering, progress tracker, checkpoint load/save, incremental date calculation
 
 ### Changed
+- **Charts page ticker input replaced with search widget** — sidebar now uses typeahead stock search instead of a plain text input
 - **Documentation restructure** — trimmed `WORKFLOW.md` to focused actionable content (last/next session, workflow, pitfalls); moved all project status, phase checklists, session history, and roadmap to new `docs/PROGRESS.md`; updated cross-references in `CONTRIBUTING.md` and `ARCHITECTURE.md`
 - `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
 - `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`

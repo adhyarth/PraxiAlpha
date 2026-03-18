@@ -834,3 +834,58 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 6 | **Fixed info section description** in BUILD_LOG — "data source, candle count, and date range" → "ticker, timeframe, candle count, and latest price summary" | The actual UI shows ticker/timeframe/count metrics and an OHLC price summary with change, not a date range or data source. | Documentation wouldn't match what users actually see, creating confusion during demos or onboarding. |
 | 7 | **Narrowed `E402` ignore** from `backend/tests/*` to `backend/tests/test_candlestick_chart.py` only | Only one test file uses `pytest.importorskip` (which requires imports after the guard). Blanket E402 ignore would mask real import-order issues in other test files. | As the test suite grows, a real E402 violation in another test file would be silently suppressed, potentially hiding circular imports or sys.path issues. |
 | 8 | **Fixed Session 12 date** in WORKFLOW session log — `2026-03-17` → `2026-03-18` | Session 11 is dated 2026-03-18 but Session 12 was listed as 2026-03-17, breaking the chronological convention. | The session log would appear to go backwards in time, confusing anyone reading the project history or trying to correlate sessions with git log dates. **Note:** Both sessions actually occurred on 2026-03-17; the Session 11 date of 2026-03-18 was itself incorrect. Corrected in the docs restructure (PR #10). |
+
+---
+
+### Session 13 — 2026-03-17: Stock Search (Phase 2)
+
+#### What We Did
+1. ✅ **Created stock search service** (`backend/services/stock_search.py`)
+   - `search_stocks()` — async function querying the `stocks` table by ticker prefix (`ILIKE 'Q%'`) and company name substring (`ILIKE '%query%'`)
+   - **Relevance ranking** via SQL `CASE`: exact ticker match (rank 0) → ticker prefix (rank 1) → name-only match (rank 2), then by ticker length (shorter = more relevant), then alphabetical
+   - Input validation: empty/whitespace queries return `[]` immediately (no DB hit)
+   - Limit clamping: `[1, 50]` range enforced regardless of input
+   - Optional `active_only` and `asset_types` filters
+   - `_serialize_stock()` helper for consistent API response format
+
+2. ✅ **Added search API endpoint** (`backend/api/routes/stocks.py`)
+   - `GET /api/v1/stocks/search?q=<query>&limit=10&active_only=true&asset_type=Common+Stock`
+   - Uses FastAPI `Query()` validators: `min_length=1`, `max_length=50` for `q`; `ge=1, le=50` for `limit`
+   - Returns `{ "count": N, "results": [...] }`
+
+3. ✅ **Created Streamlit search widget** (`streamlit_app/components/stock_search.py`)
+   - `render_stock_search()` — reusable component with text input + selectbox
+   - `_search_api()` — calls backend `/api/v1/stocks/search` with httpx
+   - `_format_option()` — formats stock dict as `"TICKER — Name (Exchange)"`
+   - Graceful fallback: shows "No matching stocks found" when API returns empty or is unavailable
+
+4. ✅ **Integrated search into Charts page** (`streamlit_app/pages/charts.py`)
+   - Replaced plain `st.text_input("Ticker")` with `render_stock_search()` widget
+   - Search results appear as a selectbox; selected ticker feeds into chart rendering
+
+5. ✅ **Wrote 19 new tests** (`backend/tests/test_stock_search.py`)
+   - `TestSerializeStock` (3 tests) — full serialization, None latest_date, key completeness
+   - `TestSearchStocksEdgeCases` (6 tests) — empty query, whitespace, None, limit clamping (min/max), serialized output, no results
+   - `TestSearchAPI` (3 tests) — service delegation, asset_type wrapping, empty results
+   - `TestStockSearchWidget` (6 tests) — `_format_option` with full/no-name/no-exchange/ticker-only/empty-strings/missing-ticker
+
+#### Architecture Decisions
+- **Service layer, not inline query** — `search_stocks()` lives in its own service file, not embedded in the route handler. This makes it testable with a mocked DB session and reusable from other contexts (e.g., watchlist add flow).
+- **SQL-level ranking with `CASE`** — ranking is done in the database, not in Python. This means the `LIMIT` applies to the best matches, not to a random subset that we'd then re-sort.
+- **Prefix match for ticker, substring for name** — tickers are short codes that users type from the start (`AA` → `AAPL`); names need substring matching (`apple` → `Apple Inc.`). This matches how Bloomberg Terminal and TradingView search work.
+- **Reusable widget** — `render_stock_search()` accepts `key` and `default_ticker` params so it can be used on multiple pages (charts, watchlist add, screener) without key conflicts.
+
+#### Files Created
+- `backend/services/stock_search.py` — search service (99 lines)
+- `streamlit_app/components/stock_search.py` — Streamlit widget (97 lines)
+- `backend/tests/test_stock_search.py` — 19 tests (210 lines)
+
+#### Files Modified
+- `backend/api/routes/stocks.py` — added `/search` endpoint
+- `streamlit_app/pages/charts.py` — replaced text input with search widget
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+- `WORKFLOW.md` — updated last/next session, date
+- `docs/PROGRESS.md` — updated status, checklist, session history, roadmap
+
+#### Test Count: 215 (was 196, +19 stock search tests)

@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-17 (Session 12)
+> **Last updated:** 2026-03-17 (Session 13)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 12 — Candlestick Chart Component |
+| **Session** | 13 — Stock Search |
 | **Date** | 2026-03-17 |
-| **PR** | #9 |
-| **What was done** | Plotly candlestick chart builder, charts page, volume subplot, indicator overlays (SMA/EMA/RSI/MACD/Bollinger), 25 new tests (196 total) |
+| **PR** | #12 |
+| **What was done** | Stock search service (ticker prefix + name substring with ranking), API endpoint `GET /api/v1/stocks/search`, Streamlit typeahead widget, charts page integration, 19 new tests (215 total) |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,13 +26,13 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 13 — Stock Search |
-| **Scope** | Typeahead search component — query `stocks` table by ticker/name, return top-N matches. API endpoint `GET /api/v1/stocks/search?q=`. Streamlit search widget in sidebar. Tests for service + API + widget. |
-| **Key files** | `backend/services/stock_search.py`, `backend/api/routes/stocks.py` (add search), `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` |
-| **Depends on** | Session 12 ✅ |
+| **Session** | 14 — Watchlist Backend |
+| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
+| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration |
+| **Depends on** | Session 13 ✅ |
 
 > **How to resume:** Start a new chat, paste the prompt at the bottom of this file, and say
-> *"Let's do Session 13"*.
+> *"Let's do Session 14"*.
 
 ### Key Files to Read for Context
 | File | What It Tells You |
@@ -225,6 +225,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/api/v1/stocks/` | List stocks |
+| GET | `/api/v1/stocks/search` | Search stocks by ticker/name |
 | GET | `/api/v1/stocks/count` | Stock count |
 | GET | `/api/v1/stocks/{ticker}` | Single stock |
 | GET | `/api/v1/calendar/upcoming` | Upcoming economic events |
