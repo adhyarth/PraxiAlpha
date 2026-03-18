@@ -756,81 +756,73 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 2 | **Clarified module docstring** — distinguished rolling-window indicators (SMA, RSI, Bollinger → leading NaNs) from EWM-based indicators (EMA, MACD → seeded from index 0, no leading NaNs) | The original docstring said "NaN is used where there is insufficient data" which is only true for rolling-window indicators. EMA/MACD produce values starting at index 0. | Misleading docstrings compound over time. A future developer (or Copilot in a later session) building chart overlays would assume all indicators have leading NaNs and add unnecessary NaN-handling logic, or worse, skip valid data points. Accurate docs prevent phantom bugs in downstream consumers. |
 | 3 | **Replaced Unicode `≥` with ASCII `>=`** in MACD validation error message | Codebase convention uses ASCII operators in error messages. Unicode characters can cause encoding issues in log aggregators, grep searches, and test assertions that use string matching. | In production, log pipelines (ELK, Datadog, CloudWatch) may silently drop or mangle Unicode in error messages. `grep ">=1"` wouldn't find `"≥ 1"`. As the project scales to more services, inconsistent encoding in error messages makes incident debugging harder. |
 | 4 | **Replaced Unicode `≥` with ASCII `>=`** in `_validate_inputs()` error message | Same reasoning as #3 — consistency and searchability. This function is the shared validator called by every indicator, so the impact is multiplied. | Every indicator (SMA, EMA, RSI, Bollinger) routes through `_validate_inputs()`. A single encoding inconsistency here would affect error handling for all 5 indicators and any future indicators that use the same validator. |
+| 5 | **Added `max_chars=50` to `st.text_input`** in the search widget | The backend API enforces `max_length=50` on the `q` parameter. Without a client-side limit, users could type longer queries that would always 422. | Users would type long company names, get a 422 from the API, and see "Invalid query" with no explanation of the length limit. The client should prevent the invalid input before it reaches the server. |
+| 6 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
+| 7 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
+| 8 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |
 
 ---
 
-### Session 12 — 2026-03-17: Candlestick Chart Component (Phase 2)
+### Session 13 — 2026-03-17: Stock Search (Phase 2)
 
 #### What We Did
-1. ✅ **Implemented candlestick chart builder** (`streamlit_app/components/candlestick_chart.py`)
-   - **`candles_to_dataframe()`** — converts API response (list of dicts) to a DatetimeIndex DataFrame with OHLCV columns
-   - **`build_candlestick_figure()`** — builds a complete Plotly figure with:
-     - OHLCV candlestick trace with bull/bear coloring
-     - Optional volume subplot with colored bars (green=up, red=down)
-     - Optional indicator overlays: SMA, EMA, RSI, MACD, Bollinger Bands
-     - Dynamic subplot layout (1–4 rows depending on indicators selected)
-     - Dark theme styling matching PraxiAlpha design language
-   - Helper functions for each indicator overlay (`_add_ma_overlays`, `_add_bollinger_overlay`, `_add_rsi_panel`, `_add_macd_panel`, `_add_volume_bars`)
-   - Uses the `backend.services.analysis` technical indicators service for all calculations
+1. ✅ **Created stock search service** (`backend/services/stock_search.py`)
+   - `search_stocks()` — async function querying the `stocks` table by ticker prefix (`ILIKE 'Q%'`) and company name substring (`ILIKE '%query%'`)
+   - **Relevance ranking** via SQL `CASE`: exact ticker match (rank 0) → ticker prefix (rank 1) → name-only match (rank 2), then by ticker length (shorter = more relevant), then alphabetical
+   - Input validation: empty/whitespace queries return `[]` immediately (no DB hit)
+   - Limit clamping: `[1, 50]` range enforced regardless of input
+   - Optional `active_only` and `asset_types` filters
+   - `_serialize_stock()` helper for consistent API response format
 
-2. ✅ **Implemented Charts page** (`streamlit_app/pages/charts.py`)
-   - Sidebar controls: ticker input, timeframe selector (daily/weekly/monthly/quarterly), candle limit slider
-   - Indicator panel: toggles for SMA, EMA, RSI, MACD, Bollinger Bands with configurable periods
-   - Fetches candle data from the FastAPI backend (`/api/v1/charts/{ticker}/candles`)
-   - Renders the chart with `st.plotly_chart()` at full container width
-   - Info section showing ticker, timeframe, candle count, and latest price summary (open/high/low/close with change)
+2. ✅ **Added search API endpoint** (`backend/api/routes/stocks.py`)
+   - `GET /api/v1/stocks/search?q=<query>&limit=10&active_only=true&asset_type=Common+Stock`
+   - Uses FastAPI `Query()` validators: `min_length=1`, `max_length=50` for `q`; `ge=1, le=50` for `limit`
+   - Returns `{ "count": N, "results": [...] }`
 
-3. ✅ **Updated main app** (`streamlit_app/app.py`)
-   - Updated Phase 2 status from "In progress" to reflect charting capabilities
-   - Added navigation entry for the Charts page
+3. ✅ **Created Streamlit search widget** (`streamlit_app/components/stock_search.py`)
+   - `render_stock_search()` — reusable component with text input + selectbox
+   - `_search_api()` — calls backend `/api/v1/stocks/search` with httpx
+   - `_format_option()` — formats stock dict as `"TICKER — Name (Exchange)"`
+   - Graceful fallback: shows "No matching stocks found" when API returns empty or is unavailable
 
-4. ✅ **Wrote chart builder tests** (`backend/tests/test_candlestick_chart.py`)
-   - Guarded with `pytest.importorskip("plotly")` so tests skip gracefully in CI if plotly is not installed
-   - Tests for `candles_to_dataframe()`: column names, DatetimeIndex, row count, data types
-   - Tests for `build_candlestick_figure()`: figure creation, volume subplot, indicator overlays, subplot count
-   - Uses local RNG (`np.random.default_rng(99)`) per PR #8 feedback
+4. ✅ **Integrated search into Charts page** (`streamlit_app/pages/charts.py`)
+   - Replaced plain `st.text_input("Ticker")` with `render_stock_search()` widget
+   - Search results appear as a selectbox; selected ticker feeds into chart rendering
 
-5. ✅ **Fixed all CI issues**
-   - Added `E402` ignore for `backend/tests/*` in `pyproject.toml` (pytest.importorskip guard pattern requires imports after guard)
-   - Added `F401` ignore for `data/migrations/*` (model imports needed for Alembic metadata registration)
-   - Fixed `zip()` without `strict=` parameter (B905) in candlestick chart builder
-   - Fixed import sorting (I001) in charts page and test file via `ruff check --fix`
-   - Fixed mypy type error: annotated `params` dict in charts page as `dict[str, str | int]`
+5. ✅ **Wrote 19 new tests** (`backend/tests/test_stock_search.py`)
+   - `TestSerializeStock` (3 tests) — full serialization, None latest_date, key completeness
+   - `TestSearchStocksEdgeCases` (6 tests) — empty query, whitespace, None, limit clamping (min/max), serialized output, no results
+   - `TestSearchAPI` (3 tests) — service delegation, asset_type wrapping, empty results
+   - `TestStockSearchWidget` (6 tests) — `_format_option` with full/no-name/no-exchange/ticker-only/empty-strings/missing-ticker
 
 #### Architecture Decisions
-- **Plotly over Lightweight Charts** — Plotly integrates natively with Streamlit via `st.plotly_chart()` and supports subplots (volume, RSI, MACD below price). Lightweight Charts would require custom HTML embedding and wouldn't get Streamlit's built-in interactivity (zoom, pan, hover).
-- **Chart builder as a component, not a page** — separating the Plotly figure construction (`candlestick_chart.py`) from the Streamlit page logic (`charts.py`) keeps the chart builder testable without Streamlit. Tests only need plotly, not a running Streamlit session.
-- **Dynamic subplot layout** — the number of subplot rows adapts to selected indicators (1=price only, up to 4=price+volume+RSI+MACD). This prevents empty whitespace when fewer indicators are selected.
-- **`pytest.importorskip("plotly")` guard** — allows the chart tests to run locally (where plotly is installed) while gracefully skipping in CI environments that only have lightweight dependencies. No CI failure, no conditional test discovery hacks.
+- **Service layer, not inline query** — `search_stocks()` lives in its own service file, not embedded in the route handler. This makes it testable with a mocked DB session and reusable from other contexts (e.g., watchlist add flow).
+- **SQL-level ranking with `CASE`** — ranking is done in the database, not in Python. This means the `LIMIT` applies to the best matches, not to a random subset that we'd then re-sort.
+- **Prefix match for ticker, substring for name** — tickers are short codes that users type from the start (`AA` → `AAPL`); names need substring matching (`apple` → `Apple Inc.`). This matches how Bloomberg Terminal and TradingView search work.
+- **Reusable widget** — `render_stock_search()` accepts `key` and `default_ticker` params so it can be used on multiple pages (charts, watchlist add, screener) without key conflicts.
 
 #### Files Created
-- `streamlit_app/components/candlestick_chart.py` — Plotly chart builder (510 lines)
-- `streamlit_app/pages/charts.py` — Streamlit charts page (211 lines)
-- `backend/tests/test_candlestick_chart.py` — chart builder tests (268 lines)
+- `backend/services/stock_search.py` — search service (99 lines)
+- `streamlit_app/components/stock_search.py` — Streamlit widget (97 lines)
+- `backend/tests/test_stock_search.py` — 19 tests (210 lines)
 
 #### Files Modified
-- `streamlit_app/pages/charts.py` — Streamlit charts page (211 lines)
-- `backend/tests/test_candlestick_chart.py` — chart builder tests (268 lines)
-
-#### Files Modified
-- `streamlit_app/app.py` — updated Phase 2 status and navigation
-- `pyproject.toml` — added `E402` for test files, `F401` for migrations
-- `data/migrations/env.py` — sorted model imports alphabetically (auto-fix)
+- `backend/api/routes/stocks.py` — added `/search` endpoint
+- `streamlit_app/pages/charts.py` — replaced text input with search widget
 - `docs/BUILD_LOG.md` — this entry
 - `docs/CHANGELOG.md` — documented all changes
-- `WORKFLOW.md` — updated state table, phase checklist, session log
+- `WORKFLOW.md` — updated last/next session, date
+- `docs/PROGRESS.md` — updated status, checklist, session history, roadmap
 
-#### Test Count: 196 (was 171, +25 candlestick chart tests)
+#### Test Count: 215 (was 196, +19 stock search tests)
 
-#### PR Review Fixes (PR #9 — 8 comments from Copilot code review)
+#### PR Review Fixes (PR #12 — 6 comments from Copilot code review)
 
 | # | What Was Changed | Why | Impact If Not Fixed |
 |---|-----------------|-----|---------------------|
-| 1 | **Fixed subplot layout count "1–3" → "1–4"** in BUILD_LOG, CHANGELOG | The chart builder can produce 4 rows (price + volume + RSI + MACD). Documentation said max 3 rows. | Developers reading the docs would assume max 3 rows and might not handle the 4-row case when extending or testing the chart layout. |
-| 2 | **Fixed helper function names** in BUILD_LOG — `_add_sma`/`_add_ema`/`_add_bollinger` → `_add_ma_overlays`/`_add_bollinger_overlay`/`_add_rsi_panel`/`_add_macd_panel`/`_add_volume_bars` | Documentation listed non-existent function names. The actual implementation uses different naming. | Someone searching the codebase for `_add_sma` would find nothing, causing confusion when trying to modify or extend indicator overlays. |
-| 3 | **Fixed API path `/charts/` → `/api/v1/charts/`** in WORKFLOW state table, endpoints table, BUILD_LOG, and CHANGELOG | The FastAPI app mounts the charts router under `/api/v1` prefix (`app.include_router(charts.router, prefix="/api/v1")`). | Any developer or script following the docs would get 404 errors trying `/charts/{ticker}/candles` instead of `/api/v1/charts/{ticker}/candles`. |
-| 4 | **Fixed API URL in charts page** — `{base_url}/charts/{tk}/candles` → `{base_url}/api/v1/charts/{tk}/candles` | Same as #3 — the Streamlit page was constructing the wrong URL. Would 404 at runtime. | The charts page would fail silently with "API error: 404" for every ticker lookup, making the entire charting feature non-functional. |
-| 5 | **Removed "Timeframe toggle" from chart builder docstring** — replaced with "Timeframe label in the chart title" | The `candlestick_chart.py` module only receives a timeframe string for the title; the actual timeframe selection is handled by the Streamlit page, not the chart builder. | Misleading docstring implies the figure builder handles timeframe switching, which could lead a developer to look for toggle logic in the wrong module. |
-| 6 | **Fixed info section description** in BUILD_LOG — "data source, candle count, and date range" → "ticker, timeframe, candle count, and latest price summary" | The actual UI shows ticker/timeframe/count metrics and an OHLC price summary with change, not a date range or data source. | Documentation wouldn't match what users actually see, creating confusion during demos or onboarding. |
-| 7 | **Narrowed `E402` ignore** from `backend/tests/*` to `backend/tests/test_candlestick_chart.py` only | Only one test file uses `pytest.importorskip` (which requires imports after the guard). Blanket E402 ignore would mask real import-order issues in other test files. | As the test suite grows, a real E402 violation in another test file would be silently suppressed, potentially hiding circular imports or sys.path issues. |
-| 8 | **Fixed Session 12 date** in WORKFLOW session log — `2026-03-17` → `2026-03-18` | Session 11 is dated 2026-03-18 but Session 12 was listed as 2026-03-17, breaking the chronological convention. | The session log would appear to go backwards in time, confusing anyone reading the project history or trying to correlate sessions with git log dates. **Note:** Both sessions actually occurred on 2026-03-17; the Session 11 date of 2026-03-18 was itself incorrect. Corrected in the docs restructure (PR #10). |
+| 1 | **Charts page uses `st.session_state` instead of silent AAPL fallback** — when search returns `None` (backend down or no match), the last successfully selected ticker is preserved; an `st.info` message surfaces when no ticker is selected | The original code silently fell back to `"AAPL"` whenever the search widget returned `None`, hiding backend connectivity issues and making it impossible to tell whether a search genuinely found nothing. | Users would see AAPL's chart after searching for a different ticker and getting no results, with no indication that anything went wrong. Backend outages would be invisible from the UI. |
+| 2 | **`_search_api()` handles errors explicitly** — catches `httpx.ConnectError`/`httpx.TimeoutException` separately (shows "Backend unavailable" warning), handles non-200 responses (422 → "Invalid query"), returns `None` for errors vs `[]` for empty results | The original `except Exception: pass` swallowed all errors and returned `[]`, making backend downtime, timeouts, and validation errors all look like "No matching stocks found." | Debugging would be nearly impossible — a 422 from an overly long query, a timeout from a slow DB, and a genuinely empty result set would all display the same message. In production, users would never know the backend was down. |
+| 3 | **Added `max_chars=50` to `st.text_input`** in the search widget | The backend API enforces `max_length=50` on the `q` parameter. Without a client-side limit, users could type longer queries that would always 422. | Users would type long company names, get a 422 from the API, and see "Invalid query" with no explanation of the length limit. The client should prevent the invalid input before it reaches the server. |
+| 4 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
+| 5 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
+| 6 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |

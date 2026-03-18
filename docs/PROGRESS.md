@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-17 (Session 12)
+> **Last updated:** 2026-03-17 (Session 13)
 
 ---
 
@@ -23,9 +23,10 @@
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
-| **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page |
+| **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
+| **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (196 tests) |
-| **Tests** | ✅ 196 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder |
+| **Tests** | ✅ 215 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---
@@ -47,7 +48,7 @@
 - [x] Volume subplot — Session 12
 - [x] Daily/weekly/monthly chart toggle — Session 12
 - [x] ~~Economic calendar widget~~ ✅ Pulled into Phase 1
-- [ ] Stock search functionality
+- [x] Stock search functionality — Session 13
 - [ ] Watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)
 
@@ -72,6 +73,7 @@
 | 10 | 2026-03-17 | Weekly/monthly/quarterly candle aggregates, charts API, candle service, Celery refresh task, 22 new tests (117 total) | PR #7 |
 | 11 | 2026-03-17 | Technical indicators service (SMA, EMA, RSI, MACD, Bollinger Bands), 52 new tests (171 total) | PR #8 |
 | 12 | 2026-03-17 | Candlestick chart component (Plotly), charts page, volume subplot, indicator overlays, 25 new tests (196 total) | PR #9 |
+| 13 | 2026-03-17 | Stock search service (ticker prefix + name substring), API endpoint, Streamlit widget, charts page integration, 19 new tests (215 total) | PR #12 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
@@ -83,7 +85,7 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 
 | # | Session | Scope | Key Files to Create/Modify | Depends On |
 |---|---------|-------|---------------------------|------------|
-| **13** | **Stock Search** | Typeahead search component — query `stocks` table by ticker/name, return top-N matches. API endpoint `GET /api/v1/stocks/search?q=`. Streamlit search widget in sidebar. Tests for service + API + widget. | `backend/services/stock_search.py`, `backend/api/routes/stocks.py` (add search), `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` | Session 12 ✅ |
+| **13** | **Stock Search** | ✅ Done — typeahead search component, API endpoint, Streamlit widget, charts page integration, 19 tests. | `backend/services/stock_search.py`, `backend/api/routes/stocks.py`, `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` | Session 12 ✅ |
 | **14** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 13 |
 | **15** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 14 |
 | **16** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 15 |

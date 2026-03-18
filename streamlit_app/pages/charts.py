@@ -14,6 +14,7 @@ from streamlit_app.components.candlestick_chart import (
     build_candlestick_figure,
     candles_to_dataframe,
 )
+from streamlit_app.components.stock_search import render_stock_search
 
 # ============================================================
 # Helper functions (defined before use in the Streamlit script)
@@ -65,16 +66,17 @@ st.header("📈 Charts")
 with st.sidebar:
     st.subheader("Chart Settings")
 
-    ticker = (
-        st.text_input(
-            "Ticker",
-            value="AAPL",
-            max_chars=10,
-            help="Enter a stock ticker symbol (e.g. AAPL, MSFT, TSLA)",
-        )
-        .strip()
-        .upper()
+    # --- Stock Search (typeahead) ---
+    searched_ticker = render_stock_search(
+        label="Search for a stock",
+        key="chart_search",
+        default_ticker="AAPL",
     )
+    if searched_ticker:
+        ticker = searched_ticker.strip().upper()
+    else:
+        st.info("Type a ticker or company name above to search.")
+        ticker = "AAPL"
 
     timeframe = st.selectbox(
         "Timeframe",
