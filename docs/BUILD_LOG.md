@@ -698,7 +698,7 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 
 ---
 
-### Session 11 — 2026-03-18: Technical Indicators Service (Phase 2)
+### Session 11 — 2026-03-17: Technical Indicators Service (Phase 2)
 
 #### What We Did
 1. ✅ **Implemented technical indicators service** (`backend/services/analysis/technical_indicators.py`)
@@ -833,4 +833,4 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 5 | **Removed "Timeframe toggle" from chart builder docstring** — replaced with "Timeframe label in the chart title" | The `candlestick_chart.py` module only receives a timeframe string for the title; the actual timeframe selection is handled by the Streamlit page, not the chart builder. | Misleading docstring implies the figure builder handles timeframe switching, which could lead a developer to look for toggle logic in the wrong module. |
 | 6 | **Fixed info section description** in BUILD_LOG — "data source, candle count, and date range" → "ticker, timeframe, candle count, and latest price summary" | The actual UI shows ticker/timeframe/count metrics and an OHLC price summary with change, not a date range or data source. | Documentation wouldn't match what users actually see, creating confusion during demos or onboarding. |
 | 7 | **Narrowed `E402` ignore** from `backend/tests/*` to `backend/tests/test_candlestick_chart.py` only | Only one test file uses `pytest.importorskip` (which requires imports after the guard). Blanket E402 ignore would mask real import-order issues in other test files. | As the test suite grows, a real E402 violation in another test file would be silently suppressed, potentially hiding circular imports or sys.path issues. |
-| 8 | **Fixed Session 12 date** in WORKFLOW session log — `2026-03-17` → `2026-03-18` | Session 11 is dated 2026-03-18 but Session 12 was listed as 2026-03-17, breaking the chronological convention. | The session log would appear to go backwards in time, confusing anyone reading the project history or trying to correlate sessions with git log dates. |
+| 8 | **Fixed Session 12 date** in WORKFLOW session log — `2026-03-17` → `2026-03-18` | Session 11 is dated 2026-03-18 but Session 12 was listed as 2026-03-17, breaking the chronological convention. | The session log would appear to go backwards in time, confusing anyone reading the project history or trying to correlate sessions with git log dates. **Note:** Both sessions actually occurred on 2026-03-17; the Session 11 date of 2026-03-18 was itself incorrect. Corrected in the docs restructure (PR #10). |

@@ -1,75 +1,48 @@
 # 🔄 PraxiAlpha — Session Workflow
 
-> **Purpose:** This document is the entry point for every Copilot chat session.
-> Paste it (or reference it) at the start of every new conversation so Copilot
-> has full context on where we left off, what comes next, and how we work.
+> **Purpose:** Entry point for every Copilot chat session.
+> Contains only: where we left off, what's next, and how we work.
+>
+> For full project status, phase checklists, session history, and roadmap,
+> see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
 > **Last updated:** 2026-03-17 (Session 12)
 
 ---
 
-## 1. Current Project State
+## 1. Where We Are
 
-### What Exists (as of Session 12)
-| Component | Status | Details |
-|-----------|--------|---------|
-| **Database** | ✅ Running | PostgreSQL 16 + TimescaleDB via Docker |
-| **Tables** | ✅ Populated | `stocks` (49K), `daily_ohlcv` (58.2M), `macro_data` (81K), `stock_splits` (18.4K), `stock_dividends` (634K), `economic_calendar_events` |
-| **Candle Aggregates** | ✅ Populated | `weekly_ohlcv` (13.5M), `monthly_ohlcv` (3.4M), `quarterly_ohlcv` (1.2M) — TimescaleDB continuous aggregates with auto-refresh |
-| **Data Pipeline** | ✅ Working | EODHD fetcher (OHLCV, splits, dividends), FRED fetcher (14 macro series), TradingEconomics fetcher (economic calendar) |
-| **Backfill** | ✅ Done | `scripts/backfill_full.py` — 23,714 tickers backfilled (1990–2026), 58.2M OHLCV records, 18.4K splits, 634K dividends |
-| **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint) → candle aggregate refresh, daily macro (7-day incremental), daily calendar |
-| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/` |
-| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
-| **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
-| **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
-| **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (196 tests) |
-| **Tests** | ✅ 196 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder |
-| **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG (12 sessions), CHANGELOG, CONTRIBUTING, WORKFLOW |
+### Last Completed Session
+| | |
+|-|-|
+| **Session** | 12 — Candlestick Chart Component |
+| **Date** | 2026-03-17 |
+| **PR** | #9 |
+| **What was done** | Plotly candlestick chart builder, charts page, volume subplot, indicator overlays (SMA/EMA/RSI/MACD/Bollinger), 25 new tests (196 total) |
 
 ### Current Phase
-**Phase 1: Foundation (Weeks 1–4)** — mostly complete.
+**Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
 
-#### Phase 1 Remaining Tasks
-- [x] **Run full backfill** — ✅ completed: 23,714 tickers, 58.2M OHLCV records (1990-01-02 → 2026-03-16)
-- [x] Compute weekly/monthly/quarterly candles from daily data — ✅ TimescaleDB continuous aggregates (13.5M weekly, 3.4M monthly, 1.2M quarterly)
-
-#### Phase 2: Charting & Basic Dashboard (Weeks 5–8) — in progress
-- [x] Technical indicator overlays (RSI, MACD, MAs, Bollinger Bands) — ✅ pure pandas service (Session 11)
-- [x] Interactive candlestick charts (Plotly / Lightweight Charts) — ✅ Plotly candlestick with dark theme (Session 12)
-- [x] Volume subplot — ✅ colored volume bars in chart builder (Session 12)
-- [x] Daily/weekly/monthly chart toggle — ✅ timeframe selector in charts page (Session 12)
-- [ ] Watchlist management UI
-- [ ] Stock search functionality
-- [ ] ~~Economic calendar widget~~ ✅ Done (pulled into Phase 1)
-
-> See `DESIGN_DOC.md` § "Phase Roadmap" for the full 9-phase plan.
-
-### Upcoming Sessions (pick up here after any break)
-
-Each session below is self-contained: one branch, one PR, one merge. Work top-to-bottom.
-
-| # | Session | Scope | Key Files to Create/Modify | Depends On |
-|---|---------|-------|---------------------------|------------|
-| **13** | **Stock Search** | Typeahead search component — query `stocks` table by ticker/name, return top-N matches. API endpoint `GET /api/v1/stocks/search?q=`. Streamlit search widget in sidebar. Tests for service + API + widget. | `backend/services/stock_search.py`, `backend/api/routes/stocks.py` (add search), `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` | Session 12 ✅ |
-| **14** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 13 |
-| **15** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 14 |
-| **16** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 15 |
-| **17** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 16 |
+### Next Session
+| | |
+|-|-|
+| **Session** | 13 — Stock Search |
+| **Scope** | Typeahead search component — query `stocks` table by ticker/name, return top-N matches. API endpoint `GET /api/v1/stocks/search?q=`. Streamlit search widget in sidebar. Tests for service + API + widget. |
+| **Key files** | `backend/services/stock_search.py`, `backend/api/routes/stocks.py` (add search), `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` |
+| **Depends on** | Session 12 ✅ |
 
 > **How to resume:** Start a new chat, paste the prompt at the bottom of this file, and say
-> *"Let's do Session N"* (where N is the first unchecked session above).
+> *"Let's do Session 13"*.
 
 ### Key Files to Read for Context
 | File | What It Tells You |
 |------|-------------------|
 | `DESIGN_DOC.md` | Architecture, mental models, phase roadmap, data providers |
+| `docs/PROGRESS.md` | Full component status, phase checklists, session history, upcoming roadmap |
 | `docs/BUILD_LOG.md` | Chronological record of every session (read the latest session) |
 | `docs/CHANGELOG.md` | What changed (Added / Fixed / Changed) |
 | `CONTRIBUTING.md` | Branch naming, commit convention, PR checklist |
 | `docs/ARCHITECTURE.md` | File structure, database schema, system diagram |
-| `this file (WORKFLOW.md)` | Session workflow, current state, what's next |
 
 ---
 
@@ -104,7 +77,8 @@ Branch types: `feat/`, `fix/`, `docs/`, `refactor/`, `ci/`, `test/`, `chore/`
 |----------|---------------|
 | `docs/BUILD_LOG.md` | Add new session entry **at the bottom** (strictly chronological). Include: what was done, files changed, test count, lessons learned. Session number = previous + 1. |
 | `docs/CHANGELOG.md` | Add entries under `[Unreleased]` → Added / Fixed / Changed sections |
-| `WORKFLOW.md` | Update "Current Project State" table, "Current Phase" section, and "Last updated" date |
+| `WORKFLOW.md` | Update "Last Completed Session", "Next Session", and "Last updated" date |
+| `docs/PROGRESS.md` | Update component status table, phase checklists, session history, and roadmap |
 | `CONTRIBUTING.md` | Only if workflow, conventions, or branch protection rules changed |
 | `DESIGN_DOC.md` | Only if architecture, schema, roadmap, or mental models changed |
 | `docs/ARCHITECTURE.md` | Only if file structure, tables, or system diagrams changed |
@@ -201,7 +175,7 @@ git branch -d <branch-name>   # delete local branch (remote is auto-deleted)
 
 ---
 
-## 3. Common Pitfalls (lessons from Sessions 1–9)
+## 3. Common Pitfalls (lessons from Sessions 1–12)
 
 | # | Pitfall | Prevention |
 |---|---------|------------|
@@ -259,25 +233,6 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | GET | `/api/v1/charts/{ticker}/candles` | Candle data by timeframe |
 | GET | `/api/v1/charts/{ticker}/summary` | Multi-timeframe summary |
 | GET | `/api/v1/charts/stats` | Aggregate statistics |
-
----
-
-## 5. Session Log Summary
-
-| Session | Date | What Was Done | PR |
-|---------|------|---------------|----|
-| 1 | 2026-03-13 | Project scaffolding (125 files), Docker stack, DB setup, 49K tickers | Direct to main |
-| 2 | 2026-03-13 | Test backfill (10 stocks, 68K OHLCV), splits & dividends, batch insert fix | Direct to main |
-| 3 | 2026-03-13 | CI/CD pipeline (GitHub Actions), code quality (ruff, mypy), CONTRIBUTING.md | Direct to main |
-| 4 | 2026-03-13 | Macro backfill (14 FRED series, 81K records), local CI tooling, pre-push hook | PR #1 |
-| 5 | 2026-03-14 | Economic calendar full stack (model, fetcher, service, API, Celery, Streamlit, 32 tests) | PR #3 |
-| 6 | 2026-03-15 | Copilot code review fixes (9 items: asyncio, datetime parsing, bulk upsert, validation) | PR #3 |
-| 7 | 2026-03-16 | Session workflow document (this file) | PR #5 |
-| 8 | 2026-03-16 | Production backfill script, daily OHLCV/macro Celery tasks, 33 new tests (95 total) | PR #6 |
-| 9 | 2026-03-17 | Full backfill run (58.2M records), DB crash fixes, resume bug fix, batch size & retry hardening | PR #6 |
-| 10 | 2026-03-17 | Weekly/monthly/quarterly candle aggregates, charts API, candle service, Celery refresh task, 22 new tests (117 total) | PR #7 |
-| 11 | 2026-03-18 | Technical indicators service (SMA, EMA, RSI, MACD, Bollinger Bands), 52 new tests (171 total) | PR #8 |
-| 12 | 2026-03-18 | Candlestick chart component (Plotly), charts page, volume subplot, indicator overlays, 25 new tests (196 total) | PR #9 |
 
 ---
 
