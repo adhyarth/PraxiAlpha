@@ -6,6 +6,7 @@ Covers: exact match, prefix match, name match, ranking, edge cases,
 empty query, limit clamping, asset type filtering, and API endpoint.
 """
 
+import importlib.util
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -170,6 +171,10 @@ class TestSearchStocksEdgeCases:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("fastapi") is None,
+    reason="fastapi not installed (lightweight CI)",
+)
 class TestSearchAPI:
     """Tests for the /stocks/search API endpoint."""
 
@@ -247,6 +252,10 @@ class TestSearchAPI:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("streamlit") is None,
+    reason="streamlit not installed (lightweight CI)",
+)
 class TestStockSearchWidget:
     """Tests for widget helper functions (no Streamlit dependency)."""
 
