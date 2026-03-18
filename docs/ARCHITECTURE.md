@@ -70,14 +70,14 @@ PraxiAlpha is a **systematic trading and education platform**. Think of it in la
 
 | Layer | What It Does | Status |
 |-------|-------------|--------|
-| **1. Data Pipeline** | Fetches & stores 30+ years of stock data | 🟡 In Progress |
-| **2. Analysis Engine** | Calculates indicators, signals, screens stocks | ⬜ Not Started |
+| **1. Data Pipeline** | Fetches & stores 30+ years of stock data | ✅ Complete |
+| **2. Analysis Engine** | Calculates indicators, signals, screens stocks | 🟡 In Progress |
 | **3. Trading System** | Paper trading, backtesting strategies | ⬜ Not Started |
 | **4. Risk Manager** | Position sizing, portfolio risk monitoring | ⬜ Not Started |
 | **5. Education Hub** | Lessons, concepts, trade journals | ⬜ Not Started |
-| **6. Dashboard** | Visual interface (Streamlit → React) | ⬜ Not Started |
+| **6. Dashboard** | Visual interface (Streamlit → React) | 🟡 In Progress |
 
-We're in **Phase 1** — building the data foundation that everything else sits on top of.
+We're in **Phase 2** — building charting and dashboard features on top of the completed data foundation.
 
 ---
 
@@ -514,4 +514,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-13 — Phase 1 (Data Pipeline — test backfill complete, CI/CD active)*
+*Last updated: 2026-03-17 — Phase 2 (Charting & Dashboard — technical indicators, candlestick charts, candle aggregates complete)*

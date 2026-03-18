@@ -183,6 +183,8 @@ Direct pushes to `main` are blocked. All changes must go through a PR.
 
 - [ ] `docs/BUILD_LOG.md` — What was done, results, issues encountered
 - [ ] `docs/CHANGELOG.md` — What changed (Added/Fixed/Changed sections)
+- [ ] `WORKFLOW.md` — Last completed session, next session, last updated date
+- [ ] `docs/PROGRESS.md` — Component status, phase checklists, session history, roadmap
 - [ ] `docs/ARCHITECTURE.md` — If file structure, tables, or systems changed
 - [ ] `DESIGN_DOC.md` — If scope, decisions, or roadmap changed
 
@@ -200,4 +202,4 @@ Before merging any PR:
 
 ---
 
-*Last updated: 2026-03-14*
+*Last updated: 2026-03-17*

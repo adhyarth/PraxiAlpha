@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- **`docs/PROGRESS.md`** — new file for full project status, phase checklists, session history, and upcoming sessions roadmap
 - **Candlestick chart component** (`streamlit_app/components/candlestick_chart.py`) — Plotly-based interactive chart builder
   - `candles_to_dataframe()` — converts API candle response to DatetimeIndex DataFrame
   - `build_candlestick_figure()` — builds OHLCV candlestick chart with configurable overlays
@@ -65,6 +66,7 @@
 - **33 new tests** (95 total) — ticker filtering, progress tracker, checkpoint load/save, incremental date calculation
 
 ### Changed
+- **Documentation restructure** — trimmed `WORKFLOW.md` to focused actionable content (last/next session, workflow, pitfalls); moved all project status, phase checklists, session history, and roadmap to new `docs/PROGRESS.md`; updated cross-references in `CONTRIBUTING.md` and `ARCHITECTURE.md`
 - `EODHDFetcher` now accepts `timeout` parameter (default 30s, backfill uses 60s)
 - `backfill_stock` and `backfill_all_stocks` Celery tasks now use shared logic from `backfill_full.py`
 - `.gitignore` updated to exclude backfill progress/log files
