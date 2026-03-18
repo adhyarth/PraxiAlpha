@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.services.stock_search import _serialize_stock, search_stocks
+from backend.services.stock_search import _serialize_stock, format_stock_option, search_stocks
 
 # ---------------------------------------------------------------------------
 # Helpers — fake Stock objects
@@ -252,46 +252,30 @@ class TestSearchAPI:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    importlib.util.find_spec("streamlit") is None,
-    reason="streamlit not installed (lightweight CI)",
-)
-class TestStockSearchWidget:
-    """Tests for widget helper functions (no Streamlit dependency)."""
+class TestFormatStockOption:
+    """Tests for format_stock_option (Streamlit-free, always runs in CI)."""
 
     def test_format_option_full(self):
-        from streamlit_app.components.stock_search import _format_option
-
         stock = {"ticker": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ"}
-        assert _format_option(stock) == "AAPL — Apple Inc. (NASDAQ)"
+        assert format_stock_option(stock) == "AAPL — Apple Inc. (NASDAQ)"
 
     def test_format_option_no_name(self):
-        from streamlit_app.components.stock_search import _format_option
-
         stock = {"ticker": "AAPL", "name": None, "exchange": "NASDAQ"}
-        assert _format_option(stock) == "AAPL (NASDAQ)"
+        assert format_stock_option(stock) == "AAPL (NASDAQ)"
 
     def test_format_option_no_exchange(self):
-        from streamlit_app.components.stock_search import _format_option
-
         stock = {"ticker": "AAPL", "name": "Apple Inc.", "exchange": None}
-        assert _format_option(stock) == "AAPL — Apple Inc."
+        assert format_stock_option(stock) == "AAPL — Apple Inc."
 
     def test_format_option_ticker_only(self):
-        from streamlit_app.components.stock_search import _format_option
-
         stock = {"ticker": "AAPL", "name": None, "exchange": None}
-        assert _format_option(stock) == "AAPL"
+        assert format_stock_option(stock) == "AAPL"
 
     def test_format_option_empty_strings(self):
-        from streamlit_app.components.stock_search import _format_option
-
         stock = {"ticker": "AAPL", "name": "", "exchange": ""}
-        assert _format_option(stock) == "AAPL"
+        assert format_stock_option(stock) == "AAPL"
 
     def test_format_option_missing_ticker(self):
-        from streamlit_app.components.stock_search import _format_option
-
         stock = {"name": "Apple Inc."}
-        result = _format_option(stock)
+        result = format_stock_option(stock)
         assert "???" in result

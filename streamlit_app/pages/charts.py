@@ -72,7 +72,11 @@ with st.sidebar:
         key="chart_search",
         default_ticker="AAPL",
     )
-    ticker = (searched_ticker or "AAPL").strip().upper()
+    if searched_ticker:
+        ticker = searched_ticker.strip().upper()
+    else:
+        st.info("Type a ticker or company name above to search.")
+        ticker = "AAPL"
 
     timeframe = st.selectbox(
         "Timeframe",

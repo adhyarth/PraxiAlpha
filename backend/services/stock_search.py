@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 async def search_stocks(
     db: AsyncSession,
-    query: str,
+    query: str | None,
     limit: int = 10,
     active_only: bool = True,
     asset_types: list[str] | None = None,
@@ -96,3 +96,25 @@ def _serialize_stock(stock: Stock) -> dict[str, Any]:
         "latest_date": str(stock.latest_date) if stock.latest_date else None,
         "total_records": stock.total_records,
     }
+
+
+def format_stock_option(stock: dict[str, Any]) -> str:
+    """
+    Format a stock dict as a human-readable option string.
+
+    Examples:
+        {"ticker": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ"}
+        → "AAPL — Apple Inc. (NASDAQ)"
+
+    This function is intentionally Streamlit-free so it can be tested
+    in lightweight CI environments.
+    """
+    ticker = stock.get("ticker", "???")
+    name = stock.get("name") or ""
+    exchange = stock.get("exchange") or ""
+    parts = [ticker]
+    if name:
+        parts.append(f"— {name}")
+    if exchange:
+        parts.append(f"({exchange})")
+    return " ".join(parts)
