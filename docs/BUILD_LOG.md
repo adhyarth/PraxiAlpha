@@ -763,66 +763,44 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 
 ---
 
-### Session 13 — 2026-03-17: Stock Search (Phase 2)
+### Session 14 — 2026-03-19: Workflow Improvements
+
+#### Summary
+Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash resilience on an 8 GB Mac. Added a crash recovery mechanism to `docs/PROGRESS.md` and documented the OOM pitfall.
 
 #### What We Did
-1. ✅ **Created stock search service** (`backend/services/stock_search.py`)
-   - `search_stocks()` — async function querying the `stocks` table by ticker prefix (`ILIKE 'Q%'`) and company name substring (`ILIKE '%query%'`)
-   - **Relevance ranking** via SQL `CASE`: exact ticker match (rank 0) → ticker prefix (rank 1) → name-only match (rank 2), then by ticker length (shorter = more relevant), then alphabetical
-   - Input validation: empty/whitespace queries return `[]` immediately (no DB hit)
-   - Limit clamping: `[1, 50]` range enforced regardless of input
-   - Optional `active_only` and `asset_types` filters
-   - `_serialize_stock()` helper for consistent API response format
+1. ✅ **Rewrote `WORKFLOW.md` with checkpoint-based session flow (Steps 0–10)**
+   - 3 explicit commit checkpoints: after code (Step 3), after progress update (Step 4), after CI fixes (Step 6)
+   - Each checkpoint saves progress locally so Copilot Chat crashes don't lose work
+   - Added Docker management guideline: stop Docker during code-only sessions to free ~2-3 GB RAM
+   - Added activity table (when Docker is needed vs. not)
+2. ✅ **Added crash recovery mechanism to `docs/PROGRESS.md`**
+   - New "🔴 Current Session Status" block at the top — always reflects in-progress work
+   - Dedicated crash recovery prompt in WORKFLOW.md §3 reads this block to resume
+3. ✅ **Updated resume prompts in WORKFLOW.md §6**
+   - Normal session prompt now includes `docs/PROGRESS.md`
+   - Added separate crash recovery prompt
+4. ✅ **Added OOM pitfall (#16) to Common Pitfalls**
+   - Documents 8 GB Mac memory pressure issue and mitigations
+5. ✅ **Renumbered upcoming sessions in PROGRESS.md**
+   - Session 14 = Workflow Improvements (this session)
+   - Session 15 = Watchlist Backend, 16 = Watchlist UI, etc.
 
-2. ✅ **Added search API endpoint** (`backend/api/routes/stocks.py`)
-   - `GET /api/v1/stocks/search?q=<query>&limit=10&active_only=true&asset_type=Common+Stock`
-   - Uses FastAPI `Query()` validators: `min_length=1`, `max_length=50` for `q`; `ge=1, le=50` for `limit`
-   - Returns `{ "count": N, "results": [...] }`
+#### Architecture Decision
+- **Checkpoint-based workflow over single-commit-at-end** — on an 8 GB Mac running VS Code + Docker + Copilot Chat, OOM crashes are common during long sessions. The old workflow committed everything at the end, meaning a crash lost the entire session. The new flow commits after code (Step 3), progress (Step 4), and CI (Step 6), ensuring at most one step of work is lost.
+- **PROGRESS.md as crash recovery file** — rather than relying on chat history (lost on crash), the "Current Session Status" block serves as a persistent checkpoint. Any new chat session reads it and resumes exactly.
+- **Docker stop/start over mem_limit** — capping Docker memory could degrade dashboard performance with 58M+ OHLCV rows. Instead, stop Docker during code sessions (`docker compose stop`) and restart for dashboard/DB work.
 
-3. ✅ **Created Streamlit search widget** (`streamlit_app/components/stock_search.py`)
-   - `render_stock_search()` — reusable component with text input + selectbox
-   - `_search_api()` — calls backend `/api/v1/stocks/search` with httpx
-   - `_format_option()` — formats stock dict as `"TICKER — Name (Exchange)"`
-   - Graceful fallback: shows "No matching stocks found" when API returns empty or is unavailable
+#### Lessons Learned
+- VS Code Copilot Chat runs in Electron (Chromium). On 8 GB Mac with Docker, OOM crashes are inevitable during long sessions.
+- The fix isn't more RAM — it's resilient workflow design. Frequent commits + progress checkpoints make crashes recoverable.
+- `docker compose stop` preserves container state while freeing RAM. `docker compose up -d` restarts instantly.
+- Copilot "Ask" mode can describe changes but cannot execute tools (file edits, terminal commands). Always use "Agent" mode for implementation sessions.
 
-4. ✅ **Integrated search into Charts page** (`streamlit_app/pages/charts.py`)
-   - Replaced plain `st.text_input("Ticker")` with `render_stock_search()` widget
-   - Search results appear as a selectbox; selected ticker feeds into chart rendering
-
-5. ✅ **Wrote 19 new tests** (`backend/tests/test_stock_search.py`)
-   - `TestSerializeStock` (3 tests) — full serialization, None latest_date, key completeness
-   - `TestSearchStocksEdgeCases` (6 tests) — empty query, whitespace, None, limit clamping (min/max), serialized output, no results
-   - `TestSearchAPI` (3 tests) — service delegation, asset_type wrapping, empty results
-   - `TestStockSearchWidget` (6 tests) — `_format_option` with full/no-name/no-exchange/ticker-only/empty-strings/missing-ticker
-
-#### Architecture Decisions
-- **Service layer, not inline query** — `search_stocks()` lives in its own service file, not embedded in the route handler. This makes it testable with a mocked DB session and reusable from other contexts (e.g., watchlist add flow).
-- **SQL-level ranking with `CASE`** — ranking is done in the database, not in Python. This means the `LIMIT` applies to the best matches, not to a random subset that we'd then re-sort.
-- **Prefix match for ticker, substring for name** — tickers are short codes that users type from the start (`AA` → `AAPL`); names need substring matching (`apple` → `Apple Inc.`). This matches how Bloomberg Terminal and TradingView search work.
-- **Reusable widget** — `render_stock_search()` accepts `key` and `default_ticker` params so it can be used on multiple pages (charts, watchlist add, screener) without key conflicts.
-
-#### Files Created
-- `backend/services/stock_search.py` — search service (99 lines)
-- `streamlit_app/components/stock_search.py` — Streamlit widget (97 lines)
-- `backend/tests/test_stock_search.py` — 19 tests (210 lines)
-
-#### Files Modified
-- `backend/api/routes/stocks.py` — added `/search` endpoint
-- `streamlit_app/pages/charts.py` — replaced text input with search widget
+#### Files Changed
+- `WORKFLOW.md` — complete rewrite: Steps 0–10, crash recovery §3, Docker management, OOM pitfall #16, resume prompts §6
+- `docs/PROGRESS.md` — added "Current Session Status" crash recovery block, renumbered sessions 14–18, added Session 14 to history
 - `docs/BUILD_LOG.md` — this entry
 - `docs/CHANGELOG.md` — documented all changes
-- `WORKFLOW.md` — updated last/next session, date
-- `docs/PROGRESS.md` — updated status, checklist, session history, roadmap
 
-#### Test Count: 215 (was 196, +19 stock search tests)
-
-#### PR Review Fixes (PR #12 — 6 comments from Copilot code review)
-
-| # | What Was Changed | Why | Impact If Not Fixed |
-|---|-----------------|-----|---------------------|
-| 1 | **Charts page uses `st.session_state` instead of silent AAPL fallback** — when search returns `None` (backend down or no match), the last successfully selected ticker is preserved; an `st.info` message surfaces when no ticker is selected | The original code silently fell back to `"AAPL"` whenever the search widget returned `None`, hiding backend connectivity issues and making it impossible to tell whether a search genuinely found nothing. | Users would see AAPL's chart after searching for a different ticker and getting no results, with no indication that anything went wrong. Backend outages would be invisible from the UI. |
-| 2 | **`_search_api()` handles errors explicitly** — catches `httpx.ConnectError`/`httpx.TimeoutException` separately (shows "Backend unavailable" warning), handles non-200 responses (422 → "Invalid query"), returns `None` for errors vs `[]` for empty results | The original `except Exception: pass` swallowed all errors and returned `[]`, making backend downtime, timeouts, and validation errors all look like "No matching stocks found." | Debugging would be nearly impossible — a 422 from an overly long query, a timeout from a slow DB, and a genuinely empty result set would all display the same message. In production, users would never know the backend was down. |
-| 3 | **Added `max_chars=50` to `st.text_input`** in the search widget | The backend API enforces `max_length=50` on the `q` parameter. Without a client-side limit, users could type longer queries that would always 422. | Users would type long company names, get a 422 from the API, and see "Invalid query" with no explanation of the length limit. The client should prevent the invalid input before it reaches the server. |
-| 4 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
-| 5 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
-| 6 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |
+#### Test Count: 215 (unchanged — documentation-only session)

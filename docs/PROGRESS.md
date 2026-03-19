@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 14 — Workflow Improvements |
 | **Branch** | `feat/workflow-improvements` |
-| **Status** | ✅ WORKFLOW.md rewritten. ✅ PROGRESS.md crash recovery block added. Remaining: CI checks, BUILD_LOG, CHANGELOG, push, PR. |
-| **Last checkpoint** | Step 4 — progress updated |
+| **Status** | ✅ WORKFLOW.md rewritten. ✅ PROGRESS.md crash recovery block added. ✅ CI passed (215/215). ✅ Docs updated (BUILD_LOG, CHANGELOG). Ready for push + PR. |
+| **Last checkpoint** | Step 7 — documentation done |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
