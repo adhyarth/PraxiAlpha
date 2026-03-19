@@ -10,7 +10,7 @@
 ### Added
 - **Checkpoint-based session workflow** in `WORKFLOW.md` — 3 explicit commit checkpoints (code, progress, CI-clean) to survive Copilot Chat OOM crashes on 8 GB Mac
 - **Crash recovery mechanism** in `docs/PROGRESS.md` — "🔴 Current Session Status" block serves as persistent checkpoint for mid-session crash recovery
-- **Docker RAM management guideline** — `docker compose stop` during code-only sessions, `up -d` for dashboard/DB (saves ~2-3 GB)
+- **Docker RAM management guideline** — `docker compose stop` during code-only sessions, `docker compose up -d` for dashboard/DB (saves ~2-3 GB)
 - **OOM pitfall (#16)** in Common Pitfalls — documents 8 GB Mac memory pressure and mitigations
 - **Resume prompts** in `WORKFLOW.md` §6 — separate prompts for normal sessions and crash recovery, both include `docs/PROGRESS.md`
 

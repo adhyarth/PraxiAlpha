@@ -155,7 +155,7 @@ git commit -m "wip: progress checkpoint — CI passed"
 
 ```bash
 git add -A
-git commit -m "docs: session N documentation"
+git commit -m "docs: session <number> documentation"
 ```
 
 ### Step 8: Push Branch and Create PR

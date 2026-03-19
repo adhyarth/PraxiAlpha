@@ -904,7 +904,7 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 
 #### Test Count: 215 (unchanged — documentation-only session)
 
-#### PR Review Fixes (PR #13 — 5 comments from Copilot code review)
+#### PR Review Fixes (PR #13 — 8 comments across 2 review rounds)
 
 | # | What Was Changed | Why | Impact If Not Fixed |
 |---|-----------------|-----|---------------------|
@@ -913,3 +913,6 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 3 | **Changed Step 7 from "clear the Current Session Status block" to "set to PR opened / awaiting review"** | Clearing the crash recovery block before push/PR/review means if Copilot crashes during those steps, the next session has no recovery info. | Crash during push, PR creation, or review cycle would leave no breadcrumb in PROGRESS.md. Recovery would require manual git log inspection instead of just reading the file. |
 | 4 | **Added note that `feat/workflow-improvements` should have been `docs/` prefix for docs-only sessions** | Branch is `feat/` but session is docs-only. Conflicts with `CONTRIBUTING.md` branch naming convention. Can't rename mid-PR, but documented for future reference. | Future docs-only sessions might copy this pattern and use `feat/` prefix, diluting branch type semantics. |
 | 5 | **Restored missing Session 12 (Candlestick Charts) and Session 13 (Stock Search) entries in BUILD_LOG** | Session 11's PR review fixes block had grown to include items from Sessions 12 and 13, and Session 12's header was never written. Session 13's header was lost. | BUILD_LOG is the canonical chronological record. Missing sessions would make it impossible to trace what happened in Sessions 12-13, breaking the audit trail. |
+| 6 | **Updated PROGRESS.md crash recovery status to "PR opened, awaiting review"** | Status still said "Ready for push + PR" and checkpoint said "Step 7" even though the PR was already open at Step 9. Stale checkpoint misleads crash recovery. | A crash recovery session would try to push and create a PR that already exists, wasting time and causing `gh pr create` errors. |
+| 7 | **Spelled out `docker compose up -d` in CHANGELOG** | Shorthand `up -d` without the full command is unclear when skimming the changelog. | Readers unfamiliar with Docker might not know what `up -d` means without the `docker compose` prefix. Minor clarity issue. |
+| 8 | **Changed `"docs: session N documentation"` to `"docs: session <number> documentation"`** in WORKFLOW.md Step 7 | Literal `N` placeholder could be copied verbatim into a real commit message. Angle-bracket style `<number>` matches the rest of the doc's placeholder convention. | Accidental `"docs: session N documentation"` commits on real branches — cosmetic but sloppy. |
