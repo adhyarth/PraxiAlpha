@@ -88,6 +88,11 @@ git commit -m "wip: <what was just done>"
 ```
 > **Why:** This saves all code changes locally. If Copilot crashes after this
 > point, no code is lost. Do NOT push yet.
+>
+> **Note on commit messages:** `wip:` prefixed commits are local-only checkpoints.
+> They will be squash-merged into a single Conventional Commit (`<type>(<scope>): ...`)
+> when the PR is merged. This does not violate the Conventional Commits convention
+> in `CONTRIBUTING.md` — the final merge commit follows the standard format.
 
 ### Step 4: Checkpoint #2 — Update Progress
 Update `docs/PROGRESS.md` → **Current Session Status** block with:
@@ -118,10 +123,17 @@ pytest --tb=short -q
 
 ### Step 6: Checkpoint #3 — Save CI-Clean Code
 ```bash
+# If Step 5 required code changes, commit them:
 git add -A
-git commit -m "wip: CI fixes"   # only if Step 5 required changes
+git commit -m "wip: CI fixes"
+
+# Update PROGRESS.md status to "CI passed" and commit:
+# (Set the "Current Session Status" block → Status = "CI passed, docs pending")
+git add docs/PROGRESS.md
+git commit -m "wip: progress checkpoint — CI passed"
 ```
-> Update `docs/PROGRESS.md` status to "CI passed" and commit.
+> **Why:** Both the code fixes AND the updated progress are committed separately,
+> ensuring nothing is lost if Copilot crashes during the documentation step.
 
 ### Step 7: Update All Documentation
 **Every session must update these files:**
@@ -131,7 +143,7 @@ git commit -m "wip: CI fixes"   # only if Step 5 required changes
 | `docs/BUILD_LOG.md` | Add new session entry **at the bottom** (strictly chronological). Include: what was done, files changed, test count, lessons learned. |
 | `docs/CHANGELOG.md` | Add entries under `[Unreleased]` → Added / Fixed / Changed sections |
 | `WORKFLOW.md` | Update "Last Completed Session", "Next Session", and "Last updated" date |
-| `docs/PROGRESS.md` | Update component status table, phase checklists, session history, roadmap, and clear the "Current Session Status" block |
+| `docs/PROGRESS.md` | Update component status table, phase checklists, session history, roadmap, and set the "Current Session Status" to "PR opened / awaiting review" |
 | `CONTRIBUTING.md` | Only if workflow, conventions, or branch protection rules changed |
 | `DESIGN_DOC.md` | Only if architecture, schema, roadmap, or mental models changed |
 | `docs/ARCHITECTURE.md` | Only if file structure, tables, or system diagrams changed |

@@ -14,7 +14,7 @@
 | | |
 |-|-|
 | **Session** | 14 — Workflow Improvements |
-| **Branch** | `feat/workflow-improvements` |
+| **Branch** | `feat/workflow-improvements` (note: docs-only sessions should use `docs/` prefix per CONTRIBUTING.md) |
 | **Status** | ✅ WORKFLOW.md rewritten. ✅ PROGRESS.md crash recovery block added. ✅ CI passed (215/215). ✅ Docs updated (BUILD_LOG, CHANGELOG). Ready for push + PR. |
 | **Last checkpoint** | Step 7 — documentation done |
 
