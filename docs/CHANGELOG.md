@@ -8,6 +8,17 @@
 ## [Unreleased]
 
 ### Added
+- **Checkpoint-based session workflow** in `WORKFLOW.md` — 3 explicit commit checkpoints (code, progress, CI-clean) to survive Copilot Chat OOM crashes on 8 GB Mac
+- **Crash recovery mechanism** in `docs/PROGRESS.md` — "🔴 Current Session Status" block serves as persistent checkpoint for mid-session crash recovery
+- **Docker RAM management guideline** — `docker compose stop` during code-only sessions, `docker compose up -d` for dashboard/DB (saves ~2-3 GB)
+- **OOM pitfall (#16)** in Common Pitfalls — documents 8 GB Mac memory pressure and mitigations
+- **Resume prompts** in `WORKFLOW.md` §6 — separate prompts for normal sessions and crash recovery, both include `docs/PROGRESS.md`
+
+### Changed
+- `WORKFLOW.md` session steps renumbered 0–10 (was 0–7) with 3 new checkpoint steps
+- `WORKFLOW.md` Step 0 now reads `docs/PROGRESS.md` in addition to BUILD_LOG and DESIGN_DOC
+- `docs/PROGRESS.md` upcoming sessions renumbered — Session 14 = Workflow Improvements, 15 = Watchlist Backend, etc.
+- Resume prompt now includes `docs/PROGRESS.md` in the orientation file list
 - **Stock search service** (`backend/services/stock_search.py`) — typeahead search across the `stocks` table by ticker (prefix match) and company name (substring match), with relevance ranking (exact → prefix → name)
 - **Stock search API endpoint** — `GET /api/v1/stocks/search?q=<query>` with `limit`, `active_only`, `asset_type` filters
 - **Stock search Streamlit widget** (`streamlit_app/components/stock_search.py`) — reusable typeahead component with selectbox for search results

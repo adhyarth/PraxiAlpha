@@ -756,10 +756,46 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 2 | **Clarified module docstring** — distinguished rolling-window indicators (SMA, RSI, Bollinger → leading NaNs) from EWM-based indicators (EMA, MACD → seeded from index 0, no leading NaNs) | The original docstring said "NaN is used where there is insufficient data" which is only true for rolling-window indicators. EMA/MACD produce values starting at index 0. | Misleading docstrings compound over time. A future developer (or Copilot in a later session) building chart overlays would assume all indicators have leading NaNs and add unnecessary NaN-handling logic, or worse, skip valid data points. Accurate docs prevent phantom bugs in downstream consumers. |
 | 3 | **Replaced Unicode `≥` with ASCII `>=`** in MACD validation error message | Codebase convention uses ASCII operators in error messages. Unicode characters can cause encoding issues in log aggregators, grep searches, and test assertions that use string matching. | In production, log pipelines (ELK, Datadog, CloudWatch) may silently drop or mangle Unicode in error messages. `grep ">=1"` wouldn't find `"≥ 1"`. As the project scales to more services, inconsistent encoding in error messages makes incident debugging harder. |
 | 4 | **Replaced Unicode `≥` with ASCII `>=`** in `_validate_inputs()` error message | Same reasoning as #3 — consistency and searchability. This function is the shared validator called by every indicator, so the impact is multiplied. | Every indicator (SMA, EMA, RSI, Bollinger) routes through `_validate_inputs()`. A single encoding inconsistency here would affect error handling for all 5 indicators and any future indicators that use the same validator. |
-| 5 | **Added `max_chars=50` to `st.text_input`** in the search widget | The backend API enforces `max_length=50` on the `q` parameter. Without a client-side limit, users could type longer queries that would always 422. | Users would type long company names, get a 422 from the API, and see "Invalid query" with no explanation of the length limit. The client should prevent the invalid input before it reaches the server. |
-| 6 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
-| 7 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
-| 8 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |
+
+---
+
+### Session 12 — 2026-03-17: Candlestick Chart Component (Phase 2)
+
+#### What We Did
+1. ✅ **Created Plotly candlestick chart builder** (`streamlit_app/components/candlestick_chart.py`)
+   - `candles_to_dataframe()` — converts API candle response to DatetimeIndex DataFrame
+   - `build_candlestick_figure()` — builds OHLCV candlestick chart with configurable overlays
+   - Volume subplot with bull/bear color coding (green=bullish, red=bearish)
+   - Indicator overlays: SMA, EMA, RSI, MACD, Bollinger Bands (via technical indicators service)
+   - Dynamic subplot layout (1–4 rows based on selected indicators)
+   - Dark theme styling with custom color palette
+
+2. ✅ **Created Streamlit charts page** (`streamlit_app/pages/charts.py`)
+   - Sidebar controls: ticker input, timeframe selector (daily/weekly/monthly/quarterly), candle limit slider
+   - Indicator panel: toggles with configurable periods for all 5 indicators
+   - Backend integration via `/api/v1/charts/{ticker}/candles` API endpoint
+
+3. ✅ **Wrote 25 new tests** (`backend/tests/test_candlestick_chart.py`)
+   - Guarded with `pytest.importorskip('plotly')` for CI compatibility
+   - Tests: data prep, figure structure, indicator overlays, subplot layout
+
+#### Architecture Decisions
+- **Plotly over Lightweight Charts** — native `st.plotly_chart()` integration, subplot support for indicators
+- **Chart builder as testable component** — separated from Streamlit page logic for unit testing
+- **Dynamic subplot layout** — adapts row count based on which indicators are selected
+- **`pytest.importorskip` guard** — chart tests run locally with plotly, skip gracefully in CI
+
+#### Files Created
+- `streamlit_app/components/candlestick_chart.py` — chart builder
+- `streamlit_app/pages/charts.py` — Streamlit charts page
+- `backend/tests/test_candlestick_chart.py` — 25 chart builder tests
+
+#### Files Modified
+- `streamlit_app/app.py` — updated Phase 2 status and navigation
+- `pyproject.toml` — added `E402` ignore for test files
+- `docs/BUILD_LOG.md`, `docs/CHANGELOG.md`, `WORKFLOW.md`
+
+#### Test Count: 196 (was 171, +25 candlestick chart tests)
 
 ---
 
@@ -796,23 +832,20 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
    - `TestStockSearchWidget` (6 tests) — `_format_option` with full/no-name/no-exchange/ticker-only/empty-strings/missing-ticker
 
 #### Architecture Decisions
-- **Service layer, not inline query** — `search_stocks()` lives in its own service file, not embedded in the route handler. This makes it testable with a mocked DB session and reusable from other contexts (e.g., watchlist add flow).
-- **SQL-level ranking with `CASE`** — ranking is done in the database, not in Python. This means the `LIMIT` applies to the best matches, not to a random subset that we'd then re-sort.
-- **Prefix match for ticker, substring for name** — tickers are short codes that users type from the start (`AA` → `AAPL`); names need substring matching (`apple` → `Apple Inc.`). This matches how Bloomberg Terminal and TradingView search work.
-- **Reusable widget** — `render_stock_search()` accepts `key` and `default_ticker` params so it can be used on multiple pages (charts, watchlist add, screener) without key conflicts.
+- **Service layer, not inline query** — `search_stocks()` lives in its own service file, not embedded in the route handler.
+- **SQL-level ranking with `CASE`** — ranking is done in the database, not in Python.
+- **Prefix match for ticker, substring for name** — tickers are short codes that users type from the start; names need substring matching.
+- **Reusable widget** — `render_stock_search()` accepts `key` and `default_ticker` params for multi-page use.
 
 #### Files Created
-- `backend/services/stock_search.py` — search service (99 lines)
-- `streamlit_app/components/stock_search.py` — Streamlit widget (97 lines)
-- `backend/tests/test_stock_search.py` — 19 tests (210 lines)
+- `backend/services/stock_search.py` — search service
+- `streamlit_app/components/stock_search.py` — Streamlit widget
+- `backend/tests/test_stock_search.py` — 19 tests
 
 #### Files Modified
 - `backend/api/routes/stocks.py` — added `/search` endpoint
 - `streamlit_app/pages/charts.py` — replaced text input with search widget
-- `docs/BUILD_LOG.md` — this entry
-- `docs/CHANGELOG.md` — documented all changes
-- `WORKFLOW.md` — updated last/next session, date
-- `docs/PROGRESS.md` — updated status, checklist, session history, roadmap
+- `docs/BUILD_LOG.md`, `docs/CHANGELOG.md`, `WORKFLOW.md`, `docs/PROGRESS.md`
 
 #### Test Count: 215 (was 196, +19 stock search tests)
 
@@ -826,3 +859,60 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 4 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
 | 5 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
 | 6 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |
+
+---
+
+### Session 14 — 2026-03-19: Workflow Improvements
+
+#### Summary
+Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash resilience on an 8 GB Mac. Added a crash recovery mechanism to `docs/PROGRESS.md` and documented the OOM pitfall.
+
+#### What We Did
+1. ✅ **Rewrote `WORKFLOW.md` with checkpoint-based session flow (Steps 0–10)**
+   - 3 explicit commit checkpoints: after code (Step 3), after progress update (Step 4), after CI fixes (Step 6)
+   - Each checkpoint saves progress locally so Copilot Chat crashes don't lose work
+   - Added Docker management guideline: stop Docker during code-only sessions to free ~2-3 GB RAM
+   - Added activity table (when Docker is needed vs. not)
+2. ✅ **Added crash recovery mechanism to `docs/PROGRESS.md`**
+   - New "🔴 Current Session Status" block at the top — always reflects in-progress work
+   - Dedicated crash recovery prompt in WORKFLOW.md §3 reads this block to resume
+3. ✅ **Updated resume prompts in WORKFLOW.md §6**
+   - Normal session prompt now includes `docs/PROGRESS.md`
+   - Added separate crash recovery prompt
+4. ✅ **Added OOM pitfall (#16) to Common Pitfalls**
+   - Documents 8 GB Mac memory pressure issue and mitigations
+5. ✅ **Renumbered upcoming sessions in PROGRESS.md**
+   - Session 14 = Workflow Improvements (this session)
+   - Session 15 = Watchlist Backend, 16 = Watchlist UI, etc.
+
+#### Architecture Decision
+- **Checkpoint-based workflow over single-commit-at-end** — on an 8 GB Mac running VS Code + Docker + Copilot Chat, OOM crashes are common during long sessions. The old workflow committed everything at the end, meaning a crash lost the entire session. The new flow commits after code (Step 3), progress (Step 4), and CI (Step 6), ensuring at most one step of work is lost.
+- **PROGRESS.md as crash recovery file** — rather than relying on chat history (lost on crash), the "Current Session Status" block serves as a persistent checkpoint. Any new chat session reads it and resumes exactly.
+- **Docker stop/start over mem_limit** — capping Docker memory could degrade dashboard performance with 58M+ OHLCV rows. Instead, stop Docker during code sessions (`docker compose stop`) and restart for dashboard/DB work.
+
+#### Lessons Learned
+- VS Code Copilot Chat runs in Electron (Chromium). On 8 GB Mac with Docker, OOM crashes are inevitable during long sessions.
+- The fix isn't more RAM — it's resilient workflow design. Frequent commits + progress checkpoints make crashes recoverable.
+- `docker compose stop` preserves container state while freeing RAM. `docker compose up -d` restarts instantly.
+- Copilot "Ask" mode can describe changes but cannot execute tools (file edits, terminal commands). Always use "Agent" mode for implementation sessions.
+
+#### Files Changed
+- `WORKFLOW.md` — complete rewrite: Steps 0–10, crash recovery §3, Docker management, OOM pitfall #16, resume prompts §6
+- `docs/PROGRESS.md` — added "Current Session Status" crash recovery block, renumbered sessions 14–18, added Session 14 to history
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+
+#### Test Count: 215 (unchanged — documentation-only session)
+
+#### PR Review Fixes (PR #13 — 8 comments across 2 review rounds)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Added note that `wip:` commits are local-only and get squash-merged** into a Conventional Commit when the PR merges | `wip:` prefixed checkpoint commits conflict with the Conventional Commits format in `CONTRIBUTING.md`. Without clarification, future sessions might think the convention was changed. | Confusion about commit message standards. Contributors might push `wip:` commits directly to main or skip squash-merging. |
+| 2 | **Added explicit `git add` + `git commit` commands for PROGRESS.md update in Step 6** | Step 6 only showed a conditional `wip: CI fixes` commit but mentioned updating PROGRESS.md without commands. Easy to forget the PROGRESS commit. | PROGRESS.md would not be committed after CI passes, defeating the crash recovery mechanism for the remaining steps. |
+| 3 | **Changed Step 7 from "clear the Current Session Status block" to "set to PR opened / awaiting review"** | Clearing the crash recovery block before push/PR/review means if Copilot crashes during those steps, the next session has no recovery info. | Crash during push, PR creation, or review cycle would leave no breadcrumb in PROGRESS.md. Recovery would require manual git log inspection instead of just reading the file. |
+| 4 | **Added note that `feat/workflow-improvements` should have been `docs/` prefix for docs-only sessions** | Branch is `feat/` but session is docs-only. Conflicts with `CONTRIBUTING.md` branch naming convention. Can't rename mid-PR, but documented for future reference. | Future docs-only sessions might copy this pattern and use `feat/` prefix, diluting branch type semantics. |
+| 5 | **Restored missing Session 12 (Candlestick Charts) and Session 13 (Stock Search) entries in BUILD_LOG** | Session 11's PR review fixes block had grown to include items from Sessions 12 and 13, and Session 12's header was never written. Session 13's header was lost. | BUILD_LOG is the canonical chronological record. Missing sessions would make it impossible to trace what happened in Sessions 12-13, breaking the audit trail. |
+| 6 | **Updated PROGRESS.md crash recovery status to "PR opened, awaiting review"** | Status still said "Ready for push + PR" and checkpoint said "Step 7" even though the PR was already open at Step 9. Stale checkpoint misleads crash recovery. | A crash recovery session would try to push and create a PR that already exists, wasting time and causing `gh pr create` errors. |
+| 7 | **Spelled out `docker compose up -d` in CHANGELOG** | Shorthand `up -d` without the full command is unclear when skimming the changelog. | Readers unfamiliar with Docker might not know what `up -d` means without the `docker compose` prefix. Minor clarity issue. |
+| 8 | **Changed `"docs: session N documentation"` to `"docs: session <number> documentation"`** in WORKFLOW.md Step 7 | Literal `N` placeholder could be copied verbatim into a real commit message. Angle-bracket style `<number>` matches the rest of the doc's placeholder convention. | Accidental `"docs: session N documentation"` commits on real branches — cosmetic but sloppy. |
