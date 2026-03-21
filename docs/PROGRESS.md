@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 15 — Trading Journal Roadmap (docs-only) |
 | **Branch** | `docs/trading-journal-roadmap` |
-| **Status** | 🟡 Updating docs: PROGRESS.md, WORKFLOW.md, DESIGN_DOC.md, ARCHITECTURE.md, BUILD_LOG.md, CHANGELOG.md |
-| **Last checkpoint** | Step 2 — implementing changes |
+| **Status** | ✅ Roadmap updated (PROGRESS, WORKFLOW, DESIGN_DOC, ARCHITECTURE). Docs pending (BUILD_LOG, CHANGELOG). CI pending. |
+| **Last checkpoint** | Step 4 — progress checkpoint |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
