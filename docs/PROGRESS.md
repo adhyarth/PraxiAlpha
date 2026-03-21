@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 15 — Trading Journal Roadmap (docs-only) |
 | **Branch** | `docs/trading-journal-roadmap` |
-| **Status** | ✅ Roadmap updated (PROGRESS, WORKFLOW, DESIGN_DOC, ARCHITECTURE). ✅ CI passed (215/215). ✅ Docs updated (BUILD_LOG, CHANGELOG). Pushing + PR pending. |
-| **Last checkpoint** | Step 8 — push and PR |
+| **Status** | ✅ Roadmap updated (PROGRESS, WORKFLOW, DESIGN_DOC, ARCHITECTURE). ✅ CI passed (215/215). ✅ Docs updated (BUILD_LOG, CHANGELOG). ✅ PR #15 opened, awaiting review. |
+| **Last checkpoint** | Step 9 — PR review cycle |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
