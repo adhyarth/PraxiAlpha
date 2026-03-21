@@ -380,26 +380,42 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 │ asset_type          │ ENUM: 'shares' / 'options'                     │
 │ trade_type          │ ENUM: 'single_leg' / 'multi_leg' (options)     │
 │ timeframe           │ ENUM: 'daily'/'weekly'/'monthly'/'quarterly'   │
-│ status              │ ENUM: 'open' / 'partial' / 'closed' (computed) │
 │ entry_date          │ When the trade was entered                      │
 │ entry_price         │ Entry price per share/contract                  │
 │ total_quantity      │ Total shares/contracts entered                  │
-│ remaining_quantity  │ total minus sum of exit fills (computed)        │
 │ stop_loss           │ Optional stop loss price                        │
 │ take_profit         │ Optional take profit target                     │
 │ tags                │ JSONB array: ["breakout", "earnings-play"]      │
 │ comments            │ Free-form notes / trade reasoning               │
-│ realized_pnl        │ Computed from closed fills                      │
 │ created_at          │ Record creation time                            │
 │ updated_at          │ Last modification time                          │
 └─────────────────────┴─────────────────────────────────────────────────┘
+-- NOTE: status, remaining_quantity, realized_pnl, return_pct,
+-- avg_exit_price, and r_multiple are computed at the API/service
+-- layer from trade_exits data. They are NOT stored columns.
+-- See "Computed fields" section below.
 ```
 
 **Key design decisions:**
-- **UUID** primary key (not auto-increment) — safer for future API exposure, no enumeration attacks.
+- **UUID** primary key (not auto-increment) — less predictable than sequential IDs, which makes simple ID guessing harder. Proper authentication and authorization are still required to protect data exposed via APIs.
 - **`status`** is derived from exit fills, not manually set — prevents stale state.
 - **`tags`** as JSONB array — fully flexible, no fixed taxonomy. Supports filtering via `@>` operator.
 - **`timeframe`** records which chart interval informed the trade decision. The PDF report uses this to generate the matching chart type.
+
+**Computed fields (API-level, not stored in the DB):**
+
+The following fields are **not stored as database columns**. They are computed at the service/API layer when reading trade data:
+
+| Field | Derivation |
+|-------|-----------|
+| `status` | If no exits → `open`; if `sum(exit.quantity) < total_quantity` → `partial`; if equal → `closed` |
+| `remaining_quantity` | `total_quantity - sum(exit.quantity)` |
+| `realized_pnl` | `sum((exit.price - entry_price) * exit.quantity * direction_sign)` |
+| `return_pct` | `realized_pnl / (entry_price * total_quantity) * 100` |
+| `avg_exit_price` | `sum(exit.price * exit.quantity) / sum(exit.quantity)` |
+| `r_multiple` | `realized_pnl / (abs(entry_price - stop_loss) * total_quantity)` — only when stop_loss is set |
+
+This avoids data synchronization issues (no triggers or materialized views needed). The trade record stores only the raw entry data; all derived metrics are calculated on read.
 
 #### `trade_exits` — Partial/Full Exit Fills
 ```sql

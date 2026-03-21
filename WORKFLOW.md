@@ -302,8 +302,12 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | GET | `/api/v1/charts/{ticker}/candles` | Candle data by timeframe |
 | GET | `/api/v1/charts/{ticker}/summary` | Multi-timeframe summary |
 | GET | `/api/v1/charts/stats` | Aggregate statistics |
-| | | |
-| | **Trading Journal (Session 16)** | *Planned — not yet implemented* |
+
+#### Trading Journal (Session 16 — planned)
+*Planned — not yet implemented*
+
+| Method | Path | Description |
+|--------|------|-------------|
 | GET | `/api/v1/journal/` | List trades (with filters) |
 | POST | `/api/v1/journal/` | Create a new trade entry |
 | GET | `/api/v1/journal/{trade_id}` | Get trade details (with exits & legs) |

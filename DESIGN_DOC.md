@@ -641,25 +641,31 @@ This layer sits **between every signal and every trade execution**. No trade byp
 │ id (PK, UUID)    │     │ id (PK)          │     │ id (PK, UUID)    │
 │ user_id (FK)     │     │ stock_id (FK)    │     │ ticker           │
 │ name             │     │ condition        │     │ direction        │
-│ tickers (array)  │     │ is_triggered     │     │  (long/short)    │
-│ created_date     │     │ created_date     │     │ asset_type       │
+│ created_at       │     │ is_triggered     │     │  (long/short)    │
+│ updated_at       │     │ created_date     │     │ asset_type       │
 └──────────────────┘     └──────────────────┘     │  (shares/options)│
                                                    │ trade_type       │
-                                                   │  (single/multi)  │
-                                                   │ timeframe        │
-                                                   │  (D/W/M/Q)      │
-                                                   │ status           │
-                                                   │  (open/partial/  │
-                                                   │   closed)        │
+┌──────────────────┐                               │  (single_leg/   │
+│ watchlist_items  │                               │   multi_leg)     │
+├──────────────────┤                               │ timeframe        │
+│ id (PK, UUID)    │                               │  (daily/weekly/  │
+│ watchlist_id(FK) │                               │  monthly/        │
+│ ticker           │                               │  quarterly)      │
+│ added_at         │                               │ status (computed)│
+│ notes            │                               │  (open/partial/  │
+└──────────────────┘                               │   closed)        │
                                                    │ entry_date       │
                                                    │ entry_price      │
                                                    │ total_quantity   │
-                                                   │ remaining_qty    │
+                                                   │ remaining_       │
+                                                   │  quantity        │
+                                                   │  (computed)      │
                                                    │ stop_loss        │
                                                    │ take_profit      │
                                                    │ tags (JSONB)     │
                                                    │ comments (TEXT)  │
                                                    │ realized_pnl     │
+                                                   │  (computed)      │
                                                    │ created_at       │
                                                    │ updated_at       │
                                                    └──────────────────┘
