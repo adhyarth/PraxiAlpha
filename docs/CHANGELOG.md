@@ -20,6 +20,13 @@
 - **`DESIGN_DOC.md` schema diagram** — replaced placeholder `trades` box with full `trades`, `trade_exits`, `trade_legs` schemas
 - **`docs/ARCHITECTURE.md`** — added 3 full table schema sections with design decision rationale, plus planned API endpoints table
 
+### Fixed (PR #15 review)
+- **Schema naming alignment** — DESIGN_DOC diagram now matches ARCHITECTURE.md (`remaining_quantity`, `single_leg/multi_leg`, `daily/weekly/monthly/quarterly`)
+- **Watchlist schema consistency** — DESIGN_DOC diagram updated from `tickers (array)` to `watchlists` + `watchlist_items` two-table design
+- **WORKFLOW.md table formatting** — moved planned Trading Journal endpoints out of main API table into dedicated subsection
+- **Computed field clarity** — ARCHITECTURE.md now explicitly documents which fields are computed at API level (not stored) with derivation formulas
+- **UUID rationale** — reworded from "no enumeration attacks" to "less predictable than sequential IDs" with note that auth/authz is still required
+
 ---
 
 ## [Session 14] — 2026-03-19
