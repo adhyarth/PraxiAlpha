@@ -756,12 +756,166 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 2 | **Clarified module docstring** — distinguished rolling-window indicators (SMA, RSI, Bollinger → leading NaNs) from EWM-based indicators (EMA, MACD → seeded from index 0, no leading NaNs) | The original docstring said "NaN is used where there is insufficient data" which is only true for rolling-window indicators. EMA/MACD produce values starting at index 0. | Misleading docstrings compound over time. A future developer (or Copilot in a later session) building chart overlays would assume all indicators have leading NaNs and add unnecessary NaN-handling logic, or worse, skip valid data points. Accurate docs prevent phantom bugs in downstream consumers. |
 | 3 | **Replaced Unicode `≥` with ASCII `>=`** in MACD validation error message | Codebase convention uses ASCII operators in error messages. Unicode characters can cause encoding issues in log aggregators, grep searches, and test assertions that use string matching. | In production, log pipelines (ELK, Datadog, CloudWatch) may silently drop or mangle Unicode in error messages. `grep ">=1"` wouldn't find `"≥ 1"`. As the project scales to more services, inconsistent encoding in error messages makes incident debugging harder. |
 | 4 | **Replaced Unicode `≥` with ASCII `>=`** in `_validate_inputs()` error message | Same reasoning as #3 — consistency and searchability. This function is the shared validator called by every indicator, so the impact is multiplied. | Every indicator (SMA, EMA, RSI, Bollinger) routes through `_validate_inputs()`. A single encoding inconsistency here would affect error handling for all 5 indicators and any future indicators that use the same validator. |
-| 5 | **Aligned DESIGN_DOC schema diagram naming with ARCHITECTURE.md** — `remaining_qty` → `remaining_quantity`, `single/multi` → `single_leg/multi_leg`, `D/W/M/Q` → `daily/weekly/monthly/quarterly` | Schema diagram used abbreviations/shorthand that didn't match the canonical schema in ARCHITECTURE.md. Would cause confusion when implementing models in Session 16. | Developers could implement the wrong field names or enum values, requiring a schema migration fix later. |
-| 6 | **BUILD_LOG.md truncation** — already fixed in prior commit (verified table properly closed, Sessions 14/15 present) | The initial PR diff appeared to truncate the BUILD_LOG, but the subsequent `fix: restore Session 14 entry` commit had already corrected this. No further changes needed. | N/A — already resolved. |
-| 7 | **Moved Trading Journal endpoints to dedicated subsection in WORKFLOW.md** — separated from the main API table with a `#### Trading Journal (Session 16 — planned)` header and its own table | Blank separator rows and section headers inside a markdown table render inconsistently and are harder to read. Separate subsection is cleaner. | Markdown table would render broken in some viewers. Planned vs. implemented endpoints would be visually confusing. |
-| 8 | **Clarified computed vs stored fields in ARCHITECTURE.md** — removed `status`, `remaining_quantity`, `realized_pnl` from the stored columns table; added a dedicated "Computed fields" section with derivation formulas for all 6 computed properties | Schema table listed computed fields alongside stored columns with only a "(computed)" annotation. Unclear whether they were DB columns with triggers/materialized views or API-level computed properties. | Session 16 implementation could incorrectly create DB columns for computed fields, adding unnecessary complexity (triggers, sync issues). |
-| 9 | **Reworded UUID rationale in ARCHITECTURE.md** — changed from "no enumeration attacks" to "less predictable than sequential IDs" with explicit note that auth/authz is still required | Original wording implied UUIDs prevent enumeration attacks, which is misleading — they reduce predictability but don't replace authentication/authorization. | False sense of security. Developers might skip proper authorization checks thinking UUIDs are sufficient protection. |
-| 10 | **Updated watchlist schema in DESIGN_DOC diagram** — replaced `tickers (array)` with `watchlists` + `watchlist_items` two-table design | Diagram showed a single `watchlists` table with `tickers (array)`, but the roadmap describes a normalized `watchlists` + `watchlist_items` approach. Conflicting guidance. | Session 18 implementation would need to choose between two contradictory designs, potentially requiring rework. |
+
+---
+
+### Session 12 — 2026-03-17: Candlestick Chart Component (Phase 2)
+
+#### What We Did
+1. ✅ **Created Plotly candlestick chart builder** (`streamlit_app/components/candlestick_chart.py`)
+   - `candles_to_dataframe()` — converts API candle response to DatetimeIndex DataFrame
+   - `build_candlestick_figure()` — builds OHLCV candlestick chart with configurable overlays
+   - Volume subplot with bull/bear color coding (green=bullish, red=bearish)
+   - Indicator overlays: SMA, EMA, RSI, MACD, Bollinger Bands (via technical indicators service)
+   - Dynamic subplot layout (1–4 rows based on selected indicators)
+   - Dark theme styling with custom color palette
+
+2. ✅ **Created Streamlit charts page** (`streamlit_app/pages/charts.py`)
+   - Sidebar controls: ticker input, timeframe selector (daily/weekly/monthly/quarterly), candle limit slider
+   - Indicator panel: toggles with configurable periods for all 5 indicators
+   - Backend integration via `/api/v1/charts/{ticker}/candles` API endpoint
+
+3. ✅ **Wrote 25 new tests** (`backend/tests/test_candlestick_chart.py`)
+   - Guarded with `pytest.importorskip('plotly')` for CI compatibility
+   - Tests: data prep, figure structure, indicator overlays, subplot layout
+
+#### Architecture Decisions
+- **Plotly over Lightweight Charts** — native `st.plotly_chart()` integration, subplot support for indicators
+- **Chart builder as testable component** — separated from Streamlit page logic for unit testing
+- **Dynamic subplot layout** — adapts row count based on which indicators are selected
+- **`pytest.importorskip` guard** — chart tests run locally with plotly, skip gracefully in CI
+
+#### Files Created
+- `streamlit_app/components/candlestick_chart.py` — chart builder
+- `streamlit_app/pages/charts.py` — Streamlit charts page
+- `backend/tests/test_candlestick_chart.py` — 25 chart builder tests
+
+#### Files Modified
+- `streamlit_app/app.py` — updated Phase 2 status and navigation
+- `pyproject.toml` — added `E402` ignore for test files
+- `docs/BUILD_LOG.md`, `docs/CHANGELOG.md`, `WORKFLOW.md`
+
+#### Test Count: 196 (was 171, +25 candlestick chart tests)
+
+---
+
+### Session 13 — 2026-03-17: Stock Search (Phase 2)
+
+#### What We Did
+1. ✅ **Created stock search service** (`backend/services/stock_search.py`)
+   - `search_stocks()` — async function querying the `stocks` table by ticker prefix (`ILIKE 'Q%'`) and company name substring (`ILIKE '%query%'`)
+   - **Relevance ranking** via SQL `CASE`: exact ticker match (rank 0) → ticker prefix (rank 1) → name-only match (rank 2), then by ticker length (shorter = more relevant), then alphabetical
+   - Input validation: empty/whitespace queries return `[]` immediately (no DB hit)
+   - Limit clamping: `[1, 50]` range enforced regardless of input
+   - Optional `active_only` and `asset_types` filters
+   - `_serialize_stock()` helper for consistent API response format
+
+2. ✅ **Added search API endpoint** (`backend/api/routes/stocks.py`)
+   - `GET /api/v1/stocks/search?q=<query>&limit=10&active_only=true&asset_type=Common+Stock`
+   - Uses FastAPI `Query()` validators: `min_length=1`, `max_length=50` for `q`; `ge=1, le=50` for `limit`
+   - Returns `{ "count": N, "results": [...] }`
+
+3. ✅ **Created Streamlit search widget** (`streamlit_app/components/stock_search.py`)
+   - `render_stock_search()` — reusable component with text input + selectbox
+   - `_search_api()` — calls backend `/api/v1/stocks/search` with httpx
+   - `_format_option()` — formats stock dict as `"TICKER — Name (Exchange)"`
+   - Graceful fallback: shows "No matching stocks found" when API returns empty or is unavailable
+
+4. ✅ **Integrated search into Charts page** (`streamlit_app/pages/charts.py`)
+   - Replaced plain `st.text_input("Ticker")` with `render_stock_search()` widget
+   - Search results appear as a selectbox; selected ticker feeds into chart rendering
+
+5. ✅ **Wrote 19 new tests** (`backend/tests/test_stock_search.py`)
+   - `TestSerializeStock` (3 tests) — full serialization, None latest_date, key completeness
+   - `TestSearchStocksEdgeCases` (6 tests) — empty query, whitespace, None, limit clamping (min/max), serialized output, no results
+   - `TestSearchAPI` (3 tests) — service delegation, asset_type wrapping, empty results
+   - `TestStockSearchWidget` (6 tests) — `_format_option` with full/no-name/no-exchange/ticker-only/empty-strings/missing-ticker
+
+#### Architecture Decisions
+- **Service layer, not inline query** — `search_stocks()` lives in its own service file, not embedded in the route handler.
+- **SQL-level ranking with `CASE`** — ranking is done in the database, not in Python.
+- **Prefix match for ticker, substring for name** — tickers are short codes that users type from the start; names need substring matching.
+- **Reusable widget** — `render_stock_search()` accepts `key` and `default_ticker` params for multi-page use.
+
+#### Files Created
+- `backend/services/stock_search.py` — search service
+- `streamlit_app/components/stock_search.py` — Streamlit widget
+- `backend/tests/test_stock_search.py` — 19 tests
+
+#### Files Modified
+- `backend/api/routes/stocks.py` — added `/search` endpoint
+- `streamlit_app/pages/charts.py` — replaced text input with search widget
+- `docs/BUILD_LOG.md`, `docs/CHANGELOG.md`, `WORKFLOW.md`, `docs/PROGRESS.md`
+
+#### Test Count: 215 (was 196, +19 stock search tests)
+
+#### PR Review Fixes (PR #12 — 6 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Charts page uses `st.session_state` instead of silent AAPL fallback** — when search returns `None` (backend down or no match), the last successfully selected ticker is preserved; an `st.info` message surfaces when no ticker is selected | The original code silently fell back to `"AAPL"` whenever the search widget returned `None`, hiding backend connectivity issues and making it impossible to tell whether a search genuinely found nothing. | Users would see AAPL's chart after searching for a different ticker and getting no results, with no indication that anything went wrong. Backend outages would be invisible from the UI. |
+| 2 | **`_search_api()` handles errors explicitly** — catches `httpx.ConnectError`/`httpx.TimeoutException` separately (shows "Backend unavailable" warning), handles non-200 responses (422 → "Invalid query"), returns `None` for errors vs `[]` for empty results | The original `except Exception: pass` swallowed all errors and returned `[]`, making backend downtime, timeouts, and validation errors all look like "No matching stocks found." | Debugging would be nearly impossible — a 422 from an overly long query, a timeout from a slow DB, and a genuinely empty result set would all display the same message. In production, users would never know the backend was down. |
+| 3 | **Added `max_chars=50` to `st.text_input`** in the search widget | The backend API enforces `max_length=50` on the `q` parameter. Without a client-side limit, users could type longer queries that would always 422. | Users would type long company names, get a 422 from the API, and see "Invalid query" with no explanation of the length limit. The client should prevent the invalid input before it reaches the server. |
+| 4 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
+| 5 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
+| 6 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |
+
+---
+
+### Session 14 — 2026-03-19: Workflow Improvements
+
+#### Summary
+Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash resilience on an 8 GB Mac. Added a crash recovery mechanism to `docs/PROGRESS.md` and documented the OOM pitfall.
+
+#### What We Did
+1. ✅ **Rewrote `WORKFLOW.md` with checkpoint-based session flow (Steps 0–10)**
+   - 3 explicit commit checkpoints: after code (Step 3), after progress update (Step 4), after CI fixes (Step 6)
+   - Each checkpoint saves progress locally so Copilot Chat crashes don't lose work
+   - Added Docker management guideline: stop Docker during code-only sessions to free ~2-3 GB RAM
+   - Added activity table (when Docker is needed vs. not)
+2. ✅ **Added crash recovery mechanism to `docs/PROGRESS.md`**
+   - New "🔴 Current Session Status" block at the top — always reflects in-progress work
+   - Dedicated crash recovery prompt in WORKFLOW.md §3 reads this block to resume
+3. ✅ **Updated resume prompts in WORKFLOW.md §6**
+   - Normal session prompt now includes `docs/PROGRESS.md`
+   - Added separate crash recovery prompt
+4. ✅ **Added OOM pitfall (#16) to Common Pitfalls**
+   - Documents 8 GB Mac memory pressure issue and mitigations
+5. ✅ **Renumbered upcoming sessions in PROGRESS.md**
+   - Session 14 = Workflow Improvements (this session)
+   - Session 15 = Watchlist Backend, 16 = Watchlist UI, etc.
+
+#### Architecture Decision
+- **Checkpoint-based workflow over single-commit-at-end** — on an 8 GB Mac running VS Code + Docker + Copilot Chat, OOM crashes are common during long sessions. The old workflow committed everything at the end, meaning a crash lost the entire session. The new flow commits after code (Step 3), progress (Step 4), and CI (Step 6), ensuring at most one step of work is lost.
+- **PROGRESS.md as crash recovery file** — rather than relying on chat history (lost on crash), the "Current Session Status" block serves as a persistent checkpoint. Any new chat session reads it and resumes exactly.
+- **Docker stop/start over mem_limit** — capping Docker memory could degrade dashboard performance with 58M+ OHLCV rows. Instead, stop Docker during code sessions (`docker compose stop`) and restart for dashboard/DB work.
+
+#### Lessons Learned
+- VS Code Copilot Chat runs in Electron (Chromium). On 8 GB Mac with Docker, OOM crashes are inevitable during long sessions.
+- The fix isn't more RAM — it's resilient workflow design. Frequent commits + progress checkpoints make crashes recoverable.
+- `docker compose stop` preserves container state while freeing RAM. `docker compose up -d` restarts instantly.
+- Copilot "Ask" mode can describe changes but cannot execute tools (file edits, terminal commands). Always use "Agent" mode for implementation sessions.
+
+#### Files Changed
+- `WORKFLOW.md` — complete rewrite: Steps 0–10, crash recovery §3, Docker management, OOM pitfall #16, resume prompts §6
+- `docs/PROGRESS.md` — added "Current Session Status" crash recovery block, renumbered sessions 14–18, added Session 14 to history
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+
+#### Test Count: 215 (unchanged — documentation-only session)
+
+#### PR Review Fixes (PR #13 — 8 comments across 2 review rounds)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Added note that `wip:` commits are local-only and get squash-merged** into a Conventional Commit when the PR merges | `wip:` prefixed checkpoint commits conflict with the Conventional Commits format in `CONTRIBUTING.md`. Without clarification, future sessions might think the convention was changed. | Confusion about commit message standards. Contributors might push `wip:` commits directly to main or skip squash-merging. |
+| 2 | **Added explicit `git add` + `git commit` commands for PROGRESS.md update in Step 6** | Step 6 only showed a conditional `wip: CI fixes` commit but mentioned updating PROGRESS.md without commands. Easy to forget the PROGRESS commit. | PROGRESS.md would not be committed after CI passes, defeating the crash recovery mechanism for the remaining steps. |
+| 3 | **Changed Step 7 from "clear the Current Session Status block" to "set to PR opened / awaiting review"** | Clearing the crash recovery block before push/PR/review means if Copilot crashes during those steps, the next session has no recovery info. | Crash during push, PR creation, or review cycle would leave no breadcrumb in PROGRESS.md. Recovery would require manual git log inspection instead of just reading the file. |
+| 4 | **Added note that `feat/workflow-improvements` should have been `docs/` prefix for docs-only sessions** | Branch is `feat/` but session is docs-only. Conflicts with `CONTRIBUTING.md` branch naming convention. Can't rename mid-PR, but documented for future reference. | Future docs-only sessions might copy this pattern and use `feat/` prefix, diluting branch type semantics. |
+| 5 | **Restored missing Session 12 (Candlestick Charts) and Session 13 (Stock Search) entries in BUILD_LOG** | Session 11's PR review fixes block had grown to include items from Sessions 12 and 13, and Session 12's header was never written. Session 13's header was lost. | BUILD_LOG is the canonical chronological record. Missing sessions would make it impossible to trace what happened in Sessions 12-13, breaking the audit trail. |
+| 6 | **Updated PROGRESS.md crash recovery status to "PR opened, awaiting review"** | Status still said "Ready for push + PR" and checkpoint said "Step 7" even though the PR was already open at Step 9. Stale checkpoint misleads crash recovery. | A crash recovery session would try to push and create a PR that already exists, wasting time and causing `gh pr create` errors. |
+| 7 | **Spelled out `docker compose up -d` in CHANGELOG** | Shorthand `up -d` without the full command is unclear when skimming the changelog. | Readers unfamiliar with Docker might not know what `up -d` means without the `docker compose` prefix. Minor clarity issue. |
+| 8 | **Changed `"docs: session N documentation"` to `"docs: session <number> documentation"`** in WORKFLOW.md Step 7 | Literal `N` placeholder could be copied verbatim into a real commit message. Angle-bracket style `<number>` matches the rest of the doc's placeholder convention. | Accidental `"docs: session N documentation"` commits on real branches — cosmetic but sloppy. |
 
 ---
 
