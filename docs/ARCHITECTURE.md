@@ -368,6 +368,74 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | CPIAUCSL | CPI | Inflation |
 | PCEPI | PCE Price Index | Fed's preferred inflation measure |
 
+#### `trades` — Trading Journal (Planned — Session 16)
+```sql
+-- Parent trade record: one row per trade entry
+┌─────────────────────┬─────────────────────────────────────────────────┐
+│ Column              │ Purpose                                         │
+├─────────────────────┼─────────────────────────────────────────────────┤
+│ id                  │ UUID primary key                                │
+│ ticker              │ "AAPL", "TSLA" — the traded symbol              │
+│ direction           │ ENUM: 'long' / 'short'                         │
+│ asset_type          │ ENUM: 'shares' / 'options'                     │
+│ trade_type          │ ENUM: 'single_leg' / 'multi_leg' (options)     │
+│ timeframe           │ ENUM: 'daily'/'weekly'/'monthly'/'quarterly'   │
+│ status              │ ENUM: 'open' / 'partial' / 'closed' (computed) │
+│ entry_date          │ When the trade was entered                      │
+│ entry_price         │ Entry price per share/contract                  │
+│ total_quantity      │ Total shares/contracts entered                  │
+│ remaining_quantity  │ total minus sum of exit fills (computed)        │
+│ stop_loss           │ Optional stop loss price                        │
+│ take_profit         │ Optional take profit target                     │
+│ tags                │ JSONB array: ["breakout", "earnings-play"]      │
+│ comments            │ Free-form notes / trade reasoning               │
+│ realized_pnl        │ Computed from closed fills                      │
+│ created_at          │ Record creation time                            │
+│ updated_at          │ Last modification time                          │
+└─────────────────────┴─────────────────────────────────────────────────┘
+```
+
+**Key design decisions:**
+- **UUID** primary key (not auto-increment) — safer for future API exposure, no enumeration attacks.
+- **`status`** is derived from exit fills, not manually set — prevents stale state.
+- **`tags`** as JSONB array — fully flexible, no fixed taxonomy. Supports filtering via `@>` operator.
+- **`timeframe`** records which chart interval informed the trade decision. The PDF report uses this to generate the matching chart type.
+
+#### `trade_exits` — Partial/Full Exit Fills
+```sql
+-- Each exit of a trade (supports partial exits)
+┌─────────────────────┬──────────────────────────────────────────┐
+│ Column              │ Purpose                                  │
+├─────────────────────┼──────────────────────────────────────────┤
+│ id                  │ UUID primary key                         │
+│ trade_id            │ → links to trades.id (FK, CASCADE)       │
+│ exit_date           │ When this portion was exited             │
+│ exit_price          │ Exit price for this fill                 │
+│ quantity            │ Shares/contracts exited in this fill     │
+│ comments            │ Optional note for this specific exit     │
+└─────────────────────┴──────────────────────────────────────────┘
+```
+
+**Why separate exits?** A single trade can have multiple exits (scale-out strategy). E.g., enter 100 shares, exit 50 at +5%, exit 50 more at +10%. Each exit is an independent record.
+
+#### `trade_legs` — Multi-Leg Option Trades
+```sql
+-- Individual legs of a multi-leg options trade
+┌─────────────────────┬──────────────────────────────────────────┐
+│ Column              │ Purpose                                  │
+├─────────────────────┼──────────────────────────────────────────┤
+│ id                  │ UUID primary key                         │
+│ trade_id            │ → links to trades.id (FK, CASCADE)       │
+│ leg_type            │ ENUM: buy_call/sell_call/buy_put/sell_put│
+│ strike              │ Strike price                             │
+│ expiry              │ Expiration date                          │
+│ quantity            │ Number of contracts for this leg         │
+│ premium             │ Price paid/received per contract         │
+└─────────────────────┴──────────────────────────────────────────┘
+```
+
+**Why separate legs?** Multi-leg strategies (vertical spreads, iron condors, straddles) involve multiple simultaneous positions. Each leg has its own strike, expiry, and premium.
+
 ---
 
 ## 🌐 API Layer
@@ -387,6 +455,18 @@ FastAPI auto-generates interactive documentation. Once running, visit:
 | `GET` | `/api/v1/stocks/{ticker}` | Get one stock's details |
 
 More endpoints will be added as we build analysis, trading, and other modules.
+
+#### Planned: Trading Journal Endpoints (Session 16)
+| Method | Path | What It Does |
+|--------|------|-------------|
+| `GET` | `/api/v1/journal/` | List trades (with filters: ticker, status, timeframe, date range, tags) |
+| `POST` | `/api/v1/journal/` | Create a new trade entry |
+| `GET` | `/api/v1/journal/{trade_id}` | Get trade details (includes exits & legs) |
+| `PUT` | `/api/v1/journal/{trade_id}` | Update trade (tags, comments, stop/TP) |
+| `DELETE` | `/api/v1/journal/{trade_id}` | Delete a trade |
+| `POST` | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit fill |
+| `POST` | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
+| `GET` | `/api/v1/journal/report` | Generate PDF report with charts (Session 17) |
 
 ---
 
