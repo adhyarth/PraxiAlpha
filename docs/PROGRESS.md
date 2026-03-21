@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 15 — Trading Journal Roadmap (docs-only) |
 | **Branch** | `docs/trading-journal-roadmap` |
-| **Status** | ✅ Roadmap updated. ✅ CI passed (215/215). ✅ PR #15 opened. ✅ All 6 review comments addressed. ✅ Pushed review fixes, CI green. Ready to merge. |
-| **Last checkpoint** | Step 10 — PR review fixes pushed, ready to merge |
+| **Status** | ✅ Roadmap updated. ✅ CI passed (215/215). ✅ PR #15 opened. ✅ All 6 review comments addressed. ✅ Restored lost Sessions 12-14 in BUILD_LOG. Ready to merge. |
+| **Last checkpoint** | Step 10 — all fixes pushed, ready to merge |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
