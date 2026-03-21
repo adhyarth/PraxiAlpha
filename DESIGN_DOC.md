@@ -638,48 +638,55 @@ This layer sits **between every signal and every trade execution**. No trade byp
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
 │   watchlists     │     │     alerts       │     │     trades       │
 ├──────────────────┤     ├──────────────────┤     ├──────────────────┤
-│ id (PK)          │     │ id (PK)          │     │ id (PK)          │
-│ user_id (FK)     │     │ stock_id (FK)    │     │ stock_id (FK)    │
-│ name             │     │ condition        │     │ strategy_id (FK) │
-│ tickers (array)  │     │ is_triggered     │     │ direction        │
-│ created_date     │     │ created_date     │     │ side (buy/sell)  │
-└──────────────────┘     └──────────────────┘     │ quantity         │
-                                                   │ price            │
-                                                   │ timestamp        │
-                                                   │ status           │
-                                                   │ pnl              │
-                                                   │ is_paper         │
-                                                   │ conviction_level │
-                                                   │ market_regime    │
-                                                   │ journal_id (FK)  │
+│ id (PK, UUID)    │     │ id (PK)          │     │ id (PK, UUID)    │
+│ user_id (FK)     │     │ stock_id (FK)    │     │ ticker           │
+│ name             │     │ condition        │     │ direction        │
+│ created_at       │     │ is_triggered     │     │  (long/short)    │
+│ updated_at       │     │ created_date     │     │ asset_type       │
+└──────────────────┘     └──────────────────┘     │  (shares/options)│
+                                                   │ trade_type       │
+┌──────────────────┐                               │  (single_leg/   │
+│ watchlist_items  │                               │   multi_leg)     │
+├──────────────────┤                               │ timeframe        │
+│ id (PK, UUID)    │                               │  (daily/weekly/  │
+│ watchlist_id(FK) │                               │  monthly/        │
+│ ticker           │                               │  quarterly)      │
+│ added_at         │                               │ status (computed)│
+│ notes            │                               │  (open/partial/  │
+└──────────────────┘                               │   closed)        │
+                                                   │ entry_date       │
+                                                   │ entry_price      │
+                                                   │ total_quantity   │
+                                                   │ remaining_       │
+                                                   │  quantity        │
+                                                   │  (computed)      │
+                                                   │ stop_loss        │
+                                                   │ take_profit      │
+                                                   │ tags (JSONB)     │
+                                                   │ comments (TEXT)  │
+                                                   │ realized_pnl     │
+                                                   │  (computed)      │
+                                                   │ created_at       │
+                                                   │ updated_at       │
                                                    └──────────────────┘
 
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│ trade_journal    │     │ journal_tags     │     │ portfolio_       │
+│  trade_exits     │     │  trade_legs      │     │ portfolio_       │
 ├──────────────────┤     ├──────────────────┤     │  snapshots       │
-│ id (PK)          │     │ id (PK)          │     ├──────────────────┤
-│ trade_id (FK)    │     │ journal_id (FK)  │     │ id (PK)          │
-│ entry_type       │     │ tag_name         │     │ date             │
-│  (entry/exit)    │     └──────────────────┘     │ total_value      │
-│ auto_notes (JSON)│                               │ cash_balance     │
-│  - strategy_name │                               │ invested_value   │
-│  - technical_    │                               │ daily_pnl        │
-│    setup         │                               │ total_pnl        │
-│  - trend_context │                               │ drawdown_pct     │
-│  - macro_context │                               │ market_regime    │
-│  - risk_reward   │                               │ positions (JSON) │
-│  - stop_loss     │                               │ sector_exposure  │
-│  - mfe           │                               │  (JSON)          │
-│  - mae           │                               └──────────────────┘
-│ user_notes       │
-│ emotional_state  │
-│ trade_grade      │
-│  (A/B/C/D/F)    │
-│ chart_screenshot │
-│  _url            │
-│ created_at       │
-│ updated_at       │
-└──────────────────┘
+│ id (PK, UUID)    │     │ id (PK, UUID)    │     ├──────────────────┤
+│ trade_id (FK)    │     │ trade_id (FK)    │     │ id (PK)          │
+│ exit_date        │     │ leg_type         │     │ date             │
+│ exit_price       │     │  (buy_call/      │     │ total_value      │
+│ quantity         │     │   sell_call/     │     │ cash_balance     │
+│ comments         │     │   buy_put/       │     │ invested_value   │
+└──────────────────┘     │   sell_put)      │     │ daily_pnl        │
+                         │ strike           │     │ total_pnl        │
+                         │ expiry           │     │ drawdown_pct     │
+                         │ quantity         │     │ market_regime    │
+                         │ premium          │     │ positions (JSON) │
+                         └──────────────────┘     │ sector_exposure  │
+                                                   │  (JSON)          │
+                                                   └──────────────────┘
 ```
 
 ### Data Volume Estimates
@@ -723,7 +730,7 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 ---
 
 ### Phase 2: Charting & Basic Dashboard (Weeks 5-8)
-**Goal:** Visualize data and build MVP dashboard
+**Goal:** Visualize data, build MVP dashboard, and enable trade journaling
 
 - [ ] Set up FastAPI backend with basic endpoints
 - [ ] Build Streamlit MVP dashboard
@@ -731,13 +738,16 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 - [ ] Add technical indicator overlays (RSI, MACD, MAs, Bollinger Bands)
 - [ ] Add volume subplot
 - [ ] Implement daily/weekly/monthly chart toggle
-- [ ] Build watchlist management UI
 - [ ] Add basic stock search functionality
 - [ ] Integrate TradingEconomics economic calendar (fetch upcoming US events)
 - [ ] Build economic calendar widget on dashboard (high/medium importance events)
 - [ ] Add event importance filtering (Low/Medium/High) and country filtering
+- [ ] Build Trading Journal backend (trades, exits, legs — open/partial/closed tracking)
+- [ ] Build Trading Journal PDF report generator (annotated charts with entry/exit markers)
+- [ ] Build watchlist management UI
+- [ ] Dashboard polish (wire everything together, final QA)
 
-**Deliverable:** Working dashboard where you can view charts for any stock in your database
+**Deliverable:** Working dashboard where you can view charts, journal trades, and generate PDF trade reports
 
 ---
 

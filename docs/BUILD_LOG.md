@@ -916,3 +916,76 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 6 | **Updated PROGRESS.md crash recovery status to "PR opened, awaiting review"** | Status still said "Ready for push + PR" and checkpoint said "Step 7" even though the PR was already open at Step 9. Stale checkpoint misleads crash recovery. | A crash recovery session would try to push and create a PR that already exists, wasting time and causing `gh pr create` errors. |
 | 7 | **Spelled out `docker compose up -d` in CHANGELOG** | Shorthand `up -d` without the full command is unclear when skimming the changelog. | Readers unfamiliar with Docker might not know what `up -d` means without the `docker compose` prefix. Minor clarity issue. |
 | 8 | **Changed `"docs: session N documentation"` to `"docs: session <number> documentation"`** in WORKFLOW.md Step 7 | Literal `N` placeholder could be copied verbatim into a real commit message. Angle-bracket style `<number>` matches the rest of the doc's placeholder convention. | Accidental `"docs: session N documentation"` commits on real branches — cosmetic but sloppy. |
+
+---
+
+### Session 15 — 2026-03-20: Trading Journal Roadmap (Docs-Only)
+
+**Goal:** Plan and document the Trading Journal feature — finalize schema, update all docs, and reprioritize the session roadmap (Journal before Watchlist).
+
+**Branch:** `docs/trading-journal-roadmap`
+
+#### What Was Done
+
+1. **Designed the Trading Journal schema** through iterative discussion:
+   - `trades` table (18 columns): UUID PK, ticker, direction (long/short), asset_type (shares/options), trade_type (single_leg/multi_leg), timeframe (daily/weekly/monthly/quarterly), status (open/partial/closed — computed), entry_date, entry_price, total_quantity, remaining_quantity, stop_loss, take_profit, tags (JSONB), comments (TEXT), realized_pnl, created_at, updated_at
+   - `trade_exits` table (6 columns): UUID PK, trade_id FK (CASCADE), exit_date, exit_price, quantity, comments — supports partial exits (scale-out strategy)
+   - `trade_legs` table (7 columns): UUID PK, trade_id FK (CASCADE), leg_type (buy_call/sell_call/buy_put/sell_put), strike, expiry, quantity, premium — for multi-leg options trades
+   - 6 computed/derived fields (not stored): status, remaining_quantity, realized_pnl, return_pct, avg_exit_price, r_multiple
+
+2. **Planned the PDF Trade Journal Report** (Session 17):
+   - Summary page: total trades, win rate, total P&L, best/worst trade, breakdown by timeframe
+   - Per-trade section: full details + annotated candlestick chart matching the trade's timeframe
+   - Chart annotations: green entry arrow, red exit arrow(s), dashed stop/TP lines, volume subplot
+   - Chart lookback by timeframe: daily=1yr, weekly=2yr, monthly=5yr, quarterly=10yr
+   - Leverages existing Plotly chart builder (Session 12) and all 4 candle aggregates (Session 10)
+
+3. **Updated roadmap** — inserted Trading Journal sessions (16–17) before Watchlist (18–19):
+   - Session 15: Trading Journal Roadmap (this session, docs-only)
+   - Session 16: Trading Journal Backend (model, service, API, migration, tests)
+   - Session 17: Trading Journal PDF Report (report service, chart annotation, PDF export)
+   - Session 18: Watchlist Backend (was Session 15)
+   - Session 19: Watchlist UI (was Session 16)
+   - Session 20: Dashboard Polish (was Session 17)
+   - Session 21: Phase 3 Kickoff (was Session 18)
+
+4. **Updated documentation:**
+   - `DESIGN_DOC.md` — schema diagram updated with `trades`, `trade_exits`, `trade_legs` (replaced placeholder `trades` box); Phase 2 roadmap updated to include Journal + PDF report
+   - `docs/ARCHITECTURE.md` — added full table schemas for all 3 journal tables with design decision notes; added planned API endpoints section (8 endpoints)
+   - `WORKFLOW.md` — updated "Last Completed Session" (14), "Next Session" (16 — Journal Backend), added planned journal API endpoints to quick reference
+   - `docs/PROGRESS.md` — updated Phase 2 checklist (added journal items), updated session roadmap (15–21), added Session 15 to history
+
+#### Key Design Decisions
+- **UUID primary keys** (not auto-increment) — safer for API exposure, no enumeration attacks
+- **Status computed from exits** (not manually set) — prevents stale state; `open` if no exits, `partial` if some, `closed` if all exited
+- **Tags as JSONB array** — fully flexible, no fixed taxonomy. Supports `@>` operator for filtering. Can formalize into structured taxonomy later.
+- **Timeframe field** — records which chart interval informed the trade decision. PDF report matches the chart type to the timeframe (daily chart for daily trades, weekly chart for weekly trades, etc.)
+- **Separate exits table** — enables partial exit tracking (scale-out). Each exit is an independent record with its own price, quantity, and optional comment.
+- **Separate legs table** — multi-leg options strategies (spreads, iron condors, straddles) need per-leg tracking with strike, expiry, premium.
+- **Comments on both trades and exits** — trade-level comments for overall reasoning; exit-level comments for explaining specific exit decisions.
+
+#### Lessons Learned
+- Prioritizing the Trading Journal before Watchlist gives immediate value: you can start journaling manual trades while building the rest of the platform.
+- The journal becomes the foundation for auto-trade logging later — when the analysis engine generates signals, they can auto-create journal entries with strategy context.
+- Designing the schema through iterative discussion (5+ rounds) caught requirements that wouldn't surface in a single pass: timeframe field, exit-level comments, multi-leg support, PDF report with annotated charts.
+
+#### Files Changed
+- `DESIGN_DOC.md` — schema diagram (trades/exits/legs), Phase 2 roadmap, Phase 2 deliverable
+- `WORKFLOW.md` — last completed session, next session, planned API endpoints
+- `docs/ARCHITECTURE.md` — 3 new table schemas with design notes, planned API endpoints
+- `docs/PROGRESS.md` — Phase 2 checklist, session roadmap (15–21), crash recovery block, session history
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — documented all changes
+
+#### Test Count: 215 (unchanged — documentation-only session)
+
+#### PR Review Fixes (PR #15 — 6 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Aligned DESIGN_DOC schema diagram naming with ARCHITECTURE.md** — `remaining_qty` → `remaining_quantity`, `single/multi` → `single_leg/multi_leg`, `D/W/M/Q` → `daily/weekly/monthly/quarterly` | Schema diagram used abbreviations/shorthand that didn't match the canonical schema in ARCHITECTURE.md. Would cause confusion when implementing models in Session 16. | Developers could implement the wrong field names or enum values, requiring a schema migration fix later. |
+| 2 | **BUILD_LOG.md truncation** — already fixed in prior commit (verified table properly closed, Sessions 14/15 present) | The initial PR diff appeared to truncate the BUILD_LOG, but the subsequent `fix: restore Session 14 entry` commit had already corrected this. No further changes needed. | N/A — already resolved. |
+| 3 | **Moved Trading Journal endpoints to dedicated subsection in WORKFLOW.md** — separated from the main API table with a `#### Trading Journal (Session 16 — planned)` header and its own table | Blank separator rows and section headers inside a markdown table render inconsistently and are harder to read. Separate subsection is cleaner. | Markdown table would render broken in some viewers. Planned vs. implemented endpoints would be visually confusing. |
+| 4 | **Clarified computed vs stored fields in ARCHITECTURE.md** — removed `status`, `remaining_quantity`, `realized_pnl` from the stored columns table; added a dedicated "Computed fields" section with derivation formulas for all 6 computed properties | Schema table listed computed fields alongside stored columns with only a "(computed)" annotation. Unclear whether they were DB columns with triggers/materialized views or API-level computed properties. | Session 16 implementation could incorrectly create DB columns for computed fields, adding unnecessary complexity (triggers, sync issues). |
+| 5 | **Reworded UUID rationale in ARCHITECTURE.md** — changed from "no enumeration attacks" to "less predictable than sequential IDs" with explicit note that auth/authz is still required | Original wording implied UUIDs prevent enumeration attacks, which is misleading — they reduce predictability but don't replace authentication/authorization. | False sense of security. Developers might skip proper authorization checks thinking UUIDs are sufficient protection. |
+| 6 | **Updated watchlist schema in DESIGN_DOC diagram** — replaced `tickers (array)` with `watchlists` + `watchlist_items` two-table design | Diagram showed a single `watchlists` table with `tickers (array)`, but the roadmap describes a normalized `watchlists` + `watchlist_items` approach. Conflicting guidance. | Session 18 implementation would need to choose between two contradictory designs, potentially requiring rework. |
