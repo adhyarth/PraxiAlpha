@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 15 — Trading Journal Roadmap (docs-only) |
 | **Branch** | `docs/trading-journal-roadmap` |
-| **Status** | ✅ Roadmap updated (PROGRESS, WORKFLOW, DESIGN_DOC, ARCHITECTURE). Docs pending (BUILD_LOG, CHANGELOG). CI pending. |
-| **Last checkpoint** | Step 4 — progress checkpoint |
+| **Status** | ✅ Roadmap updated (PROGRESS, WORKFLOW, DESIGN_DOC, ARCHITECTURE). ✅ CI passed (215/215). ✅ Docs updated (BUILD_LOG, CHANGELOG). Pushing + PR pending. |
+| **Last checkpoint** | Step 8 — push and PR |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -91,6 +91,7 @@
 | 12 | 2026-03-17 | Candlestick chart component (Plotly), charts page, volume subplot, indicator overlays, 25 new tests (196 total) | PR #9 |
 | 13 | 2026-03-17 | Stock search service (ticker prefix + name substring), API endpoint, Streamlit widget, charts page integration, 19 new tests (215 total) | PR #12 |
 | 14 | 2026-03-19 | Workflow improvements: checkpoint-based session flow, crash recovery in PROGRESS.md, Docker RAM management, OOM pitfall | PR #13 |
+| 15 | 2026-03-20 | Trading Journal roadmap: schema design (trades, exits, legs), PDF report plan, session reorder (Journal before Watchlist), docs updates | PR #15 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 

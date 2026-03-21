@@ -8,6 +8,23 @@
 ## [Unreleased]
 
 ### Added
+- **Trading Journal schema design** — 3 tables (`trades`, `trade_exits`, `trade_legs`) with 31 columns total, supporting open/partial/closed trades, partial exits (scale-out), multi-leg options, timeframe tracking, JSONB tags, and free-form comments
+- **Trading Journal PDF report plan** — per-trade annotated candlestick charts (matching trade timeframe), entry/exit markers, stop/TP lines, summary statistics, timeframe-based lookback (daily=1yr, weekly=2yr, monthly=5yr, quarterly=10yr)
+- **Trading Journal API endpoints planned** — 8 endpoints for CRUD, partial exits, option legs, and PDF report generation (`/api/v1/journal/`)
+- **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 17 (PDF Report) inserted before Watchlist sessions
+
+### Changed
+- **Session roadmap reordered** — Trading Journal (16–17) now comes before Watchlist (18–19), Dashboard Polish (20), Phase 3 Kickoff (21)
+- **Phase 2 checklist updated** — added Trading Journal backend and PDF report as Phase 2 deliverables
+- **Phase 2 deliverable updated** in `DESIGN_DOC.md` — now includes "journal trades and generate PDF trade reports"
+- **`DESIGN_DOC.md` schema diagram** — replaced placeholder `trades` box with full `trades`, `trade_exits`, `trade_legs` schemas
+- **`docs/ARCHITECTURE.md`** — added 3 full table schema sections with design decision rationale, plus planned API endpoints table
+
+---
+
+## [Session 14] — 2026-03-19
+
+### Added
 - **Checkpoint-based session workflow** in `WORKFLOW.md` — 3 explicit commit checkpoints (code, progress, CI-clean) to survive Copilot Chat OOM crashes on 8 GB Mac
 - **Crash recovery mechanism** in `docs/PROGRESS.md` — "🔴 Current Session Status" block serves as persistent checkpoint for mid-session crash recovery
 - **Docker RAM management guideline** — `docker compose stop` during code-only sessions, `docker compose up -d` for dashboard/DB (saves ~2-3 GB)
