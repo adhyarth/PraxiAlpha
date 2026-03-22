@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-20 (Session 15)
+> **Last updated:** 2026-03-22 (Session 16)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 15 — Trading Journal Roadmap (docs-only) |
-| **Branch** | `docs/trading-journal-roadmap` |
-| **Status** | ✅ Roadmap updated. ✅ CI passed (215/215). ✅ PR #15 opened. ✅ All 6 review comments addressed. ✅ Restored lost Sessions 12-14 in BUILD_LOG. Ready to merge. |
-| **Last checkpoint** | Step 10 — all fixes pushed, ready to merge |
+| **Session** | 16 — Trading Journal Backend |
+| **Branch** | `feat/trading-journal-backend` |
+| **Status** | ✅ All review fixes applied (2 rounds, 9 comments). ✅ CI green (268/268). ✅ Docs updated. Ready to squash-merge. |
+| **Last checkpoint** | Step 10 — docs updated, ready to squash-merge |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -32,14 +32,15 @@
 | **Data Pipeline** | ✅ Working | EODHD fetcher (OHLCV, splits, dividends), FRED fetcher (14 macro series), TradingEconomics fetcher (economic calendar) |
 | **Backfill** | ✅ Done | `scripts/backfill_full.py` — 23,714 tickers backfilled (1990–2026), 58.2M OHLCV records, 18.4K splits, 634K dividends |
 | **Daily Tasks** | ✅ Implemented | Celery Beat — daily OHLCV (bulk endpoint) → candle aggregate refresh, daily macro (7-day incremental), daily calendar |
-| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/` |
+| **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/`, `/api/v1/journal/` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
+| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, 53 tests |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (196 tests) |
-| **Tests** | ✅ 215 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (268 tests) |
+| **Tests** | ✅ 268 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---
@@ -62,7 +63,7 @@
 - [x] Daily/weekly/monthly chart toggle — Session 12
 - [x] ~~Economic calendar widget~~ ✅ Pulled into Phase 1
 - [x] Stock search functionality — Session 13
-- [ ] Trading Journal — backend (model, service, API, migration, tests)
+- [x] Trading Journal — backend (model, service, API, migration, tests) — Session 16
 - [ ] Trading Journal — PDF report generator (annotated charts, PDF export)
 - [ ] Watchlist management backend
 - [ ] Watchlist management UI
@@ -92,6 +93,7 @@
 | 13 | 2026-03-17 | Stock search service (ticker prefix + name substring), API endpoint, Streamlit widget, charts page integration, 19 new tests (215 total) | PR #12 |
 | 14 | 2026-03-19 | Workflow improvements: checkpoint-based session flow, crash recovery in PROGRESS.md, Docker RAM management, OOM pitfall | PR #13 |
 | 15 | 2026-03-20 | Trading Journal roadmap: schema design (trades, exits, legs), PDF report plan, session reorder (Journal before Watchlist), docs updates | PR #15 |
+| 16 | 2026-03-22 | Trading Journal backend: 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total) | PR #16 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
@@ -105,8 +107,8 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 |---|---------|-------|---------------------------|------------|
 | **13** | **Stock Search** | ✅ Done — typeahead search component, API endpoint, Streamlit widget, charts page integration, 19 tests. | `backend/services/stock_search.py`, `backend/api/routes/stocks.py`, `streamlit_app/components/stock_search.py`, `backend/tests/test_stock_search.py` | Session 12 ✅ |
 | **14** | **Workflow Improvements** | ✅ Done — checkpoint-based workflow, crash recovery in PROGRESS.md, Docker RAM management, OOM pitfall. | `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/BUILD_LOG.md`, `docs/CHANGELOG.md` | — |
-| **15** | **Trading Journal Roadmap** | 🟡 Active — docs-only session to plan and document the Trading Journal feature (schema, sessions, roadmap updates). | `docs/PROGRESS.md`, `WORKFLOW.md`, `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `docs/BUILD_LOG.md`, `docs/CHANGELOG.md` | — |
-| **16** | **Trading Journal — Backend** | `trades`, `trade_exits`, `trade_legs` models. Journal CRUD service. API endpoints (`GET/POST/PUT/DELETE /api/v1/journal/`). Alembic migration. Tests for model, service, API. | `backend/models/journal.py`, `backend/services/journal_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal.py`, Alembic migration | Session 15 |
+| **15** | **Trading Journal Roadmap** | ✅ Done — docs-only session to plan and document the Trading Journal feature (schema, sessions, roadmap updates). | `docs/PROGRESS.md`, `WORKFLOW.md`, `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `docs/BUILD_LOG.md`, `docs/CHANGELOG.md` | — |
+| **16** | **Trading Journal — Backend** | ✅ Done — 3 models, CRUD service with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total). | `backend/models/journal.py`, `backend/services/journal_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal.py`, `data/migrations/env.py` | Session 15 ✅ |
 | **17** | **Trading Journal — PDF Report** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` | Session 16 |
 | **18** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
 | **19** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 18 |

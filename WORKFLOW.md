@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-20 (Session 15 — Trading Journal Roadmap)
+> **Last updated:** 2026-03-22 (Session 16 — Trading Journal Backend)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 14 — Workflow Improvements |
-| **Date** | 2026-03-19 |
-| **PR** | #13 |
-| **What was done** | Checkpoint-based session workflow, crash recovery in PROGRESS.md, Docker RAM management, OOM pitfall documentation |
+| **Session** | 16 — Trading Journal Backend |
+| **Date** | 2026-03-22 |
+| **PR** | #16 |
+| **What was done** | Trading Journal models (Trade, TradeExit, TradeLeg), service layer with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total) |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,10 +26,10 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 16 — Trading Journal Backend |
-| **Scope** | `trades`, `trade_exits`, `trade_legs` models. Journal CRUD service (create trade, add exit, add leg, close trade, list/filter). API endpoints (`GET/POST/PUT/DELETE /api/v1/journal/`). Alembic migration. Tests for model, service, API. |
-| **Key files** | `backend/models/journal.py`, `backend/services/journal_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal.py`, Alembic migration |
-| **Depends on** | Session 15 (this roadmap session) |
+| **Session** | 17 — Trading Journal PDF Report |
+| **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
+| **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` |
+| **Depends on** | Session 16 (Trading Journal Backend) |
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
@@ -136,6 +136,19 @@ git commit -m "wip: progress checkpoint — CI passed"
 > ensuring nothing is lost if Copilot crashes during the documentation step.
 
 ### Step 7: Update All Documentation
+
+> ⚠️ **BUILD_LOG.md is the largest file in the project and edits to it frequently
+> trigger Copilot OOM crashes on 8 GB Macs.** Always commit + push all code
+> changes BEFORE starting documentation updates. This ensures that if Copilot
+> crashes during the BUILD_LOG edit, no code work is lost and recovery is trivial.
+
+```bash
+# Pre-docs safety commit + push (if not already done)
+git add -A
+git commit -m "wip: code complete, pre-docs checkpoint"
+git push origin <branch-name>
+```
+
 **Every session must update these files:**
 
 | Document | What to Update |
@@ -201,13 +214,19 @@ gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments \
 ```
 
 4. Copilot reads all comments, implements fixes, runs CI, and pushes to the same branch
-5. **Document the review fixes** in `docs/BUILD_LOG.md` — append a `#### PR Review Fixes` section to the current session entry. For each fix, document:
+5. **Commit + push code fixes BEFORE updating BUILD_LOG** (same OOM safeguard as Step 7):
+   ```bash
+   git add -A
+   git commit -m "wip: PR review fixes"
+   git push origin <branch-name>
+   ```
+6. **Document the review fixes** in `docs/BUILD_LOG.md` — append a `#### PR Review Fixes` section to the current session entry. For each fix, document:
    - **What was changed**
    - **Why** (the reviewer's reasoning)
    - **Impact if not fixed** (what could go wrong at scale)
    > CHANGELOG is **not** updated for review fixes — they are pre-merge quality improvements.
-6. PR auto-updates → developer reviews again or approves
-7. Developer squash-merges on GitHub
+7. PR auto-updates → developer reviews again or approves
+8. Developer squash-merges on GitHub
 
 ### Step 10: Post-Merge Cleanup
 ```bash
@@ -232,6 +251,14 @@ Copilot will:
 3. Check git log → see what's already been committed on the branch
 4. Resume from the last checkpoint
 
+### Crash during BUILD_LOG.md / docs update (most common)
+If Copilot crashes while editing `BUILD_LOG.md` or other docs (Steps 7 or 9),
+all code is already committed and pushed (per the pre-docs checkpoint). Use:
+
+> **"Copilot crashed while updating BUILD_LOG.md for Session N PR review fixes.
+> Code is already committed and pushed. Read `docs/BUILD_LOG.md` to see what's
+> there, check `git log --oneline -5`, and continue the documentation update."**
+
 ---
 
 ## 4. Common Pitfalls (lessons from Sessions 1–14)
@@ -254,6 +281,7 @@ Copilot will:
 | 14 | `time_bucket('7 days', date)` doesn't align to ISO weeks | Always pass `origin => '<a-monday>'` for weekly buckets. |
 | 15 | `SELECT count(*)` on large hypertables/aggregates | Use `pg_class.reltuples` for approximate O(1) counts in monitoring endpoints. |
 | 16 | **Copilot Chat OOM crash on 8 GB Mac** | Stop Docker when not needed (`docker compose stop`). Keep chat sessions short — one PR per session. Commit after every logical chunk (Steps 3, 4, 6). Start a new chat after each PR merge. See §3 for crash recovery. |
+| 17 | **BUILD_LOG.md edits trigger OOM crashes** | `BUILD_LOG.md` is the largest file in the project (~1000+ lines) and growing. Editing it in Copilot Chat causes high memory spikes. **Always commit + push all code changes BEFORE editing BUILD_LOG.md** (Steps 7 and 9). If Copilot crashes during the docs step, recovery is trivial — just re-read the file and continue the edit. If it crashes before committing code, the work is lost. |
 
 ---
 
@@ -303,8 +331,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | GET | `/api/v1/charts/{ticker}/summary` | Multi-timeframe summary |
 | GET | `/api/v1/charts/stats` | Aggregate statistics |
 
-#### Trading Journal (Session 16 — planned)
-*Planned — not yet implemented*
+#### Trading Journal (Session 16)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -315,7 +342,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | DELETE | `/api/v1/journal/{trade_id}` | Delete a trade |
 | POST | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit |
 | POST | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| GET | `/api/v1/journal/report` | Generate PDF report (Session 17) |
+| GET | `/api/v1/journal/report` | Generate PDF report (Session 17 — planned) |
 
 ---
 

@@ -857,8 +857,8 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 | 2 | **`_search_api()` handles errors explicitly** — catches `httpx.ConnectError`/`httpx.TimeoutException` separately (shows "Backend unavailable" warning), handles non-200 responses (422 → "Invalid query"), returns `None` for errors vs `[]` for empty results | The original `except Exception: pass` swallowed all errors and returned `[]`, making backend downtime, timeouts, and validation errors all look like "No matching stocks found." | Debugging would be nearly impossible — a 422 from an overly long query, a timeout from a slow DB, and a genuinely empty result set would all display the same message. In production, users would never know the backend was down. |
 | 3 | **Added `max_chars=50` to `st.text_input`** in the search widget | The backend API enforces `max_length=50` on the `q` parameter. Without a client-side limit, users could type longer queries that would always 422. | Users would type long company names, get a 422 from the API, and see "Invalid query" with no explanation of the length limit. The client should prevent the invalid input before it reaches the server. |
 | 4 | **Changed `search_stocks` signature from `query: str` to `query: str \| None`** | The function body explicitly handles `None` (returns `[]`), and the test suite tests `None` input, but the type annotation said `str`. This mismatch would cause mypy to flag callers that pass `None`. | As the codebase grows and stricter type checking is enabled, callers passing `None` (e.g., from optional form fields) would trigger mypy errors. The annotation should match the actual behavior. |
-| 5 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | The 6 `_format_option` tests would never run in CI, providing zero regression coverage. A future refactor could break the formatting logic and it would pass CI undetected. |
-| 6 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. |
+| 5 | **Moved `format_stock_option()` from `stock_search.py` widget (Streamlit module) to `backend/services/stock_search.py`** (Streamlit-free) | The widget module imports `streamlit`, which isn't installed in CI's lightweight test environment. The `_format_option` helper is pure logic with no Streamlit dependency, but because it lived in a module that imports Streamlit, its tests were skipped in CI. | All 6 format tests now run in every CI build instead of being silently skipped. A future refactor could break the formatting logic and it would pass CI undetected. |
+| 6 | **Removed `streamlit` skipif from widget helper test class** — renamed `TestStockSearchWidget` → `TestFormatStockOption`, tests now import `format_stock_option` from the service module | Same root cause as #5 — tests were importing from a Streamlit-dependent module. Now they import from `backend.services.stock_search` which only depends on SQLAlchemy (available in CI). | All 6 format tests now run in every CI build instead of being silently skipped. A future refactor could break the formatting logic and it would pass CI undetected. |
 
 ---
 
@@ -883,7 +883,7 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
    - Documents 8 GB Mac memory pressure issue and mitigations
 5. ✅ **Renumbered upcoming sessions in PROGRESS.md**
    - Session 14 = Workflow Improvements (this session)
-   - Session 15 = Watchlist Backend, 16 = Watchlist UI, etc.
+   - Session 15 = Trading Journal Backend, 16 = Trading Journal PDF Report, 17 = Watchlist Backend, 18 = Watchlist UI, 19 = Dashboard Polish, 20 = Phase 3 Kickoff
 
 #### Architecture Decision
 - **Checkpoint-based workflow over single-commit-at-end** — on an 8 GB Mac running VS Code + Docker + Copilot Chat, OOM crashes are common during long sessions. The old workflow committed everything at the end, meaning a crash lost the entire session. The new flow commits after code (Step 3), progress (Step 4), and CI (Step 6), ensuring at most one step of work is lost.
@@ -915,7 +915,7 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 5 | **Restored missing Session 12 (Candlestick Charts) and Session 13 (Stock Search) entries in BUILD_LOG** | Session 11's PR review fixes block had grown to include items from Sessions 12 and 13, and Session 12's header was never written. Session 13's header was lost. | BUILD_LOG is the canonical chronological record. Missing sessions would make it impossible to trace what happened in Sessions 12-13, breaking the audit trail. |
 | 6 | **Updated PROGRESS.md crash recovery status to "PR opened, awaiting review"** | Status still said "Ready for push + PR" and checkpoint said "Step 7" even though the PR was already open at Step 9. Stale checkpoint misleads crash recovery. | A crash recovery session would try to push and create a PR that already exists, wasting time and causing `gh pr create` errors. |
 | 7 | **Spelled out `docker compose up -d` in CHANGELOG** | Shorthand `up -d` without the full command is unclear when skimming the changelog. | Readers unfamiliar with Docker might not know what `up -d` means without the `docker compose` prefix. Minor clarity issue. |
-| 8 | **Changed `"docs: session N documentation"` to `"docs: session <number> documentation"`** in WORKFLOW.md Step 7 | Literal `N` placeholder could be copied verbatim into a real commit message. Angle-bracket style `<number>` matches the rest of the doc's placeholder convention. | Accidental `"docs: session N documentation"` commits on real branches — cosmetic but sloppy. |
+| 8 | **Changed `"docs: session N documentation"` to `"docs: session <number> documentation"`** | Literal `N` placeholder could be copied verbatim into a real commit message. Angle-bracket style `<number>` matches the rest of the doc's placeholder convention. | Accidental `"docs: session N documentation"` commits on real branches — cosmetic but sloppy. |
 
 ---
 
@@ -931,7 +931,9 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
    - `trades` table (18 columns): UUID PK, ticker, direction (long/short), asset_type (shares/options), trade_type (single_leg/multi_leg), timeframe (daily/weekly/monthly/quarterly), status (open/partial/closed — computed), entry_date, entry_price, total_quantity, remaining_quantity, stop_loss, take_profit, tags (JSONB), comments (TEXT), realized_pnl, created_at, updated_at
    - `trade_exits` table (6 columns): UUID PK, trade_id FK (CASCADE), exit_date, exit_price, quantity, comments — supports partial exits (scale-out strategy)
    - `trade_legs` table (7 columns): UUID PK, trade_id FK (CASCADE), leg_type (buy_call/sell_call/buy_put/sell_put), strike, expiry, quantity, premium — for multi-leg options trades
-   - 6 computed/derived fields (not stored): status, remaining_quantity, realized_pnl, return_pct, avg_exit_price, r_multiple
+   - 5 ENUMs: `TradeDirection`, `AssetType`, `TradeType`, `Timeframe`, `LegType` (all `StrEnum` for Python 3.11+)
+   - Relationships: cascade delete from Trade → exits/legs, `order_by=exit_date` on exits
+   - 6 computed fields NOT stored: status, remaining_quantity, realized_pnl, return_pct, avg_exit_price, r_multiple
 
 2. **Planned the PDF Trade Journal Report** (Session 17):
    - Summary page: total trades, win rate, total P&L, best/worst trade, breakdown by timeframe
@@ -989,3 +991,112 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 4 | **Clarified computed vs stored fields in ARCHITECTURE.md** — removed `status`, `remaining_quantity`, `realized_pnl` from the stored columns table; added a dedicated "Computed fields" section with derivation formulas for all 6 computed properties | Schema table listed computed fields alongside stored columns with only a "(computed)" annotation. Unclear whether they were DB columns with triggers/materialized views or API-level computed properties. | Session 16 implementation could incorrectly create DB columns for computed fields, adding unnecessary complexity (triggers, sync issues). |
 | 5 | **Reworded UUID rationale in ARCHITECTURE.md** — changed from "no enumeration attacks" to "less predictable than sequential IDs" with explicit note that auth/authz is still required | Original wording implied UUIDs prevent enumeration attacks, which is misleading — they reduce predictability but don't replace authentication/authorization. | False sense of security. Developers might skip proper authorization checks thinking UUIDs are sufficient protection. |
 | 6 | **Updated watchlist schema in DESIGN_DOC diagram** — replaced `tickers (array)` with `watchlists` + `watchlist_items` two-table design | Diagram showed a single `watchlists` table with `tickers (array)`, but the roadmap describes a normalized `watchlists` + `watchlist_items` approach. Conflicting guidance. | Session 18 implementation would need to choose between two contradictory designs, potentially requiring rework. |
+
+---
+
+### Session 16 — 2026-03-22: Trading Journal Backend (Phase 2)
+
+**Goal:** Implement the full Trading Journal backend — models, service layer, API endpoints, Alembic migration support, and comprehensive tests.
+
+**Branch:** `feat/trading-journal-backend`
+
+#### What Was Done
+
+1. **Implemented Trading Journal models** (`backend/models/journal.py`):
+   - `Trade` — parent trade record (18 columns): UUID PK, ticker, direction (long/short), asset_type (shares/options), trade_type (single_leg/multi_leg), timeframe (daily/weekly/monthly/quarterly), entry_date, entry_price, total_quantity, stop_loss, take_profit, tags (JSONB), comments (TEXT), created_at, updated_at
+   - `TradeExit` — partial/full exit fills (7 columns): UUID PK, trade_id FK (CASCADE), exit_date, exit_price, quantity, comments
+   - `TradeLeg` — multi-leg option trades (8 columns): UUID PK, trade_id FK (CASCADE), leg_type (buy_call/sell_call/buy_put/sell_put), strike, expiry, quantity, premium
+   - 5 ENUMs: `TradeDirection`, `AssetType`, `TradeType`, `Timeframe`, `LegType` (all `StrEnum` for Python 3.11+)
+   - Relationships: cascade delete from Trade → exits/legs, `order_by=exit_date` on exits
+   - 6 computed fields NOT stored: status, remaining_quantity, realized_pnl, return_pct, avg_exit_price, r_multiple
+
+2. **Implemented journal service layer** (`backend/services/journal_service.py`):
+   - `compute_trade_metrics()` — derives all 6 computed fields from trade + exits data
+   - `serialize_trade()` — converts ORM objects to API-ready dicts with computed fields
+   - `create_trade()` — creates trade with uppercase ticker, Decimal precision
+   - `get_trade()` — fetch by UUID with eager-loaded exits/legs
+   - `list_trades()` — filter by ticker, direction, timeframe, tags (JSONB `@>`), date range, with post-fetch status filtering and pagination
+   - `update_trade()` — update mutable fields only (stop_loss, take_profit, tags, comments, timeframe)
+   - `delete_trade()` — cascade delete via SQLAlchemy
+   - `add_exit()` — validates quantity doesn't exceed remaining, returns updated trade
+   - `add_leg()` — adds option leg, returns updated trade
+
+3. **Implemented journal API routes** (`backend/api/routes/journal.py`):
+   - `GET /api/v1/journal/` — list trades with filters (ticker, status, direction, timeframe, tags, date range, limit, offset)
+   - `POST /api/v1/journal/` — create trade (201 response)
+   - `GET /api/v1/journal/{trade_id}` — get trade with exits/legs
+   - `PUT /api/v1/journal/{trade_id}` — update mutable fields
+   - `DELETE /api/v1/journal/{trade_id}` — delete trade (204 response)
+   - `POST /api/v1/journal/{trade_id}/exits` — add exit fill (400 if quantity exceeds remaining)
+   - `POST /api/v1/journal/{trade_id}/legs` — add option leg
+   - 5 Pydantic request schemas with validation: regex patterns for enums, `gt=0` for prices/quantities
+
+4. **Registered journal router** in `backend/main.py` — follows existing router pattern
+
+5. **Updated Alembic migration support** (`data/migrations/env.py`):
+   - Added imports for `Trade`, `TradeExit`, `TradeLeg` so autogenerate picks up new tables
+   - Migration script to be generated when DB is available (`alembic revision --autogenerate`)
+
+6. **Updated model exports** (`backend/models/__init__.py`, `backend/models/trade.py`):
+   - `__init__.py` exports `Trade`, `TradeExit`, `TradeLeg`
+   - `trade.py` re-exports from `journal.py` for backwards compatibility
+
+7. **Wrote 53 new tests** (`backend/tests/test_journal.py`):
+   - ENUM tests (values, from_string, invalid raises) — 10 tests
+   - Model table name tests — 3 tests
+   - `compute_trade_metrics` tests (open, partial, closed, short PnL, R-multiple, edge cases) — 12 tests
+   - Serialization tests (serialize_trade, _serialize_exit, _serialize_leg) — 7 tests
+   - CRUD service tests with mocked AsyncSession — 11 tests
+   - Pydantic schema validation tests — 7 tests
+   - Router registration tests — 2 tests
+   - All tests use mocked DB (no real Postgres needed in CI)
+
+#### Key Design Decisions
+- **Computed fields at service layer** — status, remaining_quantity, realized_pnl, return_pct, avg_exit_price, r_multiple are calculated from exits at read time, not stored. Prevents stale state.
+- **StrEnum (Python 3.11+)** — ENUMs inherit from `enum.StrEnum` instead of `str, enum.Enum` per ruff UP042 rule
+- **Decimal precision** — all monetary values use `Decimal(str(value))` to avoid floating point errors
+- **JSONB tags with @> operator** — filter by tags uses PostgreSQL's `@>` containment operator for "all tags must match" semantics
+- **Status filtering post-fetch** — since status is computed (not a DB column), we fetch all matching trades then filter in Python. Acceptable because journal queries are small-scale (personal trades, not millions of records)
+- **Quantity validation on exits** — `add_exit()` raises `ValueError` if exit quantity exceeds remaining, preventing over-exit
+
+#### Lessons Learned
+- **mypy + SQLAlchemy Mapped columns:** Assigning `Decimal` to `Mapped[float | None]` triggers mypy `[assignment]` errors. Using `# type: ignore[assignment]` is the pragmatic fix since SQLAlchemy handles the conversion at runtime.
+- **ruff B010 vs mypy:** `setattr(obj, "field", val)` fixes mypy but violates ruff B010 ("don't call setattr with constant"). Direct assignment with `# type: ignore` is the cleanest solution.
+- **AsyncMock and sync methods:** `AsyncMock` wraps ALL methods as coroutines, including sync ones like `db.add()`. Fix: `mock_db.add = MagicMock()` to prevent "coroutine never awaited" warnings.
+- **FastAPI router paths include prefix:** Route paths in `router.routes` include the prefix (e.g., `/journal/` not `/`), which affects test assertions.
+
+#### Files Changed
+- `backend/models/journal.py` — full Trade, TradeExit, TradeLeg models with ENUMs (replaced stub)
+- `backend/models/__init__.py` — added journal model exports
+- `backend/models/trade.py` — re-exports from journal.py for backwards compatibility
+- `backend/services/journal_service.py` — new file, full CRUD + computed fields + serialization
+- `backend/api/routes/journal.py` — full CRUD endpoints with Pydantic schemas (replaced stub)
+- `backend/main.py` — registered journal router
+- `data/migrations/env.py` — added journal model imports for Alembic
+- `backend/tests/test_journal.py` — 53 new tests (replaced stub)
+
+#### PR Review Fixes (PR #16 — 5 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Fixed `server_default` for `trade_type`** — changed from bare `"single_leg"` to `text("'single_leg'")` in `journal.py` | SQLAlchemy treats a bare string as raw SQL text. `DEFAULT single_leg` (unquoted) is an invalid SQL identifier, not a string literal. Using `text("'single_leg'")` produces the correct `DEFAULT 'single_leg'`. | Alembic migration or `CREATE TABLE` would fail with a SQL syntax error, or worse, silently use a wrong default if a `single_leg` identifier existed. |
+| 2 | **Fixed Date/DateTime type annotations** — changed `Mapped[str]` to `Mapped[date]` / `Mapped[datetime]` for `entry_date`, `exit_date`, `expiry`, `created_at`, `updated_at` in `journal.py` | Columns use `Date` and `DateTime(timezone=True)` SQL types, which map to Python `date`/`datetime`, not `str`. The `Mapped[str]` annotations mislead mypy and callers. | Type-checking would not catch bugs where code passes a string where a date is expected. IDE autocompletion would suggest string methods instead of date methods. |
+| 3 | **Refactored `compute_trade_metrics()` to use Decimal end-to-end** — all quantity/price/PnL calculations now use `Decimal(str(value))` throughout, converting to `float` only at the final return | The original implementation converted everything to `float` immediately, undermining the stated "Decimal precision" goal. Float arithmetic can cause `remaining_qty` to become slightly negative (e.g., `-0.0000000001`), incorrectly flipping status to `closed`. | Rounding drift could cause a trade with 100 shares and two 50-share exits to show `remaining_quantity: -0.0001` and status `closed` with a negative remaining — or worse, `partial` when it should be `closed`. Added tolerance clamping as a safety net. |
+| 4 | **Fixed `update_trade()` to support clearing nullable fields** — changed filter from `v is not None` to allow `None` for `stop_loss`, `take_profit`, `tags`, `comments` (nullable fields) | The route uses `model_dump(exclude_unset=True)`, so an explicit `null` in the request is a meaningful update (user wants to remove their stop loss). The old filter silently dropped these, making it impossible to clear a field. | Users could set a stop_loss but never remove it. The API would accept `{"stop_loss": null}` without error but silently ignore it — a subtle, hard-to-debug behavior mismatch. |
+| 5 | **Fixed `add_exit()` to use Decimal-based remaining quantity validation** — replaced `metrics["remaining_quantity"]` (rounded float) with direct `Decimal(str(trade.total_quantity)) - sum(Decimal(str(e.quantity)))` | The old code validated against a rounded float from `compute_trade_metrics()`. Near rounding boundaries, this could reject a valid exact exit (e.g., 33.3333 remaining but rounded to 33.3333 vs request of 33.33330001) or allow a tiny over-exit. | Edge case: entering a trade of 100 shares, exiting 33.3333, 33.3333, and 33.3334 — the final exit could be rejected because the rounded remaining (33.3334) didn't exactly match. Using unrounded Decimal arithmetic eliminates this class of bugs entirely. |
+
+#### CI Fix
+- **9 tests failing** in CI due to `ModuleNotFoundError: No module named 'fastapi'` — `TestAPISchemas` (7 tests) and `TestRouterRegistration` (2 tests) import from `backend.api.routes.journal` which imports `fastapi`
+- **Fix:** Added `@pytest.mark.skipif(not _has_fastapi, ...)` decorator on both test classes using `importlib.util.find_spec("fastapi")` — tests run locally with fastapi, skip gracefully in CI's lightweight test environment
+- Follows the same pattern used in `test_calendar_integration.py` (celery skipif) and `test_candle_service.py` (plotly importorskip)
+
+#### PR Review Fixes — Round 2 (PR #16 — 4 additional comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 6 | **SQL-level pagination in `list_trades()`** — when no `status` filter is provided, `offset()` and `limit()` are now applied at the SQL level; when `status` is requested, all rows are fetched and sliced in Python after filtering | The original code always fetched all matching rows and sliced in Python, even when status filtering wasn't needed. Unnecessary for the common no-filter case. | As the number of trades grows, every list call would fetch the entire table into memory, even for simple paginated requests. SQL-level pagination lets the DB do the heavy lifting. |
+| 7 | **Dropped `selectinload(Trade.legs)` from `list_trades()`** — the function only needs exits for metric computation and calls `serialize_trade(..., include_children=False)`, so legs are never used | Eagerly loading legs adds an extra SQL subquery per list call for data that's immediately discarded. | Wasted DB round-trip and memory allocation. Minor now with few trades, but compounds with scale and adds latency to every list request. |
+| 8 | **Added `gt=0` validation to `UpdateTradeRequest.stop_loss` and `take_profit`** — now uses `Field(default=None, gt=0)` matching `CreateTradeRequest` | The create schema validated `stop_loss > 0` and `take_profit > 0`, but the update schema accepted any value including negative/zero. Inconsistent validation. | Users could update a stop_loss to `-5.0` or `0`, which is nonsensical and could break R-multiple calculations (division by zero/negative risk). |
+| 9 | **Typed `tags` as `Mapped[list[str] \| None]`** instead of `Mapped[list \| None]` in `journal.py` | The unparameterized `list` loses element type info. The API/service always treat tags as `list[str]`, but the model allowed any JSON array elements (ints, dicts, etc.) to slip through. | Mypy can't catch bugs where non-string values are appended to tags. A future `tags.contains("momentum")` call could silently fail if the list contained integers. Explicit typing prevents this. |
+
+#### Test Count: 268 (53 new, up from 215)

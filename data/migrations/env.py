@@ -11,6 +11,7 @@ from sqlalchemy import engine_from_config, pool, text
 
 from backend.config import get_settings
 from backend.database import Base
+from backend.models.journal import Trade, TradeExit, TradeLeg
 
 # Import all models so they are registered with Base.metadata
 from backend.models.macro import MacroData
