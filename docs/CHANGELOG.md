@@ -8,12 +8,21 @@
 ## [Unreleased]
 
 ### Added
+- **Trading Journal backend** — full CRUD implementation for trade journaling with 3 tables (`trades`, `trade_exits`, `trade_legs`), service layer with computed fields (status, PnL, R-multiple), and 7 API endpoints (`/api/v1/journal/`)
+- **Trading Journal models** — `Trade`, `TradeExit`, `TradeLeg` ORM models with 5 ENUMs (`TradeDirection`, `AssetType`, `TradeType`, `Timeframe`, `LegType`), UUID PKs, JSONB tags, cascade relationships
+- **Trading Journal service** — `journal_service.py` with `compute_trade_metrics()` for 6 derived fields, full async CRUD (create, get, list, update, delete), `add_exit()` with quantity validation, `add_leg()` for multi-leg options
+- **Trading Journal API** — 7 endpoints with Pydantic request schemas, regex-validated enums, price/quantity constraints (`gt=0`), filter support (ticker, status, direction, timeframe, tags, date range)
+- **53 new tests** (268 total) — ENUMs, model table names, computed field logic (12 scenarios), serialization, mocked CRUD, Pydantic validation, router registration
 - **Trading Journal schema design** — 3 tables (`trades`, `trade_exits`, `trade_legs`) with 31 columns total, supporting open/partial/closed trades, partial exits (scale-out), multi-leg options, timeframe tracking, JSONB tags, and free-form comments
 - **Trading Journal PDF report plan** — per-trade annotated candlestick charts (matching trade timeframe), entry/exit markers, stop/TP lines, summary statistics, timeframe-based lookback (daily=1yr, weekly=2yr, monthly=5yr, quarterly=10yr)
 - **Trading Journal API endpoints planned** — 8 endpoints for CRUD, partial exits, option legs, and PDF report generation (`/api/v1/journal/`)
 - **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 17 (PDF Report) inserted before Watchlist sessions
 
 ### Changed
+- **ENUMs upgraded to `StrEnum`** — all journal enums use Python 3.11+ `enum.StrEnum` (ruff UP042 compliance)
+- **Alembic env.py** — imports `Trade`, `TradeExit`, `TradeLeg` for migration autogenerate support
+- **`backend/main.py`** — registered journal router at `/api/v1/journal/`
+- **`backend/models/__init__.py`** — exports `Trade`, `TradeExit`, `TradeLeg`
 - **Session roadmap reordered** — Trading Journal (16–17) now comes before Watchlist (18–19), Dashboard Polish (20), Phase 3 Kickoff (21)
 - **Phase 2 checklist updated** — added Trading Journal backend and PDF report as Phase 2 deliverables
 - **Phase 2 deliverable updated** in `DESIGN_DOC.md` — now includes "journal trades and generate PDF trade reports"

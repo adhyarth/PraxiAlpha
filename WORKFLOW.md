@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-20 (Session 15 — Trading Journal Roadmap)
+> **Last updated:** 2026-03-22 (Session 16 — Trading Journal Backend)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 14 — Workflow Improvements |
-| **Date** | 2026-03-19 |
-| **PR** | #13 |
-| **What was done** | Checkpoint-based session workflow, crash recovery in PROGRESS.md, Docker RAM management, OOM pitfall documentation |
+| **Session** | 16 — Trading Journal Backend |
+| **Date** | 2026-03-22 |
+| **PR** | #16 |
+| **What was done** | Trading Journal models (Trade, TradeExit, TradeLeg), service layer with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total) |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,10 +26,10 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 16 — Trading Journal Backend |
-| **Scope** | `trades`, `trade_exits`, `trade_legs` models. Journal CRUD service (create trade, add exit, add leg, close trade, list/filter). API endpoints (`GET/POST/PUT/DELETE /api/v1/journal/`). Alembic migration. Tests for model, service, API. |
-| **Key files** | `backend/models/journal.py`, `backend/services/journal_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal.py`, Alembic migration |
-| **Depends on** | Session 15 (this roadmap session) |
+| **Session** | 17 — Trading Journal PDF Report |
+| **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
+| **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` |
+| **Depends on** | Session 16 (Trading Journal Backend) |
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
@@ -303,8 +303,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | GET | `/api/v1/charts/{ticker}/summary` | Multi-timeframe summary |
 | GET | `/api/v1/charts/stats` | Aggregate statistics |
 
-#### Trading Journal (Session 16 — planned)
-*Planned — not yet implemented*
+#### Trading Journal (Session 16)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -315,7 +314,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | DELETE | `/api/v1/journal/{trade_id}` | Delete a trade |
 | POST | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit |
 | POST | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| GET | `/api/v1/journal/report` | Generate PDF report (Session 17) |
+| GET | `/api/v1/journal/report` | Generate PDF report (Session 17 — planned) |
 
 ---
 
