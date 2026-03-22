@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 16 — Trading Journal Backend |
 | **Branch** | `feat/trading-journal-backend` |
-| **Status** | ✅ All code + tests done. ✅ CI passed (268/268). ✅ Docs updated. PR pending. |
-| **Last checkpoint** | Step 7 — docs updated, pushing + PR next |
+| **Status** | ✅ All code + tests done. ✅ CI passed (268/268). ✅ Docs updated. ✅ PR #16 opened — awaiting review. |
+| **Last checkpoint** | Step 9 — PR opened, awaiting review/merge |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
