@@ -116,7 +116,7 @@ class Trade(Base):
     total_quantity: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     stop_loss: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     take_profit: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
-    tags: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
+    tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
     comments: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

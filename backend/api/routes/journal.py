@@ -46,8 +46,8 @@ class CreateTradeRequest(BaseModel):
 class UpdateTradeRequest(BaseModel):
     """Request body for updating a trade. All fields optional."""
 
-    stop_loss: float | None = None
-    take_profit: float | None = None
+    stop_loss: float | None = Field(default=None, gt=0)
+    take_profit: float | None = Field(default=None, gt=0)
     tags: list[str] | None = None
     comments: str | None = None
     timeframe: str | None = Field(default=None, pattern="^(daily|weekly|monthly|quarterly)$")

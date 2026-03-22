@@ -266,7 +266,7 @@ async def list_trades(
     Note: `status` filtering is done in Python after fetching, since status
     is a computed field (not a DB column).
     """
-    stmt = select(Trade).options(selectinload(Trade.exits), selectinload(Trade.legs))
+    stmt = select(Trade).options(selectinload(Trade.exits))
 
     # DB-level filters
     if ticker:
@@ -285,6 +285,12 @@ async def list_trades(
 
     stmt = stmt.order_by(Trade.entry_date.desc(), Trade.created_at.desc())
 
+    # When no status filter is requested, we can safely paginate at the SQL level.
+    # If a status filter is requested, we must fetch all rows and filter in Python
+    # (since status is a computed field, not a DB column), then slice.
+    if not status:
+        stmt = stmt.offset(offset).limit(limit)
+
     result = await db.execute(stmt)
     trades = list(result.scalars().all())
 
@@ -294,9 +300,8 @@ async def list_trades(
     # Post-filter by computed status (if requested)
     if status:
         serialized = [t for t in serialized if t["status"] == status]
-
-    # Apply offset/limit after status filtering
-    serialized = serialized[offset : offset + limit]
+        # Apply offset/limit after status filtering
+        serialized = serialized[offset : offset + limit]
 
     return serialized
 
