@@ -8,6 +8,11 @@
 ## [Unreleased]
 
 ### Added
+- **Post-close "what-if" tracking design** — `trade_snapshots` table schema (7 columns: UUID PK, trade_id FK, snapshot_date, close_price, hypothetical_pnl, hypothetical_pnl_pct, created_at) with UNIQUE constraint on `(trade_id, snapshot_date)`
+- **Snapshot schedule by timeframe** — daily trades: every trading day for 30 calendar days; weekly trades: weekly for 16 calendar weeks; monthly trades: monthly for 18 calendar months
+- **Celery task plan** — periodic task to auto-generate snapshots for closed trades, fetching prices from `daily_ohlcv`/aggregates, computing direction-aware hypothetical PnL
+- **2 planned API endpoints** — `GET /journal/{trade_id}/snapshots` (list snapshots) and `GET /journal/{trade_id}/what-if` (best/worst hypothetical PnL summary)
+- **What-if implementation session** added to roadmap (Session 19: model, service, Celery task, API, migration, tests)
 - **Trading Journal backend** — full CRUD implementation for trade journaling with 3 tables (`trades`, `trade_exits`, `trade_legs`), service layer with computed fields (status, PnL, R-multiple), and 7 API endpoints (`/api/v1/journal/`)
 - **Trading Journal models** — `Trade`, `TradeExit`, `TradeLeg` ORM models with 5 ENUMs (`TradeDirection`, `AssetType`, `TradeType`, `Timeframe`, `LegType`), UUID PKs, JSONB tags, cascade relationships
 - **Trading Journal service** — `journal_service.py` with `compute_trade_metrics()` for 6 derived fields, full async CRUD (create, get, list, update, delete), `add_exit()` with quantity validation, `add_leg()` for multi-leg options
@@ -19,6 +24,9 @@
 - **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 17 (PDF Report) inserted before Watchlist sessions
 
 ### Changed
+- **`DESIGN_DOC.md` v1.3** — added `trade_snapshots` to schema diagram, data volume estimates, and Phase 2 roadmap
+- **`docs/ARCHITECTURE.md`** — added full `trade_snapshots` table schema with design decisions, added 2 planned snapshot API endpoints
+- **Session roadmap renumbered** — Session 17 = What-If Design (new), Session 18 = PDF Report (was 17), Session 19 = What-If Implementation (new), Sessions 20–23 shifted accordingly
 - **ENUMs upgraded to `StrEnum`** — all journal enums use Python 3.11+ `enum.StrEnum` (ruff UP042 compliance)
 - **Alembic env.py** — imports `Trade`, `TradeExit`, `TradeLeg` for migration autogenerate support
 - **`backend/main.py`** — registered journal router at `/api/v1/journal/`

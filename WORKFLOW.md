@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-22 (Session 16 — Trading Journal Backend)
+> **Last updated:** 2026-03-22 (Session 17 — Post-Close What-If Design)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 16 — Trading Journal Backend |
+| **Session** | 17 — Post-Close "What-If" Design |
 | **Date** | 2026-03-22 |
-| **PR** | #16 |
-| **What was done** | Trading Journal models (Trade, TradeExit, TradeLeg), service layer with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total) |
+| **PR** | #17 |
+| **What was done** | Docs-only session: designed post-close "what-if" tracking feature (trade_snapshots table, Celery task, API endpoints). Updated DESIGN_DOC, ARCHITECTURE, PROGRESS, BUILD_LOG, CHANGELOG. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,7 +26,7 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 17 — Trading Journal PDF Report |
+| **Session** | 18 — Trading Journal PDF Report |
 | **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
 | **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
@@ -342,7 +342,14 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | DELETE | `/api/v1/journal/{trade_id}` | Delete a trade |
 | POST | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit |
 | POST | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| GET | `/api/v1/journal/report` | Generate PDF report (Session 17 — planned) |
+| GET | `/api/v1/journal/report` | Generate PDF report (Session 18 — planned) |
+
+#### Post-Close What-If Snapshots (Planned)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/journal/{trade_id}/snapshots` | List post-close price snapshots for a trade |
+| GET | `/api/v1/journal/{trade_id}/what-if` | Summary: best/worst hypothetical PnL vs actual exit |
 
 ---
 
