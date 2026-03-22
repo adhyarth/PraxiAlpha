@@ -1090,4 +1090,13 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 - **Fix:** Added `@pytest.mark.skipif(not _has_fastapi, ...)` decorator on both test classes using `importlib.util.find_spec("fastapi")` — tests run locally with fastapi, skip gracefully in CI's lightweight test environment
 - Follows the same pattern used in `test_calendar_integration.py` (celery skipif) and `test_candle_service.py` (plotly importorskip)
 
+#### PR Review Fixes — Round 2 (PR #16 — 4 additional comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 6 | **SQL-level pagination in `list_trades()`** — when no `status` filter is provided, `offset()` and `limit()` are now applied at the SQL level; when `status` is requested, all rows are fetched and sliced in Python after filtering | The original code always fetched all matching rows and sliced in Python, even when status filtering wasn't needed. Unnecessary for the common no-filter case. | As the number of trades grows, every list call would fetch the entire table into memory, even for simple paginated requests. SQL-level pagination lets the DB do the heavy lifting. |
+| 7 | **Dropped `selectinload(Trade.legs)` from `list_trades()`** — the function only needs exits for metric computation and calls `serialize_trade(..., include_children=False)`, so legs are never used | Eagerly loading legs adds an extra SQL subquery per list call for data that's immediately discarded. | Wasted DB round-trip and memory allocation. Minor now with few trades, but compounds with scale and adds latency to every list request. |
+| 8 | **Added `gt=0` validation to `UpdateTradeRequest.stop_loss` and `take_profit`** — now uses `Field(default=None, gt=0)` matching `CreateTradeRequest` | The create schema validated `stop_loss > 0` and `take_profit > 0`, but the update schema accepted any value including negative/zero. Inconsistent validation. | Users could update a stop_loss to `-5.0` or `0`, which is nonsensical and could break R-multiple calculations (division by zero/negative risk). |
+| 9 | **Typed `tags` as `Mapped[list[str] \| None]`** instead of `Mapped[list \| None]` in `journal.py` | The unparameterized `list` loses element type info. The API/service always treat tags as `list[str]`, but the model allowed any JSON array elements (ints, dicts, etc.) to slip through. | Mypy can't catch bugs where non-string values are appended to tags. A future `tags.contains("momentum")` call could silently fail if the list contained integers. Explicit typing prevents this. |
+
 #### Test Count: 268 (53 new, up from 215)

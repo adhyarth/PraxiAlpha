@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 16 — Trading Journal Backend |
 | **Branch** | `feat/trading-journal-backend` |
-| **Status** | ✅ All code + tests done. ✅ PR review fixes applied (5 comments). ✅ CI fix (fastapi skipif). ✅ BUILD_LOG updated. PR #16 ready to merge. |
-| **Last checkpoint** | Step 10 — PR review/fix cycle complete, ready to merge |
+| **Status** | ✅ All review fixes applied (2 rounds, 9 comments). ✅ CI green (268/268). ✅ Docs updated. Ready to squash-merge. |
+| **Last checkpoint** | Step 10 — docs updated, ready to squash-merge |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

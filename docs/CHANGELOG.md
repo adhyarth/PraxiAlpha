@@ -36,6 +36,20 @@
 - **Computed field clarity** — ARCHITECTURE.md now explicitly documents which fields are computed at API level (not stored) with derivation formulas
 - **UUID rationale** — reworded from "no enumeration attacks" to "less predictable than sequential IDs" with note that auth/authz is still required
 
+### Fixed (PR #16 review — Round 1)
+- **`server_default` SQL literal** — `trade_type` now uses `text("'single_leg'")` instead of bare string to produce correct SQL `DEFAULT 'single_leg'`
+- **Date/DateTime type annotations** — `Mapped[str]` → `Mapped[date]`/`Mapped[datetime]` for `entry_date`, `exit_date`, `expiry`, `created_at`, `updated_at`
+- **Decimal precision end-to-end** — `compute_trade_metrics()` refactored to use `Decimal` throughout, converting to `float` only at the serialization boundary; includes tolerance clamping for remaining quantity
+- **Nullable field clearing** — `update_trade()` now supports clearing `stop_loss`, `take_profit`, `tags`, `comments` by explicitly passing `null`
+- **Decimal-based exit validation** — `add_exit()` validates against unrounded `Decimal` remaining quantity instead of rounded float from `compute_trade_metrics()`
+- **CI fastapi skipif** — `TestAPISchemas` and `TestRouterRegistration` guarded with `@pytest.mark.skipif` for CI environments without fastapi
+
+### Fixed (PR #16 review — Round 2)
+- **SQL-level pagination** — `list_trades()` applies `offset()`/`limit()` at the SQL level when no `status` filter is requested; Python-side slicing only when status post-filtering is needed
+- **Dropped unused `selectinload(Trade.legs)`** from `list_trades()` — legs are not used in list serialization (`include_children=False`)
+- **`UpdateTradeRequest` validation** — added `gt=0` constraint to `stop_loss` and `take_profit` fields, matching `CreateTradeRequest` validation
+- **Tags type annotation** — `Mapped[list | None]` → `Mapped[list[str] | None]` for type safety on JSONB tags column
+
 ---
 
 ## [Session 14] — 2026-03-19
