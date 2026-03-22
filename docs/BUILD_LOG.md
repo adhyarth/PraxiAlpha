@@ -1100,3 +1100,70 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 9 | **Typed `tags` as `Mapped[list[str] \| None]`** instead of `Mapped[list \| None]` in `journal.py` | The unparameterized `list` loses element type info. The API/service always treat tags as `list[str]`, but the model allowed any JSON array elements (ints, dicts, etc.) to slip through. | Mypy can't catch bugs where non-string values are appended to tags. A future `tags.contains("momentum")` call could silently fail if the list contained integers. Explicit typing prevents this. |
 
 #### Test Count: 268 (53 new, up from 215)
+---
+
+### Session 17 — 2026-03-22: Post-Close "What-If" Tracking Design (Phase 2)
+
+**Goal:** Design the post-close "what-if" feature — after a trade is closed, automatically track what would have happened if the position had been held longer. Docs-only session (no code changes).
+
+**Branch:** `docs/post-close-what-if-design`
+
+#### What Was Done
+
+1. **Designed `trade_snapshots` table** (7 columns):
+   - `id` (UUID PK), `trade_id` (FK → trades.id, CASCADE), `snapshot_date` (DATE), `close_price` (NUMERIC), `hypothetical_pnl` (NUMERIC), `hypothetical_pnl_pct` (NUMERIC), `created_at` (TIMESTAMPTZ)
+   - UNIQUE constraint on `(trade_id, snapshot_date)` — prevents duplicates, enables safe upsert
+
+2. **Defined snapshot schedule by trade timeframe:**
+   - **Daily trades** → snapshot every trading day for 30 calendar days
+   - **Weekly trades** → snapshot weekly for 16 calendar weeks
+   - **Monthly trades** → snapshot monthly for 18 calendar months
+
+3. **Planned Celery periodic task:**
+   - Scans for closed trades with remaining snapshots to capture
+   - Fetches closing price from `daily_ohlcv` (or weekly/monthly aggregates)
+   - Computes direction-aware hypothetical PnL: long = `(close - entry) × qty`, short = `(entry - close) × qty`
+   - Inserts snapshot row; stops when max duration reached or no price data available
+
+4. **Planned 2 API endpoints:**
+   - `GET /api/v1/journal/{trade_id}/snapshots` — list all post-close snapshots for a trade
+   - `GET /api/v1/journal/{trade_id}/what-if` — summary: best/worst hypothetical PnL vs actual exit
+
+5. **Design decisions documented:**
+   - Full position assumed (no partial/hybrid scenarios)
+   - Auto-generated only (no manual trigger needed)
+   - Tracking stops at max duration or delisting
+   - Unique constraint enables idempotent upsert
+
+6. **Updated all documentation:**
+   - `DESIGN_DOC.md` v1.3 — `trade_snapshots` in schema diagram, data volume estimates row, Phase 2 roadmap item
+   - `docs/ARCHITECTURE.md` — full table schema with design decisions, 2 planned API endpoints, updated last-modified date
+   - `WORKFLOW.md` — Last Completed = Session 17, Next = Session 18 (PDF Report), what-if endpoints in API quick reference
+   - `docs/PROGRESS.md` — crash recovery block, component status, Phase 2 checklist (+what-if design ✅, +what-if implementation ☐), Session 17 in history, roadmap renumbered (17–23)
+   - `docs/CHANGELOG.md` — 6 Added + 4 Changed entries under [Unreleased]
+   - `docs/BUILD_LOG.md` — this entry
+
+7. **Added Session 19 to roadmap** — "Post-Close What-If — Implementation" (model, service, Celery task, API, migration, tests). Renumbered Sessions 18–23 accordingly.
+
+#### Key Design Decisions
+- **Option A: Dedicated `trade_snapshots` table** (chosen over JSONB column or on-demand query) — cleanest schema, easy to query/aggregate, no document-size bloat, standard relational pattern
+- **Full position assumed** — simplifies calculation; no partial exit hypotheticals. The what-if always assumes the entire original position was held.
+- **Every trading day for daily trades** — 30 rows per trade is trivial storage; gives the richest hindsight data
+- **Direction-aware PnL** — short trades profit when price drops, so the formula must account for trade direction
+- **Max tracking duration by timeframe** — prevents indefinite snapshot accumulation for old trades
+
+#### Lessons Learned
+- BUILD_LOG.md edits are the #1 crash trigger on 8 GB Macs — always commit + push all other work before touching this file
+- Docs-only design sessions (like Session 15 and this one) are valuable for catching requirements before writing code — the iterative discussion surfaced snapshot intervals, max durations, and the "full position" simplification
+- Crash recovery checkpoint in PROGRESS.md must accurately reflect what is done vs. pending — marking "docs complete" when BUILD_LOG was not yet written would mislead a recovery session
+- The `insert_edit_into_file` tool is unreliable for large files — it corrupted BUILD_LOG.md (deleted 328 lines). Use `cat >> file` via terminal for safe appends to large files.
+
+#### Files Changed
+- `DESIGN_DOC.md` — v1.3: schema diagram (trade_snapshots), data volume estimates, Phase 2 roadmap
+- `WORKFLOW.md` — last completed session (17), next session (18), what-if API endpoints
+- `docs/ARCHITECTURE.md` — trade_snapshots table schema + design decisions, 2 planned API endpoints
+- `docs/PROGRESS.md` — crash recovery block, component status, Phase 2 checklist, session history, roadmap (renumbered 17–23)
+- `docs/CHANGELOG.md` — 6 Added + 4 Changed entries
+- `docs/BUILD_LOG.md` — this entry
+
+#### Test Count: 268 (unchanged — documentation-only session)

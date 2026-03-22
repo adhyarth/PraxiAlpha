@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 17 — Post-Close "What-If" Design |
 | **Branch** | `docs/post-close-what-if-design` |
-| **Status** | 🟡 DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG updated and pushed. BUILD_LOG entry NOT yet written. |
-| **Last checkpoint** | Step 7 (partial) — BUILD_LOG.md pending. All other docs committed + pushed. |
+| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). Ready to commit, push, and create PR. |
+| **Last checkpoint** | Step 8 — all documentation complete, ready for PR |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
