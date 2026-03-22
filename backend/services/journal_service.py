@@ -43,13 +43,20 @@ def compute_trade_metrics(trade: Trade) -> dict[str, Any]:
 
     Returns a dict with: status, remaining_quantity, realized_pnl,
     return_pct, avg_exit_price, r_multiple.
+
+    Uses Decimal arithmetic end-to-end and converts to float only at
+    the serialization boundary to avoid rounding drift.
     """
     exits = trade.exits or []
-    total_qty = float(trade.total_quantity)
-    entry_price = float(trade.entry_price)
+    total_qty = Decimal(str(trade.total_quantity))
+    entry_price = Decimal(str(trade.entry_price))
 
-    exited_qty = sum(float(e.quantity) for e in exits)
+    exited_qty = sum((Decimal(str(e.quantity)) for e in exits), Decimal("0"))
     remaining_qty = total_qty - exited_qty
+
+    # Clamp remaining_qty to 0 if it's negative by a tiny rounding margin
+    if remaining_qty < 0 and remaining_qty > Decimal("-0.0001"):
+        remaining_qty = Decimal("0")
 
     # Status
     if exited_qty == 0:
@@ -60,35 +67,41 @@ def compute_trade_metrics(trade: Trade) -> dict[str, Any]:
         status = "closed"
 
     # Realized PnL
-    direction_sign = 1.0 if trade.direction == TradeDirection.LONG else -1.0
+    direction_sign = Decimal("1") if trade.direction == TradeDirection.LONG else Decimal("-1")
     realized_pnl = sum(
-        (float(e.exit_price) - entry_price) * float(e.quantity) * direction_sign for e in exits
-    )
+        (Decimal(str(e.exit_price)) - entry_price) * Decimal(str(e.quantity)) * direction_sign
+        for e in exits
+    ) or Decimal("0")
 
     # Return %
     cost_basis = entry_price * total_qty
-    return_pct = (realized_pnl / cost_basis * 100) if cost_basis != 0 else 0.0
+    return_pct = (realized_pnl / cost_basis * 100) if cost_basis != 0 else Decimal("0")
 
     # Average exit price
+    avg_exit_price: Decimal | None = None
     if exited_qty > 0:
-        avg_exit_price = sum(float(e.exit_price) * float(e.quantity) for e in exits) / exited_qty
-    else:
-        avg_exit_price = None
+        avg_exit_price = (
+            sum(
+                (Decimal(str(e.exit_price)) * Decimal(str(e.quantity)) for e in exits),
+                Decimal("0"),
+            )
+            / exited_qty
+        )
 
     # R-multiple (only when stop_loss is set)
     r_multiple = None
     if trade.stop_loss is not None and exited_qty > 0:
-        risk_per_unit = abs(entry_price - float(trade.stop_loss))
+        risk_per_unit = abs(entry_price - Decimal(str(trade.stop_loss)))
         total_risk = risk_per_unit * total_qty
         if total_risk > 0:
-            r_multiple = round(realized_pnl / total_risk, 2)
+            r_multiple = round(float(realized_pnl / total_risk), 2)
 
     return {
         "status": status,
-        "remaining_quantity": round(remaining_qty, 4),
-        "realized_pnl": round(realized_pnl, 4),
-        "return_pct": round(return_pct, 2),
-        "avg_exit_price": round(avg_exit_price, 4) if avg_exit_price is not None else None,
+        "remaining_quantity": round(float(remaining_qty), 4),
+        "realized_pnl": round(float(realized_pnl), 4),
+        "return_pct": round(float(return_pct), 2),
+        "avg_exit_price": round(float(avg_exit_price), 4) if avg_exit_price is not None else None,
         "r_multiple": r_multiple,
     }
 
@@ -302,9 +315,17 @@ async def update_trade(
     Update mutable fields on a trade.
 
     Allowed fields: stop_loss, take_profit, tags, comments, timeframe.
+    Supports clearing nullable fields (stop_loss, take_profit, comments, tags)
+    by explicitly passing None — the caller should use exclude_unset=True
+    so that only fields the user actually sent are included.
     """
     allowed_fields = {"stop_loss", "take_profit", "tags", "comments", "timeframe"}
-    filtered = {k: v for k, v in updates.items() if k in allowed_fields and v is not None}
+    nullable_fields = {"stop_loss", "take_profit", "tags", "comments"}
+    filtered = {
+        k: v
+        for k, v in updates.items()
+        if k in allowed_fields and (v is not None or k in nullable_fields)
+    }
 
     if not filtered:
         # Nothing to update — just return current state
@@ -382,17 +403,21 @@ async def add_exit(
     if trade is None:
         return None
 
-    # Validate quantity
-    metrics = compute_trade_metrics(trade)
-    remaining = metrics["remaining_quantity"]
-    if quantity > remaining:
-        raise ValueError(f"Exit quantity ({quantity}) exceeds remaining quantity ({remaining})")
+    # Validate quantity using unrounded, Decimal-based remaining quantity
+    requested_quantity = Decimal(str(quantity))
+    total_quantity = Decimal(str(trade.total_quantity))
+    exited_quantity = sum((Decimal(str(exit_.quantity)) for exit_ in trade.exits), Decimal("0"))
+    remaining_unrounded = total_quantity - exited_quantity
+    if requested_quantity > remaining_unrounded:
+        raise ValueError(
+            f"Exit quantity ({requested_quantity}) exceeds remaining quantity ({remaining_unrounded})"
+        )
 
     exit_ = TradeExit(
         trade_id=trade_id,
         exit_date=exit_date,
         exit_price=Decimal(str(exit_price)),
-        quantity=Decimal(str(quantity)),
+        quantity=requested_quantity,
         comments=comments,
     )
     db.add(exit_)

@@ -13,6 +13,7 @@ service/API layer from trade_exits data. See journal_service.py.
 
 import enum
 import uuid
+from datetime import date, datetime
 
 from sqlalchemy import (
     Date,
@@ -23,6 +24,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -103,13 +105,13 @@ class Trade(Base):
     trade_type: Mapped[TradeType] = mapped_column(
         Enum(TradeType, name="trade_type", values_callable=lambda e: [x.value for x in e]),
         nullable=False,
-        server_default="single_leg",
+        server_default=text("'single_leg'"),
     )
     timeframe: Mapped[Timeframe] = mapped_column(
         Enum(Timeframe, name="trade_timeframe", values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
-    entry_date: Mapped[str] = mapped_column(Date, nullable=False)
+    entry_date: Mapped[date] = mapped_column(Date, nullable=False)
     entry_price: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     total_quantity: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     stop_loss: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
@@ -117,8 +119,8 @@ class Trade(Base):
     tags: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
     comments: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[str] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
@@ -164,7 +166,7 @@ class TradeExit(Base):
         nullable=False,
         index=True,
     )
-    exit_date: Mapped[str] = mapped_column(Date, nullable=False)
+    exit_date: Mapped[date] = mapped_column(Date, nullable=False)
     exit_price: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     quantity: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     comments: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -206,7 +208,7 @@ class TradeLeg(Base):
         nullable=False,
     )
     strike: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
-    expiry: Mapped[str] = mapped_column(Date, nullable=False)
+    expiry: Mapped[date] = mapped_column(Date, nullable=False)
     quantity: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
     premium: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
 

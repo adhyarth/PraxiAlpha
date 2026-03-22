@@ -10,6 +10,7 @@ Tests for:
 All tests mock the database — no real Postgres needed in CI.
 """
 
+import importlib.util
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -718,7 +719,11 @@ class TestUpdateTrade:
 # API Route Schemas (import check)
 # ============================================================
 
+# These tests require fastapi (not in CI test environment)
+_has_fastapi = importlib.util.find_spec("fastapi") is not None
 
+
+@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestAPISchemas:
     """Test that Pydantic request/response schemas are importable and valid."""
 
@@ -819,6 +824,7 @@ class TestAPISchemas:
 # ============================================================
 
 
+@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestRouterRegistration:
     """Test that the journal router is properly configured."""
 
