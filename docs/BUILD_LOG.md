@@ -1357,3 +1357,83 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
    - **Why:** Consistency with the gitignore policy.
 
 **7 new validation tests added** for `_current_user_id()`: valid ID, whitespace stripping, None → RuntimeError, empty → ValueError, whitespace-only → ValueError, too-long → ValueError, exactly-max-length valid. Test count: **286 (7 new)**.
+
+### Session 20 — 2026-03-22: Post-Close "What-If" Implementation (Phase 2)
+
+**Goal:** Implement the post-close "what-if" tracking feature designed in Session 17 — TradeSnapshot model, snapshot service, Celery periodic task, API endpoints, Alembic migration, and comprehensive tests.
+
+**Branch:** `feat/what-if-snapshots`
+
+#### What Was Done
+
+1. **TradeSnapshot model** (`backend/models/trade_snapshot.py`)
+   - 7 columns: UUID PK, `trade_id` FK (CASCADE), `snapshot_date`, `close_price`, `hypothetical_pnl`, `hypothetical_pnl_pct`, `created_at`
+   - `UNIQUE(trade_id, snapshot_date)` constraint (`uq_trade_snapshot_date`) prevents duplicate snapshots
+   - SQLAlchemy relationship back to `Trade` model
+   - Registered in `backend/models/__init__.py`
+
+2. **Snapshot service** (`backend/services/trade_snapshot_service.py`)
+   - `compute_hypothetical_pnl()` — direction-aware PnL using Decimal arithmetic (long vs short)
+   - `create_snapshot()` — insert a single snapshot row
+   - `list_snapshots()` — list all snapshots for a trade (user-scoped), ordered by date
+   - `get_whatif_summary()` — compute best/worst/latest hypothetical PnL vs actual exit PnL
+   - `get_closed_trades_needing_snapshots()` — find eligible trades for Celery task
+   - `MAX_TRACKING_DAYS` — per-timeframe tracking limits: daily=30, weekly=112, monthly/quarterly=540
+   - `_serialize_snapshot()` — JSON serialization helper
+   - All queries scoped to `_current_user_id()` (user isolation from Session 19)
+
+3. **Celery periodic task** (`backend/tasks/trade_snapshot_task.py`)
+   - `generate_snapshots` task — finds eligible closed trades, fetches closing prices from `daily_ohlcv`, computes hypothetical PnL, creates snapshots
+   - Registered in `celery_app.py` beat schedule as `daily-trade-snapshots` at 7:30 PM ET
+   - Retry logic (max 3 retries, 5-minute delay)
+
+4. **API endpoints** (added to `backend/api/routes/journal.py`)
+   - `GET /api/v1/journal/{trade_id}/snapshots` — list all snapshots for a trade
+   - `GET /api/v1/journal/{trade_id}/what-if` — get what-if summary (best/worst/latest hypothetical vs actual PnL)
+
+5. **Alembic migration** (`data/migrations/versions/003_add_trade_snapshots.py`)
+   - Creates `trade_snapshots` table with all columns, FK, index, and UNIQUE constraint
+   - Local-only (migrations are gitignored)
+
+6. **37 new tests** (`backend/tests/test_trade_snapshots.py`) — 323 total:
+   - Model structure: import, columns, unique constraint, repr, registration (5 tests)
+   - PnL computation: long profit/loss, short profit/loss, zero movement, decimal precision, fractional qty (7 tests)
+   - Serialization: all fields, None created_at (2 tests)
+   - Service CRUD: list snapshots (nonexistent trade, empty, ordered), what-if summary (nonexistent, open, no snapshots, best/worst/latest) (7 tests)
+   - User isolation: list and what-if return None for other users (2 tests)
+   - Max tracking: daily=30, weekly=112, monthly=540, quarterly=540 (4 tests)
+   - Celery: task registration, beat schedule (2 tests)
+   - API routes: router paths exist, GET methods (3 tests)
+   - Create snapshot: creates and returns (1 test)
+   - Eligible trade finder: open trades skipped, past max tracking skipped, eligible returned, existing snapshot skipped (4 tests)
+
+7. **Bug fix: MagicMock stop_loss in tests**
+   - Root cause: `_make_mock_trade()` didn't set `stop_loss`, so MagicMock returned another MagicMock which failed `Decimal(str(...))` conversion in `compute_trade_metrics()`
+   - Fix: added `stop_loss=None` to mock defaults (5 tests were failing)
+
+8. **Session 19 post-merge cleanup** (carried from main)
+   - `docs/PROGRESS.md` — updated crash recovery block to reflect Session 19 merged, ready for Session 20
+
+#### Key Design Decisions
+- **Full position hypothetical PnL** — uses entire original `total_quantity`, not remaining quantity at close, for a clean "what if I never sold?" comparison
+- **Direction-aware computation** — long: `(close - entry) * qty`, short: `(entry - close) * qty`. Uses Decimal arithmetic for precision.
+- **User isolation inherited** — snapshots inherit user isolation via `trade_id` FK. Service queries verify trade ownership before returning data.
+- **Max tracking by timeframe** — prevents indefinite snapshot accumulation. Daily trades tracked for 30 days, weekly for 16 weeks, monthly/quarterly for 18 months.
+- **Ternary operator for ruff SIM108** — replaced if/else block with ternary per ruff linter suggestion.
+
+#### Lessons Learned
+- MagicMock returns MagicMock for unset attributes, which fails Decimal conversion. Always explicitly set numeric attributes (especially `stop_loss`) to `None` or a real value.
+- The `compute_trade_metrics()` function from journal_service checks `if trade.stop_loss is not None` before using it — but MagicMock is truthy, so the check passes and then `Decimal(str(MagicMock()))` raises `decimal.InvalidOperation`.
+- Carrying uncommitted changes to a feature branch (from post-merge cleanup) works cleanly — just create the branch before committing.
+
+#### Files Changed (8 files)
+- `backend/models/trade_snapshot.py` — new TradeSnapshot model
+- `backend/models/__init__.py` — registered TradeSnapshot
+- `backend/services/trade_snapshot_service.py` — new snapshot service (CRUD, what-if, PnL calc)
+- `backend/tasks/trade_snapshot_task.py` — new Celery task
+- `backend/tasks/celery_app.py` — registered task + beat schedule
+- `backend/api/routes/journal.py` — 2 new endpoints
+- `backend/tests/test_trade_snapshots.py` — 37 new tests
+- `data/migrations/versions/003_add_trade_snapshots.py` — Alembic migration (local-only)
+
+#### Test Count: 323 (37 new)
