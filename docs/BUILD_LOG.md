@@ -1167,3 +1167,13 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 - `docs/BUILD_LOG.md` — this entry
 
 #### Test Count: 268 (unchanged — documentation-only session)
+
+#### PR Review Fixes (PR #17 — 5 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Fixed PDF report session number in ARCHITECTURE.md** — changed "Session 17" to "Session 18" on the `/journal/report` endpoint | Roadmap was renumbered (PDF Report moved from Session 17 to 18), but ARCHITECTURE.md still referenced the old number. | Readers would see conflicting session numbers between ARCHITECTURE.md and PROGRESS.md/WORKFLOW.md, causing confusion about when the PDF report ships. |
+| 2 | **Moved what-if endpoints to dedicated subsection in ARCHITECTURE.md** — created "Planned: Post-Close What-If Endpoints (Session 19)" header, separating them from the Session 16 Trading Journal endpoints table | What-if endpoints were listed under the "Planned: Trading Journal Endpoints (Session 16)" heading, implying they ship in Session 16. They are planned for Session 19. | Developers implementing Session 16 might try to build these endpoints prematurely, or readers would assume they already exist. |
+| 3 | **Fixed PROGRESS.md crash recovery block** — changed status from "Ready to commit, push, and create PR" to "PR #17 opened, review fixes in progress" and checkpoint from "Step 8" to "Step 9" | The PR was already open, but the crash recovery block still said it was pre-PR. A crash recovery session would incorrectly try to create a new PR instead of continuing the review cycle. | Crash recovery would attempt duplicate PR creation or skip the review fix step entirely. |
+| 4 | **Added `/api/v1` prefix to planned endpoints in CHANGELOG.md** — changed `GET /journal/{trade_id}/snapshots` to `GET /api/v1/journal/{trade_id}/snapshots` (and same for `/what-if`) | Every other endpoint in the changelog and API docs uses the full `/api/v1/...` path. Omitting the prefix is inconsistent. | Developers copy-pasting endpoint paths from the changelog would get 404s. Inconsistency between docs creates doubt about which is correct. |
+| 5 | **Fixed stale session number in CHANGELOG.md** — changed "Session 17 (PDF Report)" to "Session 18 (PDF Report)" in the roadmap entry | The roadmap renumbering changed PDF Report from Session 17 to 18, but this CHANGELOG entry still referenced the old number. | Conflicting session numbers in the same [Unreleased] section — one entry says Session 17 = What-If Design, another says Session 17 = PDF Report. |
