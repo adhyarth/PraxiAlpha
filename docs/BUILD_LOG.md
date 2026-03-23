@@ -1455,3 +1455,49 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 11 | **Added 8 new cadence tests** (`test_trade_snapshots.py`) — `TestSnapshotCadence` (4 constant tests) + weekly/monthly cadence skip/eligible tests (4 behavioral tests) | The cadence feature had no test coverage. Without tests, a future refactor could break the cadence logic silently. | Regression risk — changing `SNAPSHOT_CADENCE_DAYS` values or the modulo logic would not be caught by CI. |
 
 **Test count after PR fixes: 331 (8 new cadence/constant tests)**
+
+### Session 21 — 2026-03-23: Journal UI Roadmap Reorder (Phase 2)
+
+**Goal:** Insert a Trading Journal Streamlit UI session into the roadmap so that after the PDF Report (Session 22) and Journal UI (Session 23), the full journal is usable from the Streamlit dashboard. Reorder all subsequent sessions accordingly. Docs-only session.
+
+**Branch:** `docs/journal-ui-roadmap`
+
+#### What Was Done
+
+1. **Inserted new Session 23 — Trading Journal Streamlit UI** into the roadmap
+   - Scope: trade list table (status, PnL, tags, filters), trade entry form, trade detail view (exits, legs, snapshots, what-if), PDF download button
+   - Key files: `streamlit_app/pages/journal.py`, `streamlit_app/components/journal_trade_form.py`, `streamlit_app/components/journal_trade_detail.py`, `streamlit_app/app.py`
+   - Depends on: Session 22 (PDF Report)
+
+2. **Renumbered all subsequent sessions**
+   - Session 21 → this docs session (Journal UI Roadmap Reorder)
+   - Session 22 → Trading Journal PDF Report (was 21)
+   - Session 23 → Trading Journal Streamlit UI (NEW)
+   - Session 24 → Watchlist Backend (was 22)
+   - Session 25 → Watchlist UI (was 23)
+   - Session 26 → Dashboard Polish (was 24)
+   - Session 27 → Phase 3 Kickoff — Trend Classification (was 25)
+
+3. **Updated Phase 2 checklists** in both `DESIGN_DOC.md` and `PROGRESS.md` to include the Journal Streamlit UI item
+
+4. **Updated documentation**
+   - `DESIGN_DOC.md` — added Journal UI checklist item to Phase 2
+   - `docs/PROGRESS.md` — Phase 2 checklist, roadmap table, crash recovery block
+   - `WORKFLOW.md` — "Next Session" now points to Session 22 (PDF Report), added note about Session 23 (Journal UI)
+   - `docs/CHANGELOG.md` — documented session reorder and new Journal UI session
+
+#### Key Design Decisions
+- **Journal UI after PDF Report** — the PDF report service (Session 22) must exist before the UI can offer a "Download Report" button. Building the backend first, then the UI, follows the existing pattern (e.g., Watchlist Backend → Watchlist UI).
+- **Separate docs session for reorder** — rather than silently renumbering in the middle of a code session, a dedicated docs session makes the reorder explicit, reviewable, and traceable in the session history.
+- **Session 23 scope** — covers the full Streamlit journal experience: CRUD (list/create/edit/delete trades), partial exits, option legs, what-if snapshot display, and PDF download. This is a large UI session but all backend APIs already exist.
+
+#### Lessons Learned
+- Placeholder pages (`# TODO: Implement in Phase 7`) created during scaffolding (Session 1) can mislead — the journal page existed but was empty, making it look like the feature was partially built. The roadmap is the source of truth for what's implemented.
+
+#### Files Changed (4 files)
+- `DESIGN_DOC.md` — added Journal Streamlit UI item to Phase 2 checklist
+- `docs/PROGRESS.md` — Phase 2 checklist, roadmap table reorder (Sessions 21–27), crash recovery block
+- `WORKFLOW.md` — "Next Session" → Session 22, "Last updated" date, what-if snapshots section header
+- `docs/CHANGELOG.md` — new session reorder entries under [Unreleased]
+
+#### Test Count: 331 (0 new — docs-only session)
