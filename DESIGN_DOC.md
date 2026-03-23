@@ -753,7 +753,7 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 - [ ] Build economic calendar widget on dashboard (high/medium importance events)
 - [ ] Add event importance filtering (Low/Medium/High) and country filtering
 - [ ] Build Trading Journal backend (trades, exits, legs — open/partial/closed tracking)
-- [ ] Build Trading Journal PDF report generator (annotated charts with entry/exit markers)
+- [x] Build Trading Journal PDF report generator (annotated charts with entry/exit markers) — Session 22
 - [ ] Build Trading Journal post-close "what-if" tracking (auto-snapshot prices after trade close, hypothetical PnL analysis)
 - [ ] Build Trading Journal Streamlit UI (trade list, entry form, detail view, PDF download, what-if display)
 - [ ] Build watchlist management backend (CRUD operations, persistence, and API endpoints)
