@@ -391,14 +391,32 @@ class TestCreateTrade:
         mock_db.add = MagicMock()  # add() is sync, not async
         mock_db.flush = AsyncMock()
 
-        # refresh callback: set server-generated fields
-        async def mock_refresh(obj, attribute_names=None):
+        # After flush, create_trade re-fetches via db.execute(select(...))
+        # We capture the Trade object from add() and return it from execute()
+        captured_trade = None
+
+        def capture_add(obj):
+            nonlocal captured_trade
+            # Set server-generated fields that would come from DB
             if not hasattr(obj, "id") or obj.id is None:
                 obj.id = uuid.uuid4()
             obj.created_at = "2026-01-15T10:00:00+00:00"
             obj.updated_at = "2026-01-15T10:00:00+00:00"
+            captured_trade = obj
 
-        mock_db.refresh = mock_refresh
+        mock_db.add.side_effect = capture_add
+
+        # Mock the re-fetch execute() to return the captured trade
+        # exits/legs are set here (not in add) to mirror production behavior
+        # where selectinload populates them during the re-fetch query
+        def _refetch_result():
+            captured_trade.exits = []
+            captured_trade.legs = []
+            return captured_trade
+
+        mock_result = MagicMock()
+        mock_result.scalar_one.side_effect = _refetch_result
+        mock_db.execute.return_value = mock_result
 
         from backend.services.journal_service import create_trade
 
@@ -425,6 +443,7 @@ class TestCreateTrade:
         assert result["tags"] == ["momentum"]
         mock_db.add.assert_called_once()
         mock_db.flush.assert_awaited_once()
+        mock_db.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_create_trade_uppercases_ticker(self):
@@ -432,12 +451,25 @@ class TestCreateTrade:
         mock_db = AsyncMock()
         mock_db.add = MagicMock()  # add() is sync, not async
 
-        async def mock_refresh(obj, attribute_names=None):
+        captured_trade = None
+
+        def capture_add(obj):
+            nonlocal captured_trade
             obj.id = uuid.uuid4()
             obj.created_at = "2026-01-15T10:00:00+00:00"
             obj.updated_at = "2026-01-15T10:00:00+00:00"
+            captured_trade = obj
 
-        mock_db.refresh = mock_refresh
+        mock_db.add.side_effect = capture_add
+
+        def _refetch_result():
+            captured_trade.exits = []
+            captured_trade.legs = []
+            return captured_trade
+
+        mock_result = MagicMock()
+        mock_result.scalar_one.side_effect = _refetch_result
+        mock_db.execute.return_value = mock_result
 
         from backend.services.journal_service import create_trade
 
@@ -452,6 +484,7 @@ class TestCreateTrade:
             total_quantity=100.0,
         )
         assert result["ticker"] == "AAPL"
+        mock_db.execute.assert_awaited_once()
 
 
 # ============================================================
@@ -864,16 +897,21 @@ class TestUserIsolation:
 
         def capture_add(obj):
             nonlocal created_trade
+            obj.id = uuid.uuid4()
+            obj.created_at = "2026-01-15T10:00:00+00:00"
+            obj.updated_at = "2026-01-15T10:00:00+00:00"
             created_trade = obj
 
         mock_db.add.side_effect = capture_add
 
-        async def mock_refresh(obj, attribute_names=None):
-            obj.id = uuid.uuid4()
-            obj.created_at = "2026-01-15T10:00:00+00:00"
-            obj.updated_at = "2026-01-15T10:00:00+00:00"
+        def _refetch_result():
+            created_trade.exits = []
+            created_trade.legs = []
+            return created_trade
 
-        mock_db.refresh = mock_refresh
+        mock_result = MagicMock()
+        mock_result.scalar_one.side_effect = _refetch_result
+        mock_db.execute.return_value = mock_result
 
         from backend.services.journal_service import create_trade
 
@@ -891,6 +929,7 @@ class TestUserIsolation:
         assert created_trade is not None
         assert created_trade.user_id == "alice"
         assert result["user_id"] == "alice"
+        mock_db.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     @patch("backend.services.journal_service._current_user_id", return_value="alice")

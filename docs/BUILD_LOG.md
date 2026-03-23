@@ -1682,3 +1682,84 @@ Build the full Streamlit frontend for the trading journal: trade list with filte
 
 - Also added 2 new assertions to `test_fmt_price` covering negative and zero values.
 - All CI checks pass: ruff ✅ | format ✅ | mypy ✅ | pytest 422/422 ✅
+
+### Bugfix — 2026-03-23: Fix MissingGreenlet in journal create_trade
+
+**Goal:** Fix 500 Internal Server Error when creating trades via the Streamlit journal UI.
+
+**Branch:** `fix/journal-create-trade-greenlet`
+
+#### Root Cause
+In `journal_service.create_trade()`, after `db.flush()` and `db.refresh()`, the code assigned
+`trade.exits = []` and `trade.legs = []` to initialize empty relationships for serialization.
+In SQLAlchemy's async context, assigning to a relationship attribute triggers a **lazy load**
+of the current value (so the ORM can track changes). Lazy loading requires synchronous I/O,
+which is forbidden in an async session — resulting in a `MissingGreenlet` exception and a
+500 Internal Server Error on every trade creation attempt.
+
+#### Fix
+Replaced `db.refresh()` + manual relationship assignment with a `select()` + `selectinload()`
+re-fetch query — the same pattern already used by `get_trade()`, `update_trade()`, and `add_exit()`.
+This eagerly loads the (empty) `exits` and `legs` relationships so `serialize_trade()` can access
+them without triggering any lazy loads.
+
+#### What Was Done
+1. **`backend/services/journal_service.py`** — replaced `db.refresh()` + `trade.exits = []` / `trade.legs = []` with `select(Trade).options(selectinload(...))` re-fetch after flush
+2. **`backend/tests/test_journal.py`** — updated 3 tests (`test_create_trade_returns_serialized`, `test_create_trade_uppercases_ticker`, `test_create_trade_sets_user_id`) to mock `db.execute` for the re-fetch query instead of the removed `db.refresh` call
+3. Verified fix by rebuilding Docker container and successfully creating a trade via `curl`
+4. All 422 tests pass, all CI checks green
+
+#### Key Design Decisions
+- Used the same `selectinload` re-fetch pattern already established in `get_trade()` — keeps the codebase consistent
+- Did not add new tests since the existing 3 create_trade tests already cover the code path; they were updated to match the new implementation
+
+#### Lessons Learned
+- In SQLAlchemy async sessions, never assign to relationship attributes (`obj.rels = []`) after flush — this triggers a lazy load. Always use `selectinload()` to eagerly fetch relationships.
+- The `MissingGreenlet` error message is not immediately obvious — it means "synchronous I/O was attempted in an async context"
+
+#### Files Changed
+- `backend/services/journal_service.py` — fix: replace refresh + manual rels with selectinload re-fetch
+- `backend/tests/test_journal.py` — update 3 mocked create_trade tests for new re-fetch pattern
+- `docs/CHANGELOG.md` — added Fixed section
+- `docs/PROGRESS.md` — updated crash recovery block
+- `WORKFLOW.md` — updated "Last updated" line
+
+#### Test Count: 422 (0 new, 3 updated)
+
+#### Additional Fix: MissingGreenlet in `list_trades` (PDF Report)
+
+**Root Cause:** The report endpoint calls `journal_service.list_trades(db, ..., include_children=True)`.
+However, `list_trades` only eagerly loaded `Trade.exits` (via `selectinload`), not `Trade.legs`.
+When `serialize_trade()` accessed `trade.legs` during serialization with `include_children=True`,
+it triggered a lazy load in the async context → same `MissingGreenlet` crash.
+
+This was introduced in PR #16 review fix #7 which intentionally removed `selectinload(Trade.legs)`
+from `list_trades` to avoid unnecessary DB round-trips. That optimization was correct for the
+default `include_children=False` case but broke the `include_children=True` case used by the
+report endpoint (added later in PR #22 review fix #6).
+
+**Fix:** Conditionally add `selectinload(Trade.legs)` only when `include_children=True`:
+```python
+load_options = [selectinload(Trade.exits)]
+if include_children:
+    load_options.append(selectinload(Trade.legs))
+stmt = select(Trade).options(*load_options).where(...)
+```
+
+This preserves the optimization (no legs loaded for list view) while fixing the report endpoint.
+
+**Verified:** `curl http://localhost:8000/api/v1/journal/report` returns 200 with valid PDF content.
+
+#### Updated Files (addendum)
+- `backend/services/journal_service.py` — conditional `selectinload(Trade.legs)` in `list_trades`
+
+#### PR Review Fixes (PR #25 — 3 comments from copilot-pull-request-reviewer)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Added `mock_db.execute.assert_awaited_once()` to `test_create_trade_returns_serialized`** — also moved `exits`/`legs` init from `capture_add()` to `_refetch_result()` | Test mocked `db.execute()` but never asserted it was awaited. Since `capture_add()` pre-populated `exits`/`legs`, the test would still pass even if `create_trade()` regressed to not re-fetching — defeating the purpose of the MissingGreenlet fix. | A regression removing the re-fetch (the core fix) would pass all tests silently. The MissingGreenlet bug could return without CI catching it. |
+| 2 | **Added `mock_db.execute.assert_awaited_once()` to `test_create_trade_uppercases_ticker`** — same mock restructuring | Same issue — `capture_add()` set `exits`/`legs`, masking whether the re-fetch actually happened. | Same silent regression risk as #1. |
+| 3 | **Added `mock_db.execute.assert_awaited_once()` to `test_create_trade_sets_user_id`** — same mock restructuring | Same pattern across all 3 create_trade tests. | Same silent regression risk. All 3 tests now enforce the re-fetch code path. |
+
+**Test count: 422 (0 new — assertions added to 3 existing tests)**
+**CI: ruff ✅ | format ✅ | mypy ✅ | pytest 422/422 ✅**

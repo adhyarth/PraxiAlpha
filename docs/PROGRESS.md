@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 23 — Journal Streamlit UI |
-| **Branch** | `feat/journal-streamlit-ui` |
-| **Status** | PR #24 open — addressing review comments. |
-| **Last checkpoint** | — |
+| **Session** | Bugfix — fix MissingGreenlet in journal create_trade + report endpoint |
+| **Branch** | `fix/journal-create-trade-greenlet` |
+| **Status** | PR #25 open — review fixes applied, pushing |
+| **Last checkpoint** | PR review fixes applied (3 comments → assert re-fetch, move exits/legs init), CI green 422/422 |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
