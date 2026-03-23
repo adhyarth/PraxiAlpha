@@ -1725,3 +1725,30 @@ them without triggering any lazy loads.
 - `WORKFLOW.md` — updated "Last updated" line
 
 #### Test Count: 422 (0 new, 3 updated)
+
+#### Additional Fix: MissingGreenlet in `list_trades` (PDF Report)
+
+**Root Cause:** The report endpoint calls `journal_service.list_trades(db, ..., include_children=True)`.
+However, `list_trades` only eagerly loaded `Trade.exits` (via `selectinload`), not `Trade.legs`.
+When `serialize_trade()` accessed `trade.legs` during serialization with `include_children=True`,
+it triggered a lazy load in the async context → same `MissingGreenlet` crash.
+
+This was introduced in PR #16 review fix #7 which intentionally removed `selectinload(Trade.legs)`
+from `list_trades` to avoid unnecessary DB round-trips. That optimization was correct for the
+default `include_children=False` case but broke the `include_children=True` case used by the
+report endpoint (added later in PR #22 review fix #6).
+
+**Fix:** Conditionally add `selectinload(Trade.legs)` only when `include_children=True`:
+```python
+load_options = [selectinload(Trade.exits)]
+if include_children:
+    load_options.append(selectinload(Trade.legs))
+stmt = select(Trade).options(*load_options).where(...)
+```
+
+This preserves the optimization (no legs loaded for list view) while fixing the report endpoint.
+
+**Verified:** `curl http://localhost:8000/api/v1/journal/report` returns 200 with valid PDF content.
+
+#### Updated Files (addendum)
+- `backend/services/journal_service.py` — conditional `selectinload(Trade.legs)` in `list_trades`
