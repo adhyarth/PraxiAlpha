@@ -14,20 +14,10 @@
 - **`ohlcv_max_gap_days` config setting** — caps auto-fill at 60 calendar days (configurable). Beyond that, the task logs a warning and recommends the manual backfill script.
 - **12 new gap-fill tests** (434 total) — `_candidate_dates` (6 scenarios: no gap, single day, weekend skip, multi-day, full week, Saturday anchor), `_fetch_and_upsert_date` (2 scenarios: empty bulk, known/unknown ticker matching), integration (4 scenarios: up-to-date, cap exceeded, 5-day outage, holiday in gap).
 - **3 new options-exclusion tests** (437 total) — `test_skips_options_trades`, `test_includes_equity_but_skips_options`, `test_returns_reason_for_options_trade`.
-
-### Fixed
-- **Options trades excluded from what-if snapshots** — `get_closed_trades_needing_snapshots()` now skips trades with `asset_type == "options"`. The Celery snapshot task was previously attempting to compute hypothetical PnL for options trades using equity OHLCV prices, which is meaningless without live options pricing data.
-- **What-if summary returns explicit reason for options trades** — `get_whatif_summary()` now returns a `"reason"` field explaining why what-if analysis is unavailable for options trades, instead of silently showing zero snapshots.
-- **Streamlit what-if card shows info banner for options** — `render_whatif_summary()` displays an `st.info()` message when the API returns a `reason` field, rather than the generic "no snapshots yet" caption.
-
-### Changed
-- **`daily_ohlcv_update` rewritten** — replaced single-day fetch with gap-aware loop. Uses `MAX(latest_date)` from active stocks as the anchor. Falls back to single-day fetch when no history exists (initial backfill needed).
-
 - **Trading Journal PDF Report** — `journal_report_service.py` with annotated candlestick chart generation (Plotly + kaleido) and PDF export (fpdf2). Charts show entry/exit markers, stop-loss/take-profit lines, trade context.
 - **Report API endpoint** — `GET /api/v1/journal/report` with date range, status, ticker, and `include_charts` filters. Returns downloadable PDF with trade summaries, aggregate stats (win rate, profit factor, avg winner/loser), and embedded charts.
 - **36 new report tests** (367 total) — helper functions (format_pnl, format_pct, lookback, chart end date), chart builder (6 scenarios), PDF generation (7 scenarios), API endpoint (5 scenarios).
 - **fpdf2 + kaleido dependencies** — added to `pyproject.toml` for PDF generation and Plotly static image export.
-- **Trading Journal Streamlit UI session** added to roadmap (Session 23) — trade list, entry form, detail view, PDF download, what-if display. After Session 23, the full journal is usable from the Streamlit dashboard.
 - **Post-close "what-if" implementation** — `TradeSnapshot` model, snapshot service (create, list, what-if summary), Celery periodic task (`generate_snapshots`), 2 new API endpoints (`GET /snapshots`, `GET /what-if`), Alembic migration 003 (local-only)
 - **Direction-aware hypothetical PnL** — `compute_hypothetical_pnl()` helper using Decimal arithmetic, supports long and short trades
 - **Max tracking durations by timeframe** — daily: 30 days, weekly: 112 days (16 weeks), monthly/quarterly: 540 days (18 months)
@@ -36,7 +26,6 @@
 - **37 new snapshot tests** (323 total) — model structure, PnL computation (7 scenarios), serialization, service CRUD, what-if summary, user isolation, max tracking, Celery task registration, API routes, create snapshot, eligible trade finder
 - **User isolation implementation** — `user_id` column on `trades` table, `PRAXIALPHA_USER_ID` env var in `config.py`, all journal service queries filtered by `user_id`, Alembic migration (local-only, not tracked in repo)
 - **11 new isolation tests** (279 total) — create sets user_id, get/list/update/delete/add_exit/add_leg scoped to user, cross-user access returns None, serialization includes user_id
-- **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
 - **User isolation design (Option B)** — lightweight per-user trade privacy via `user_id` column on `trades` table + `PRAXIALPHA_USER_ID` environment variable. Each user's `.env` sets a unique ID; all journal queries filter by this value so users only see their own trades. No UI changes required.
 - **`PRAXIALPHA_USER_ID` env var** — new config setting (defaults to `"default"`) that identifies the current user for journal row ownership
 - **User isolation decision rationale** — evaluated 3 options: (A) full JWT/OAuth auth (too heavy), (B) env-var user_id column (chosen — lightweight, upgradeable), (C) separate DB per user (not scalable). Documented in DESIGN_DOC.md §11.
@@ -62,12 +51,33 @@
 - **55 new UI tests** (422 total) — formatting helpers (12), API client (19), URL construction (3), rendering with mocked st (12), page helpers (9).
 
 ### Fixed
+- **Options trades excluded from what-if snapshots** — `get_closed_trades_needing_snapshots()` now skips trades with `asset_type == "options"`. The Celery snapshot task was previously attempting to compute hypothetical PnL for options trades using equity OHLCV prices, which is meaningless without live options pricing data.
+- **What-if summary returns explicit reason for options trades** — `get_whatif_summary()` now returns a `"reason"` field explaining why what-if analysis is unavailable for options trades, instead of silently showing zero snapshots.
+- **Streamlit what-if card shows info banner for options** — `render_whatif_summary()` displays an `st.info()` message when the API returns a `reason` field, rather than the generic "no snapshots yet" caption.
 - **`journal_service.create_trade` — `MissingGreenlet` crash** — assigning `trade.exits = []` after `db.flush()` triggered a SQLAlchemy lazy-load in async context, causing a 500 Internal Server Error on every new trade creation. Fixed by replacing `db.refresh()` + manual relationship assignment with a `select()` + `selectinload()` re-fetch (same pattern used by `get_trade()`).
 - **`journal_service.list_trades` — `MissingGreenlet` crash on PDF report** — when `include_children=True` (used by the report endpoint), `serialize_trade()` accessed `trade.legs` which was not eagerly loaded, triggering a lazy-load in async context. Fixed by conditionally adding `selectinload(Trade.legs)` when `include_children=True`.
 - **3 unit tests updated** — `test_create_trade_returns_serialized`, `test_create_trade_uppercases_ticker`, `test_create_trade_sets_user_id` now mock `db.execute` for the re-fetch query instead of the removed `db.refresh` call.
 - **PR #25 review: strengthened re-fetch assertions** — all 3 create_trade tests now assert `mock_db.execute.assert_awaited_once()` to verify the `selectinload` re-fetch actually runs, preventing silent regressions. Moved `exits`/`legs` initialization from `capture_add()` to the mock re-fetch result to better reflect production behavior (where `selectinload` populates relationships during re-fetch, not during `add()`).
+- **Schema naming alignment** (PR #15 review) — DESIGN_DOC diagram now matches ARCHITECTURE.md (`remaining_quantity`, `single_leg/multi_leg`, `daily/weekly/monthly/quarterly`)
+- **Watchlist schema consistency** (PR #15 review) — DESIGN_DOC diagram updated from `tickers (array)` to `watchlists` + `watchlist_items` two-table design
+- **WORKFLOW.md table formatting** (PR #15 review) — moved planned Trading Journal endpoints out of main API table into dedicated subsection
+- **Computed field clarity** (PR #15 review) — ARCHITECTURE.md now explicitly documents which fields are computed at API level (not stored) with derivation formulas
+- **UUID rationale** (PR #15 review) — reworded from "no enumeration attacks" to "less predictable than sequential IDs" with note that auth/authz is still required
+- **`server_default` SQL literal** (PR #16 review — Round 1) — `trade_type` now uses `text("'single_leg'")` instead of bare string to produce correct SQL `DEFAULT 'single_leg'`
+- **Date/DateTime type annotations** (PR #16 review — Round 1) — `Mapped[str]` → `Mapped[date]`/`Mapped[datetime]` for `entry_date`, `exit_date`, `expiry`, `created_at`, `updated_at`
+- **Decimal precision end-to-end** (PR #16 review — Round 1) — `compute_trade_metrics()` refactored to use `Decimal` throughout, converting to `float` only at the serialization boundary; includes tolerance clamping for remaining quantity
+- **Nullable field clearing** (PR #16 review — Round 1) — `update_trade()` now supports clearing `stop_loss`, `take_profit`, `tags`, `comments` by explicitly passing `null`
+- **Decimal-based exit validation** (PR #16 review — Round 1) — `add_exit()` validates against unrounded `Decimal` remaining quantity instead of rounded float from `compute_trade_metrics()`
+- **CI fastapi skipif** (PR #16 review — Round 1) — `TestAPISchemas` and `TestRouterRegistration` guarded with `@pytest.mark.skipif` for CI environments without fastapi
+- **SQL-level pagination** (PR #16 review — Round 2) — `list_trades()` applies `offset()`/`limit()` at the SQL level when no `status` filter is requested; Python-side slicing only when status post-filtering is needed
+- **Dropped unused `selectinload(Trade.legs)`** (PR #16 review — Round 2) from `list_trades()` — legs are not used in list serialization (`include_children=False`)
+- **`UpdateTradeRequest` validation** (PR #16 review — Round 2) — added `gt=0` constraint to `stop_loss` and `take_profit` fields, matching `CreateTradeRequest` validation
+- **Tags type annotation** (PR #16 review — Round 2) — `Mapped[list | None]` → `Mapped[list[str] | None]` for type safety on JSONB tags column
 
 ### Changed
+- **`daily_ohlcv_update` rewritten** — replaced single-day fetch with gap-aware loop. Uses `MAX(latest_date)` from active stocks as the anchor. Falls back to single-day fetch when no history exists (initial backfill needed).
+- **Trading Journal Streamlit UI session** added to roadmap (Session 23) — trade list, entry form, detail view, PDF download, what-if display. After Session 23, the full journal is usable from the Streamlit dashboard.
+- **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
 - **`streamlit_app/pages/journal.py`** — replaced Phase 7 placeholder with full journal UI (list, detail, new trade views with session_state routing)
 - **`streamlit_app/app.py`** — updated sidebar navigation: Journal link now active (was Phase 7 placeholder), moved from bottom to after Charts
 - **Session reorder** — inserted Journal UI Roadmap Reorder as Session 21 (docs-only), PDF Report → Session 22, Journal UI → Session 23, Watchlist Backend → 24, Watchlist UI → 25, Dashboard Polish → 26, Phase 3 Kickoff → 27
@@ -92,27 +102,6 @@
 - **Phase 2 deliverable updated** in `DESIGN_DOC.md` — now includes "journal trades and generate PDF trade reports"
 - **`DESIGN_DOC.md` schema diagram** — replaced placeholder `trades` box with full `trades`, `trade_exits`, `trade_legs` schemas
 - **`docs/ARCHITECTURE.md`** — added 3 full table schema sections with design decision rationale, plus planned API endpoints table
-
-### Fixed (PR #15 review)
-- **Schema naming alignment** — DESIGN_DOC diagram now matches ARCHITECTURE.md (`remaining_quantity`, `single_leg/multi_leg`, `daily/weekly/monthly/quarterly`)
-- **Watchlist schema consistency** — DESIGN_DOC diagram updated from `tickers (array)` to `watchlists` + `watchlist_items` two-table design
-- **WORKFLOW.md table formatting** — moved planned Trading Journal endpoints out of main API table into dedicated subsection
-- **Computed field clarity** — ARCHITECTURE.md now explicitly documents which fields are computed at API level (not stored) with derivation formulas
-- **UUID rationale** — reworded from "no enumeration attacks" to "less predictable than sequential IDs" with note that auth/authz is still required
-
-### Fixed (PR #16 review — Round 1)
-- **`server_default` SQL literal** — `trade_type` now uses `text("'single_leg'")` instead of bare string to produce correct SQL `DEFAULT 'single_leg'`
-- **Date/DateTime type annotations** — `Mapped[str]` → `Mapped[date]`/`Mapped[datetime]` for `entry_date`, `exit_date`, `expiry`, `created_at`, `updated_at`
-- **Decimal precision end-to-end** — `compute_trade_metrics()` refactored to use `Decimal` throughout, converting to `float` only at the serialization boundary; includes tolerance clamping for remaining quantity
-- **Nullable field clearing** — `update_trade()` now supports clearing `stop_loss`, `take_profit`, `tags`, `comments` by explicitly passing `null`
-- **Decimal-based exit validation** — `add_exit()` validates against unrounded `Decimal` remaining quantity instead of rounded float from `compute_trade_metrics()`
-- **CI fastapi skipif** — `TestAPISchemas` and `TestRouterRegistration` guarded with `@pytest.mark.skipif` for CI environments without fastapi
-
-### Fixed (PR #16 review — Round 2)
-- **SQL-level pagination** — `list_trades()` applies `offset()`/`limit()` at the SQL level when no `status` filter is requested; Python-side slicing only when status post-filtering is needed
-- **Dropped unused `selectinload(Trade.legs)`** from `list_trades()` — legs are not used in list serialization (`include_children=False`)
-- **`UpdateTradeRequest` validation** — added `gt=0` constraint to `stop_loss` and `take_profit` fields, matching `CreateTradeRequest` validation
-- **Tags type annotation** — `Mapped[list | None]` → `Mapped[list[str] | None]` for type safety on JSONB tags column
 
 ---
 
