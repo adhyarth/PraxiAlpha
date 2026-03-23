@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-22 (Session 19 — User Isolation Implementation)
+> **Last updated:** 2026-03-22 (Session 20 — Post-Close "What-If" Implementation)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 19 — User Isolation Implementation |
+| **Session** | 20 — Post-Close "What-If" Implementation |
 | **Date** | 2026-03-22 |
-| **PR** | #19 |
-| **What was done** | Implemented user isolation: `user_id` column on `trades`, `PRAXIALPHA_USER_ID` env var, all journal queries scoped, Alembic migration for user isolation, 11 new tests (279 total). Also overhauled WORKFLOW.md Step 7 (ordered doc updates, `cat >>` for BUILD_LOG). |
+| **PR** | #20 |
+| **What was done** | TradeSnapshot model, snapshot service (create, list, what-if summary, PnL calc), Celery periodic task (`generate_snapshots`), 2 new API endpoints (`GET /snapshots`, `GET /what-if`), Alembic migration 003, 37 new tests (323 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,10 +26,10 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 20 — Post-Close "What-If" Implementation |
-| **Scope** | TradeSnapshot model, snapshot service (PnL calc), Celery periodic task, 2 API endpoints (`/snapshots`, `/what-if`), Alembic migration, tests. |
-| **Key files** | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration |
-| **Depends on** | Session 17 (What-If Design), Session 19 (User Isolation) |
+| **Session** | 21 — Trading Journal PDF Report |
+| **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
+| **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal_report.py` |
+| **Depends on** | Session 16 (Trading Journal Backend) |
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
