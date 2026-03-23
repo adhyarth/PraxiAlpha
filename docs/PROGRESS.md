@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 21 — Journal UI Roadmap Reorder |
 | **Branch** | `docs/journal-ui-roadmap` |
-| **Status** | PR #21 opened — awaiting review |
-| **Last checkpoint** | Step 8 — PR created |
+| **Status** | PR #21 review fixes pushed — ready to squash-merge |
+| **Last checkpoint** | Step 9 — PR review fixes committed |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
