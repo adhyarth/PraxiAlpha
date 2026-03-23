@@ -8,6 +8,15 @@
 ## [Unreleased]
 
 ### Added
+- **Smart OHLCV gap-fill** — `daily_ohlcv_update` Celery task now auto-detects missing dates since the last successful fetch and fills all gaps using one EODHD bulk API call per missing trading day. On a normal day this is still 1 API call; after a 5-day outage it self-heals with ~3-4 calls (weekdays only).
+- **`_candidate_dates()` helper** — generates weekday-only date lists for gap-fill, extracted for testability.
+- **`_fetch_and_upsert_date()` helper** — handles single-date bulk fetch, record matching, batch upsert, and `latest_date` update. Extracted from the monolithic task for testability.
+- **`ohlcv_max_gap_days` config setting** — caps auto-fill at 60 calendar days (configurable). Beyond that, the task logs a warning and recommends the manual backfill script.
+- **12 new gap-fill tests** (434 total) — `_candidate_dates` (6 scenarios: no gap, single day, weekend skip, multi-day, full week, Saturday anchor), `_fetch_and_upsert_date` (2 scenarios: empty bulk, known/unknown ticker matching), integration (4 scenarios: up-to-date, cap exceeded, 5-day outage, holiday in gap).
+
+### Changed
+- **`daily_ohlcv_update` rewritten** — replaced single-day fetch with gap-aware loop. Uses `MAX(latest_date)` from active stocks as the anchor. Falls back to single-day fetch when no history exists (initial backfill needed).
+
 - **Trading Journal PDF Report** — `journal_report_service.py` with annotated candlestick chart generation (Plotly + kaleido) and PDF export (fpdf2). Charts show entry/exit markers, stop-loss/take-profit lines, trade context.
 - **Report API endpoint** — `GET /api/v1/journal/report` with date range, status, ticker, and `include_charts` filters. Returns downloadable PDF with trade summaries, aggregate stats (win rate, profit factor, avg winner/loser), and embedded charts.
 - **36 new report tests** (367 total) — helper functions (format_pnl, format_pct, lookback, chart end date), chart builder (6 scenarios), PDF generation (7 scenarios), API endpoint (5 scenarios).
