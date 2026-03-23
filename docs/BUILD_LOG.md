@@ -1828,3 +1828,47 @@ Addressed all 6 Copilot review comments on PR #27:
 5. **WORKFLOW.md session numbering** — Fixed inconsistency: Next Session updated from "24 — Watchlist Backend" to "26 — Watchlist Backend" (Session 25 is now complete).
 6. **Celery import guard** — Already addressed in prior commit; no additional changes needed.
 7. **Removed unused `patch` import** — Lint fix after removing patches from tests.
+### Session 26 — 2026-03-23: Skip Options What-If (Phase 2)
+
+**Goal:** Exclude options trades from post-close what-if snapshot generation — the project doesn't have live options pricing data, so computing hypothetical PnL using equity OHLCV prices is meaningless for options trades.
+
+**Branch:** `fix/skip-options-what-if`
+
+#### What Was Done
+
+1. **Filtered options trades from snapshot generation** (`backend/services/trade_snapshot_service.py`)
+   - Added `AssetType.OPTIONS` check in `get_closed_trades_needing_snapshots()` — options trades are now skipped during the Celery task's eligibility scan
+   - The filter sits right after the `status != "closed"` check, before the tracking duration and cadence checks
+
+2. **Added explicit reason for options trades in what-if summary** (`backend/services/trade_snapshot_service.py`)
+   - `get_whatif_summary()` now returns early for options trades with a `"reason"` field explaining why what-if is unavailable
+   - Returns `total_snapshots: 0` + actual PnL metrics so the API response is structurally consistent
+
+3. **Updated Streamlit UI to display reason** (`streamlit_app/components/journal_trade_detail.py`)
+   - `render_whatif_summary()` checks for a `"reason"` key and displays `st.info()` banner instead of the generic "no snapshots yet" caption
+
+4. **3 new tests** (`backend/tests/test_trade_snapshots.py`)
+   - `test_skips_options_trades` — options-only trade returns empty from eligible finder
+   - `test_includes_equity_but_skips_options` — mixed list, only equity trade returned
+   - `test_returns_reason_for_options_trade` — what-if summary returns reason for closed options trade
+
+#### Key Design Decisions
+
+- **Filter at service layer, not task layer**: The exclusion happens in `get_closed_trades_needing_snapshots()` rather than in the Celery task itself. This keeps the task thin (it just calls the service) and makes the logic testable without Celery.
+- **Return a reason, not None**: For the what-if summary, returning `None` would trigger a 404 (same as "trade not found"), which is misleading. Returning a result with a `"reason"` field lets the UI explain *why* there's no data.
+- **No schema changes**: The fix uses the existing `asset_type` column on the `trades` table. No migration needed.
+
+#### Lessons Learned
+
+- The `_make_mock_trade()` test helper didn't include `asset_type` — existing tests defaulted to `MagicMock()` for that field, which happened to not match `AssetType.OPTIONS`, so all existing tests continued to pass. The new tests explicitly pass `asset_type=AssetType.OPTIONS` and `asset_type=AssetType.SHARES`.
+
+#### Files Changed
+
+- `backend/services/trade_snapshot_service.py` — imported `AssetType`, added options filter in `get_closed_trades_needing_snapshots()`, added early return with reason in `get_whatif_summary()`
+- `streamlit_app/components/journal_trade_detail.py` — check `reason` field in `render_whatif_summary()`
+- `backend/tests/test_trade_snapshots.py` — 3 new tests (options exclusion, mixed equity+options, what-if reason)
+- `docs/CHANGELOG.md` — Added + Fixed entries
+- `WORKFLOW.md` — updated last session, next session
+- `docs/PROGRESS.md` — updated component status, test count, session history, crash recovery block
+
+#### Test Count: 437 (3 new)
