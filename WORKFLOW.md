@@ -18,7 +18,7 @@
 | **Session** | 19 — User Isolation Implementation |
 | **Date** | 2026-03-22 |
 | **PR** | #19 |
-| **What was done** | Implemented user isolation: `user_id` column on `trades`, `PRAXIALPHA_USER_ID` env var, all journal queries scoped, Alembic migration 002, 11 new tests (279 total). Also overhauled WORKFLOW.md Step 7 (ordered doc updates, `cat >>` for BUILD_LOG). |
+| **What was done** | Implemented user isolation: `user_id` column on `trades`, `PRAXIALPHA_USER_ID` env var, all journal queries scoped, Alembic migration for user isolation, 11 new tests (279 total). Also overhauled WORKFLOW.md Step 7 (ordered doc updates, `cat >>` for BUILD_LOG). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -216,7 +216,7 @@ git push origin <branch-name>
 - BUILD_LOG sessions are **strictly chronological** — always append at the end
 - Session numbers are **sequential** — never reuse or skip
 - CHANGELOG uses **[Keep a Changelog](https://keepachangelog.com/)** format
-- **Never read BUILD_LOG.md** in Copilot Chat — only append via `cat >>`
+- In Copilot Chat, **never load the full `docs/BUILD_LOG.md` or edit it in place**; if context is needed, only read the latest session/tail of the file, and append new entries via `cat >>` from the shell
 
 ### Step 8: Push Branch and Create PR
 ```bash

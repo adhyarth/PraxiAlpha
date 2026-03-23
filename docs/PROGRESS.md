@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 19 — User Isolation Implementation |
 | **Branch** | `feat/user-isolation` |
-| **Status** | Code complete, CI passed (279 tests), docs in progress. PR pending. |
-| **Last checkpoint** | Step 7b — updating small docs (CHANGELOG, WORKFLOW, PROGRESS) |
+| **Status** | Code complete, CI passed (279 tests), docs updated. PR #19 open, awaiting review. |
+| **Last checkpoint** | Step 9 — PR #19 open, awaiting review feedback / follow-ups |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

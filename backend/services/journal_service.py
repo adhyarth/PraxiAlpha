@@ -32,10 +32,27 @@ from backend.models.journal import (
 
 logger = logging.getLogger(__name__)
 
+_USER_ID_MAX_LENGTH = 50
+
 
 def _current_user_id() -> str:
     """Return the active user_id from settings (PRAXIALPHA_USER_ID env var)."""
-    return get_settings().praxialpha_user_id
+    raw_user_id = get_settings().praxialpha_user_id
+
+    if raw_user_id is None:
+        raise RuntimeError("PRAXIALPHA_USER_ID is not configured")
+
+    user_id = raw_user_id.strip()
+
+    if not user_id:
+        raise ValueError("PRAXIALPHA_USER_ID must be non-empty after trimming whitespace")
+
+    if len(user_id) > _USER_ID_MAX_LENGTH:
+        raise ValueError(
+            f"PRAXIALPHA_USER_ID must be at most {_USER_ID_MAX_LENGTH} characters long"
+        )
+
+    return user_id
 
 
 # ---------------------------------------------------------------------------

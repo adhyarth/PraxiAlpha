@@ -1048,3 +1048,72 @@ class TestUserIsolation:
         """Default mock trade should have user_id='default'."""
         trade = _make_trade()
         assert trade.user_id == "default"
+
+
+# ============================================================
+# User ID Validation Tests
+# ============================================================
+
+
+class TestCurrentUserIdValidation:
+    """Tests that _current_user_id validates the PRAXIALPHA_USER_ID setting."""
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_valid_user_id(self, mock_settings):
+        """A valid, trimmed user_id is returned as-is."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = "alice"
+        assert _current_user_id() == "alice"
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_strips_whitespace(self, mock_settings):
+        """Leading/trailing whitespace is stripped."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = "  alice  "
+        assert _current_user_id() == "alice"
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_none_raises_runtime_error(self, mock_settings):
+        """None value raises RuntimeError."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = None
+        with pytest.raises(RuntimeError, match="not configured"):
+            _current_user_id()
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_empty_string_raises_value_error(self, mock_settings):
+        """Empty string raises ValueError."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = ""
+        with pytest.raises(ValueError, match="non-empty"):
+            _current_user_id()
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_whitespace_only_raises_value_error(self, mock_settings):
+        """Whitespace-only string raises ValueError."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = "   "
+        with pytest.raises(ValueError, match="non-empty"):
+            _current_user_id()
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_too_long_raises_value_error(self, mock_settings):
+        """User ID exceeding 50 chars raises ValueError."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = "x" * 51
+        with pytest.raises(ValueError, match="at most 50"):
+            _current_user_id()
+
+    @patch("backend.services.journal_service.get_settings")
+    def test_exactly_max_length_is_valid(self, mock_settings):
+        """User ID of exactly 50 chars is valid."""
+        from backend.services.journal_service import _current_user_id
+
+        mock_settings.return_value.praxialpha_user_id = "x" * 50
+        assert _current_user_id() == "x" * 50

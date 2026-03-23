@@ -8,7 +8,7 @@
 ## [Unreleased]
 
 ### Added
-- **User isolation implementation** — `user_id` column on `trades` table, `PRAXIALPHA_USER_ID` env var in `config.py`, all journal service queries filtered by `user_id`, Alembic migration `002_add_user_id_to_trades.py`
+- **User isolation implementation** — `user_id` column on `trades` table, `PRAXIALPHA_USER_ID` env var in `config.py`, all journal service queries filtered by `user_id`, Alembic migration (local-only, not tracked in repo)
 - **11 new isolation tests** (279 total) — create sets user_id, get/list/update/delete/add_exit/add_leg scoped to user, cross-user access returns None, serialization includes user_id
 - **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
 - **User isolation design (Option B)** — lightweight per-user trade privacy via `user_id` column on `trades` table + `PRAXIALPHA_USER_ID` environment variable. Each user's `.env` sets a unique ID; all journal queries filter by this value so users only see their own trades. No UI changes required.
