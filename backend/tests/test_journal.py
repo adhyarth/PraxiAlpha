@@ -402,15 +402,20 @@ class TestCreateTrade:
                 obj.id = uuid.uuid4()
             obj.created_at = "2026-01-15T10:00:00+00:00"
             obj.updated_at = "2026-01-15T10:00:00+00:00"
-            obj.exits = []
-            obj.legs = []
             captured_trade = obj
 
         mock_db.add.side_effect = capture_add
 
         # Mock the re-fetch execute() to return the captured trade
+        # exits/legs are set here (not in add) to mirror production behavior
+        # where selectinload populates them during the re-fetch query
+        def _refetch_result():
+            captured_trade.exits = []
+            captured_trade.legs = []
+            return captured_trade
+
         mock_result = MagicMock()
-        mock_result.scalar_one.side_effect = lambda: captured_trade
+        mock_result.scalar_one.side_effect = _refetch_result
         mock_db.execute.return_value = mock_result
 
         from backend.services.journal_service import create_trade
@@ -438,6 +443,7 @@ class TestCreateTrade:
         assert result["tags"] == ["momentum"]
         mock_db.add.assert_called_once()
         mock_db.flush.assert_awaited_once()
+        mock_db.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_create_trade_uppercases_ticker(self):
@@ -452,14 +458,17 @@ class TestCreateTrade:
             obj.id = uuid.uuid4()
             obj.created_at = "2026-01-15T10:00:00+00:00"
             obj.updated_at = "2026-01-15T10:00:00+00:00"
-            obj.exits = []
-            obj.legs = []
             captured_trade = obj
 
         mock_db.add.side_effect = capture_add
 
+        def _refetch_result():
+            captured_trade.exits = []
+            captured_trade.legs = []
+            return captured_trade
+
         mock_result = MagicMock()
-        mock_result.scalar_one.side_effect = lambda: captured_trade
+        mock_result.scalar_one.side_effect = _refetch_result
         mock_db.execute.return_value = mock_result
 
         from backend.services.journal_service import create_trade
@@ -475,6 +484,7 @@ class TestCreateTrade:
             total_quantity=100.0,
         )
         assert result["ticker"] == "AAPL"
+        mock_db.execute.assert_awaited_once()
 
 
 # ============================================================
@@ -890,14 +900,17 @@ class TestUserIsolation:
             obj.id = uuid.uuid4()
             obj.created_at = "2026-01-15T10:00:00+00:00"
             obj.updated_at = "2026-01-15T10:00:00+00:00"
-            obj.exits = []
-            obj.legs = []
             created_trade = obj
 
         mock_db.add.side_effect = capture_add
 
+        def _refetch_result():
+            created_trade.exits = []
+            created_trade.legs = []
+            return created_trade
+
         mock_result = MagicMock()
-        mock_result.scalar_one.side_effect = lambda: created_trade
+        mock_result.scalar_one.side_effect = _refetch_result
         mock_db.execute.return_value = mock_result
 
         from backend.services.journal_service import create_trade
@@ -916,6 +929,7 @@ class TestUserIsolation:
         assert created_trade is not None
         assert created_trade.user_id == "alice"
         assert result["user_id"] == "alice"
+        mock_db.execute.assert_awaited_once()
 
     @pytest.mark.asyncio
     @patch("backend.services.journal_service._current_user_id", return_value="alice")
