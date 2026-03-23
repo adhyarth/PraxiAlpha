@@ -142,34 +142,81 @@ git commit -m "wip: progress checkpoint — CI passed"
 > changes BEFORE starting documentation updates. This ensures that if Copilot
 > crashes during the BUILD_LOG edit, no code work is lost and recovery is trivial.
 
+#### Step 7a: Pre-docs safety checkpoint
 ```bash
-# Pre-docs safety commit + push (if not already done)
+# Commit + push ALL code changes before touching any docs
 git add -A
 git commit -m "wip: code complete, pre-docs checkpoint"
 git push origin <branch-name>
 ```
+> **Why:** This is the single most important checkpoint. If Copilot crashes at
+> any point during documentation updates, all code is safe on the remote.
+> Recovery = re-read docs and continue writing.
 
-**Every session must update these files:**
+#### Step 7b: Update small docs FIRST (commit + push before BUILD_LOG)
 
-| Document | What to Update |
-|----------|---------------|
-| `docs/BUILD_LOG.md` | Add new session entry **at the bottom** (strictly chronological). Include: what was done, files changed, test count, lessons learned. |
-| `docs/CHANGELOG.md` | Add entries under `[Unreleased]` → Added / Fixed / Changed sections |
-| `WORKFLOW.md` | Update "Last Completed Session", "Next Session", and "Last updated" date |
-| `docs/PROGRESS.md` | Update component status table, phase checklists, session history, roadmap, and set the "Current Session Status" to "PR opened / awaiting review" |
-| `CONTRIBUTING.md` | Only if workflow, conventions, or branch protection rules changed |
-| `DESIGN_DOC.md` | Only if architecture, schema, roadmap, or mental models changed |
-| `docs/ARCHITECTURE.md` | Only if file structure, tables, or system diagrams changed |
+Update these files **in this order**, because they are small and safe to edit:
+
+| Order | Document | What to Update |
+|-------|----------|---------------|
+| 1 | `docs/CHANGELOG.md` | Add entries under `[Unreleased]` → Added / Fixed / Changed sections |
+| 2 | `WORKFLOW.md` | Update "Last Completed Session", "Next Session", and "Last updated" date |
+| 3 | `docs/PROGRESS.md` | Update component status table, phase checklists, session history, roadmap, and set the "Current Session Status" to "PR opened / awaiting review" |
+| 4 | `docs/ARCHITECTURE.md` | Only if file structure, tables, or system diagrams changed |
+| 5 | `DESIGN_DOC.md` | Only if architecture, schema, roadmap, or mental models changed |
+| 6 | `CONTRIBUTING.md` | Only if workflow, conventions, or branch protection rules changed |
+
+```bash
+# Commit + push the small doc updates BEFORE touching BUILD_LOG
+git add -A
+git commit -m "wip: docs checkpoint — all docs except BUILD_LOG"
+git push origin <branch-name>
+```
+> **Why:** BUILD_LOG.md is the crash-prone file. By committing all other docs
+> first, a crash during BUILD_LOG editing loses only that one file's update —
+> not CHANGELOG, PROGRESS, WORKFLOW, etc.
+
+#### Step 7c: Append to BUILD_LOG.md using `cat >>` (NEVER edit in-place)
+
+> **CRITICAL:** Do NOT use file-editing tools (insert_edit_into_file,
+> replace_string_in_file) on BUILD_LOG.md. The file is too large and
+> reading it causes Copilot OOM crashes. Instead, use `cat >> ... << 'EOF'`
+> to blindly append the new session entry at the end.
+
+```bash
+cat >> docs/BUILD_LOG.md << 'EOF'
+
+### Session N — YYYY-MM-DD: Title (Phase X)
+
+**Goal:** ...
+
+**Branch:** `<branch-name>`
+
+#### What Was Done
+...
+
+#### Key Design Decisions
+...
+
+#### Lessons Learned
+...
+
+#### Files Changed
+...
+
+#### Test Count: XXX (Y new)
+EOF
+
+git add docs/BUILD_LOG.md
+git commit -m "docs: session <number> BUILD_LOG entry"
+git push origin <branch-name>
+```
 
 **Documentation rules:**
 - BUILD_LOG sessions are **strictly chronological** — always append at the end
 - Session numbers are **sequential** — never reuse or skip
 - CHANGELOG uses **[Keep a Changelog](https://keepachangelog.com/)** format
-
-```bash
-git add -A
-git commit -m "docs: session <number> documentation"
-```
+- **Never read BUILD_LOG.md** in Copilot Chat — only append via `cat >>`
 
 ### Step 8: Push Branch and Create PR
 ```bash
@@ -220,10 +267,21 @@ gh api repos/<OWNER>/<REPO>/pulls/<PR_NUMBER>/comments \
    git commit -m "wip: PR review fixes"
    git push origin <branch-name>
    ```
-6. **Document the review fixes** in `docs/BUILD_LOG.md` — append a `#### PR Review Fixes` section to the current session entry. For each fix, document:
+6. **Document the review fixes** in `docs/BUILD_LOG.md` — use `cat >>` to append
+   a `#### PR Review Fixes` section to the current session entry. For each fix, document:
    - **What was changed**
    - **Why** (the reviewer's reasoning)
    - **Impact if not fixed** (what could go wrong at scale)
+   ```bash
+   cat >> docs/BUILD_LOG.md << 'EOF'
+
+   #### PR Review Fixes (PR #N — X comments from reviewer)
+   ...
+   EOF
+   git add docs/BUILD_LOG.md
+   git commit -m "docs: session <N> PR review fixes"
+   git push origin <branch-name>
+   ```
    > CHANGELOG is **not** updated for review fixes — they are pre-merge quality improvements.
 7. PR auto-updates → developer reviews again or approves
 8. Developer squash-merges on GitHub
@@ -252,12 +310,14 @@ Copilot will:
 4. Resume from the last checkpoint
 
 ### Crash during BUILD_LOG.md / docs update (most common)
-If Copilot crashes while editing `BUILD_LOG.md` or other docs (Steps 7 or 9),
-all code is already committed and pushed (per the pre-docs checkpoint). Use:
+If Copilot crashes while editing docs (Steps 7b or 7c), code and earlier docs
+are already committed and pushed. Use:
 
-> **"Copilot crashed while updating BUILD_LOG.md for Session N PR review fixes.
-> Code is already committed and pushed. Read `docs/BUILD_LOG.md` to see what's
-> there, check `git log --oneline -5`, and continue the documentation update."**
+> **"Copilot crashed during docs update for Session N.
+> Code is committed and pushed. Check `git log --oneline -5` and `git status`
+> to see which docs were already committed. Then resume the remaining docs.
+> Remember: use `cat >> docs/BUILD_LOG.md << 'EOF'` to append — do NOT read
+> or edit BUILD_LOG.md with file tools."**
 
 ---
 
@@ -281,7 +341,8 @@ all code is already committed and pushed (per the pre-docs checkpoint). Use:
 | 14 | `time_bucket('7 days', date)` doesn't align to ISO weeks | Always pass `origin => '<a-monday>'` for weekly buckets. |
 | 15 | `SELECT count(*)` on large hypertables/aggregates | Use `pg_class.reltuples` for approximate O(1) counts in monitoring endpoints. |
 | 16 | **Copilot Chat OOM crash on 8 GB Mac** | Stop Docker when not needed (`docker compose stop`). Keep chat sessions short — one PR per session. Commit after every logical chunk (Steps 3, 4, 6). Start a new chat after each PR merge. See §3 for crash recovery. |
-| 17 | **BUILD_LOG.md edits trigger OOM crashes** | `BUILD_LOG.md` is the largest file in the project (~1000+ lines) and growing. Editing it in Copilot Chat causes high memory spikes. **Always commit + push all code changes BEFORE editing BUILD_LOG.md** (Steps 7 and 9). If Copilot crashes during the docs step, recovery is trivial — just re-read the file and continue the edit. If it crashes before committing code, the work is lost. |
+| 17 | **BUILD_LOG.md edits trigger OOM crashes** | **Never use file-editing tools on BUILD_LOG.md.** Always use `cat >> docs/BUILD_LOG.md << 'EOF'` to blindly append. Commit + push all other docs (CHANGELOG, WORKFLOW, PROGRESS) BEFORE touching BUILD_LOG (Step 7b→7c). If Copilot crashes during the `cat >>` step, only the BUILD_LOG entry is lost — all code and other docs are safe on the remote. |
+| 18 | **Docs step crashes lose all doc updates** | Update small docs first (CHANGELOG, WORKFLOW, PROGRESS), commit + push, THEN append BUILD_LOG. This way a crash during BUILD_LOG loses only that one entry, not all session documentation. See Step 7b→7c ordering. |
 
 ---
 
