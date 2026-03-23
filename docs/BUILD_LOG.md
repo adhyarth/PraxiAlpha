@@ -1682,3 +1682,46 @@ Build the full Streamlit frontend for the trading journal: trade list with filte
 
 - Also added 2 new assertions to `test_fmt_price` covering negative and zero values.
 - All CI checks pass: ruff ✅ | format ✅ | mypy ✅ | pytest 422/422 ✅
+
+### Bugfix — 2026-03-23: Fix MissingGreenlet in journal create_trade
+
+**Goal:** Fix 500 Internal Server Error when creating trades via the Streamlit journal UI.
+
+**Branch:** `fix/journal-create-trade-greenlet`
+
+#### Root Cause
+In `journal_service.create_trade()`, after `db.flush()` and `db.refresh()`, the code assigned
+`trade.exits = []` and `trade.legs = []` to initialize empty relationships for serialization.
+In SQLAlchemy's async context, assigning to a relationship attribute triggers a **lazy load**
+of the current value (so the ORM can track changes). Lazy loading requires synchronous I/O,
+which is forbidden in an async session — resulting in a `MissingGreenlet` exception and a
+500 Internal Server Error on every trade creation attempt.
+
+#### Fix
+Replaced `db.refresh()` + manual relationship assignment with a `select()` + `selectinload()`
+re-fetch query — the same pattern already used by `get_trade()`, `update_trade()`, and `add_exit()`.
+This eagerly loads the (empty) `exits` and `legs` relationships so `serialize_trade()` can access
+them without triggering any lazy loads.
+
+#### What Was Done
+1. **`backend/services/journal_service.py`** — replaced `db.refresh()` + `trade.exits = []` / `trade.legs = []` with `select(Trade).options(selectinload(...))` re-fetch after flush
+2. **`backend/tests/test_journal.py`** — updated 3 tests (`test_create_trade_returns_serialized`, `test_create_trade_uppercases_ticker`, `test_create_trade_sets_user_id`) to mock `db.execute` for the re-fetch query instead of the removed `db.refresh` call
+3. Verified fix by rebuilding Docker container and successfully creating a trade via `curl`
+4. All 422 tests pass, all CI checks green
+
+#### Key Design Decisions
+- Used the same `selectinload` re-fetch pattern already established in `get_trade()` — keeps the codebase consistent
+- Did not add new tests since the existing 3 create_trade tests already cover the code path; they were updated to match the new implementation
+
+#### Lessons Learned
+- In SQLAlchemy async sessions, never assign to relationship attributes (`obj.rels = []`) after flush — this triggers a lazy load. Always use `selectinload()` to eagerly fetch relationships.
+- The `MissingGreenlet` error message is not immediately obvious — it means "synchronous I/O was attempted in an async context"
+
+#### Files Changed
+- `backend/services/journal_service.py` — fix: replace refresh + manual rels with selectinload re-fetch
+- `backend/tests/test_journal.py` — update 3 mocked create_trade tests for new re-fetch pattern
+- `docs/CHANGELOG.md` — added Fixed section
+- `docs/PROGRESS.md` — updated crash recovery block
+- `WORKFLOW.md` — updated "Last updated" line
+
+#### Test Count: 422 (0 new, 3 updated)
