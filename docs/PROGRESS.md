@@ -8,8 +8,8 @@
 |-|-|
 | **Session** | 20 — Post-Close "What-If" Implementation |
 | **Branch** | `feat/what-if-snapshots` |
-| **Status** | Code complete, CI green, docs updating, PR pending |
-| **Last checkpoint** | Step 7b — updating small docs |
+| **Status** | PR #20 open, awaiting review |
+| **Last checkpoint** | Step 8 — PR created |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.ject Progress
 
