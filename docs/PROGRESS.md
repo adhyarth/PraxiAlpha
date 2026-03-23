@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-22 (Session 20)
+> **Last updated:** 2026-03-23 (Session 20 merged)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 20 — Post-Close "What-If" Implementation |
-| **Branch** | `feat/what-if-snapshots` |
-| **Status** | PR #20 open, addressing review comments |
-| **Last checkpoint** | Step 9 — PR review fixes |
+| **Session** | No active session |
+| **Branch** | `main` |
+| **Status** | Session 20 merged (PR #20). Ready for Session 21. |
+| **Last checkpoint** | Step 10 — post-merge cleanup complete |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -39,8 +39,8 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints, 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (TradeSnapshot model, snapshot service, Celery task, API). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (323 tests) |
-| **Tests** | ✅ 323 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (331 tests) |
+| **Tests** | ✅ 331 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---
@@ -101,7 +101,7 @@
 | 17 | 2026-03-22 | Post-close "what-if" design: trade_snapshots table schema, Celery task plan, API endpoints, max tracking durations by timeframe. Docs-only session. | PR #17 |
 | 18 | 2026-03-22 | User isolation design: lightweight user_id column + PRAXIALPHA_USER_ID env var for per-user trade privacy. Evaluated 3 options (full auth, env-var user_id, separate DB), chose Option B. Docs-only session. | PR #18 |
 | 19 | 2026-03-22 | User isolation implementation: user_id column on trades, config setting, all journal queries scoped, Alembic migration 002, 11 new tests (279 total). WORKFLOW.md Step 7 overhaul. | PR #19 |
-| 20 | 2026-03-22 | Post-close "what-if" implementation: TradeSnapshot model, snapshot service (PnL calc, what-if summary), Celery periodic task, 2 API endpoints, Alembic migration 003, 37 new tests (323 total). | PR #20 |
+| 20 | 2026-03-22 | Post-close "what-if" implementation: TradeSnapshot model, snapshot service (PnL calc, what-if summary), Celery periodic task, 2 API endpoints, Alembic migration 003, 45 tests (331 total). PR review: fixed OHLCV query join, per-trade rollback, Celery retry, US/Eastern timezone, snapshot cadence, batch existence check. | PR #20 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
@@ -120,7 +120,7 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **17** | **Post-Close "What-If" Design** | ✅ Done — docs-only session: designed `trade_snapshots` table, Celery task, snapshot schedule (daily/weekly/monthly by timeframe), API endpoints (`/snapshots`, `/what-if`). | `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/BUILD_LOG.md`, `docs/CHANGELOG.md` | Session 16 ✅ |
 | **18** | **User Isolation Design** | ✅ Done — docs-only session: designed user_id column + PRAXIALPHA_USER_ID env var, evaluated 3 options, chose Option B. | `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/CHANGELOG.md` | Session 16 ✅ |
 | **19** | **User Isolation Implementation** | ✅ Done — user_id column on trades, config setting, journal queries scoped, Alembic migration 002, 11 new tests (279 total). WORKFLOW.md Step 7 overhaul. | `backend/config.py`, `backend/models/journal.py`, `backend/services/journal_service.py`, `.env.example`, migration, tests | Session 18 ✅ |
-| **20** | **Post-Close "What-If" — Implementation** | ✅ Done — TradeSnapshot model, snapshot service, Celery periodic task, 2 API endpoints, Alembic migration, 37 new tests (323 total). | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration | Session 17, 19 ✅ |
+| **20** | **Post-Close "What-If" — Implementation** | ✅ Done — TradeSnapshot model, snapshot service, Celery periodic task, 2 API endpoints, Alembic migration, 45 snapshot tests (331 total). PR review fixes: OHLCV query join, per-trade rollback, Celery retry, US/Eastern TZ, snapshot cadence, batch existence check. | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration | Session 17, 19 ✅ |
 | **21** | **Trading Journal — PDF Report** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` | Session 16 |
 | **22** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
 | **23** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 22 |
