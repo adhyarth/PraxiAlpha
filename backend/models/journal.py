@@ -91,6 +91,9 @@ class Trade(Base):
     __tablename__ = "trades"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[str] = mapped_column(
+        String(50), nullable=False, index=True, server_default=text("'default'")
+    )
     ticker: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     direction: Mapped[TradeDirection] = mapped_column(
         Enum(

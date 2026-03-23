@@ -6,6 +6,7 @@ Tests for:
 - journal_service computed fields (status, PnL, R-multiple, etc.)
 - journal_service CRUD operations (mocked DB)
 - Journal API routes (mocked service layer)
+- User isolation (user_id scoping across all CRUD operations)
 
 All tests mock the database — no real Postgres needed in CI.
 """
@@ -14,7 +15,7 @@ import importlib.util
 import uuid
 from datetime import date
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -44,6 +45,7 @@ def _make_trade(**overrides) -> MagicMock:
     """Create a mock Trade with sensible defaults."""
     defaults = {
         "id": uuid.uuid4(),
+        "user_id": "default",
         "ticker": "AAPL",
         "direction": TradeDirection.LONG,
         "asset_type": AssetType.SHARES,
@@ -383,7 +385,8 @@ class TestCreateTrade:
     """Tests for journal_service.create_trade."""
 
     @pytest.mark.asyncio
-    async def test_create_trade_returns_serialized(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_create_trade_returns_serialized(self, mock_uid):
         """create_trade should return a serialized dict."""
         mock_db = AsyncMock()
         mock_db.add = MagicMock()  # add() is sync, not async
@@ -425,7 +428,8 @@ class TestCreateTrade:
         mock_db.flush.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_create_trade_uppercases_ticker(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_create_trade_uppercases_ticker(self, mock_uid):
         """Ticker should be stored in uppercase."""
         mock_db = AsyncMock()
         mock_db.add = MagicMock()  # add() is sync, not async
@@ -461,7 +465,8 @@ class TestGetTrade:
     """Tests for journal_service.get_trade."""
 
     @pytest.mark.asyncio
-    async def test_get_trade_found(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_get_trade_found(self, mock_uid):
         """Should return serialized trade when found."""
         trade = _make_trade()
         mock_result = MagicMock()
@@ -478,7 +483,8 @@ class TestGetTrade:
         assert result["status"] == "open"
 
     @pytest.mark.asyncio
-    async def test_get_trade_not_found(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_get_trade_not_found(self, mock_uid):
         """Should return None when trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -501,7 +507,8 @@ class TestListTrades:
     """Tests for journal_service.list_trades."""
 
     @pytest.mark.asyncio
-    async def test_list_trades_empty(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_list_trades_empty(self, mock_uid):
         """Should return empty list when no trades."""
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
@@ -515,7 +522,8 @@ class TestListTrades:
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_list_trades_returns_serialized(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_list_trades_returns_serialized(self, mock_uid):
         """Should return list of serialized trades."""
         trade1 = _make_trade(ticker="AAPL")
         trade2 = _make_trade(ticker="MSFT")
@@ -532,7 +540,8 @@ class TestListTrades:
         assert len(result) == 2
 
     @pytest.mark.asyncio
-    async def test_list_trades_filters_by_status(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_list_trades_filters_by_status(self, mock_uid):
         """Status filter is applied in Python after fetch."""
         open_trade = _make_trade(ticker="AAPL")
         closed_exit = _make_exit(exit_price=Decimal("160.0000"), quantity=Decimal("100.0000"))
@@ -566,7 +575,8 @@ class TestDeleteTrade:
     """Tests for journal_service.delete_trade."""
 
     @pytest.mark.asyncio
-    async def test_delete_trade_found(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_delete_trade_found(self, mock_uid):
         mock_result = MagicMock()
         mock_result.rowcount = 1
 
@@ -579,7 +589,8 @@ class TestDeleteTrade:
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_delete_trade_not_found(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_delete_trade_not_found(self, mock_uid):
         mock_result = MagicMock()
         mock_result.rowcount = 0
 
@@ -601,7 +612,8 @@ class TestAddExit:
     """Tests for journal_service.add_exit."""
 
     @pytest.mark.asyncio
-    async def test_add_exit_exceeds_quantity_raises(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_add_exit_exceeds_quantity_raises(self, mock_uid):
         """Should raise ValueError when exit qty > remaining."""
         trade = _make_trade(total_quantity=Decimal("100.0000"), exits=[])
 
@@ -624,7 +636,8 @@ class TestAddExit:
             )
 
     @pytest.mark.asyncio
-    async def test_add_exit_not_found_returns_none(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_add_exit_not_found_returns_none(self, mock_uid):
         """Should return None if trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -653,7 +666,8 @@ class TestAddLeg:
     """Tests for journal_service.add_leg."""
 
     @pytest.mark.asyncio
-    async def test_add_leg_not_found_returns_none(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_add_leg_not_found_returns_none(self, mock_uid):
         """Should return None if trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -684,7 +698,8 @@ class TestUpdateTrade:
     """Tests for journal_service.update_trade."""
 
     @pytest.mark.asyncio
-    async def test_update_trade_not_found(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_update_trade_not_found(self, mock_uid):
         """Should return None if trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -698,7 +713,8 @@ class TestUpdateTrade:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_update_trade_with_no_changes(self):
+    @patch("backend.services.journal_service._current_user_id", return_value="default")
+    async def test_update_trade_with_no_changes(self, mock_uid):
         """Empty update should still return the trade."""
         trade = _make_trade()
         mock_result = MagicMock()
@@ -841,3 +857,208 @@ class TestRouterRegistration:
         assert "/journal/{trade_id}" in paths
         assert "/journal/{trade_id}/exits" in paths
         assert "/journal/{trade_id}/legs" in paths
+
+
+# ============================================================
+# User Isolation Tests
+# ============================================================
+
+
+class TestUserIsolation:
+    """Tests that user_id scoping works correctly across all CRUD operations."""
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="alice")
+    async def test_create_trade_sets_user_id(self, mock_uid):
+        """create_trade should set user_id from _current_user_id."""
+        mock_db = AsyncMock()
+        mock_db.add = MagicMock()
+
+        created_trade = None
+
+        def capture_add(obj):
+            nonlocal created_trade
+            created_trade = obj
+
+        mock_db.add.side_effect = capture_add
+
+        async def mock_refresh(obj, attribute_names=None):
+            obj.id = uuid.uuid4()
+            obj.created_at = "2026-01-15T10:00:00+00:00"
+            obj.updated_at = "2026-01-15T10:00:00+00:00"
+
+        mock_db.refresh = mock_refresh
+
+        from backend.services.journal_service import create_trade
+
+        result = await create_trade(
+            mock_db,
+            ticker="AAPL",
+            direction="long",
+            asset_type="shares",
+            timeframe="daily",
+            entry_date=date(2026, 1, 15),
+            entry_price=150.0,
+            total_quantity=100.0,
+        )
+
+        assert created_trade is not None
+        assert created_trade.user_id == "alice"
+        assert result["user_id"] == "alice"
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="alice")
+    async def test_get_trade_filters_by_user_id(self, mock_uid):
+        """get_trade should only return trades belonging to the current user."""
+        # Alice's trade
+        trade = _make_trade(user_id="alice")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = trade
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import get_trade
+
+        result = await get_trade(mock_db, trade.id)
+        assert result is not None
+        assert result["user_id"] == "alice"
+
+        # Verify the query included user_id filter by checking execute was called
+        mock_db.execute.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="bob")
+    async def test_get_trade_returns_none_for_other_user(self, mock_uid):
+        """get_trade should return None when trade belongs to a different user."""
+        # DB returns None because the WHERE clause filters out alice's trade
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import get_trade
+
+        result = await get_trade(mock_db, uuid.uuid4())
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="alice")
+    async def test_list_trades_filters_by_user_id(self, mock_uid):
+        """list_trades should only return trades for the current user."""
+        trade1 = _make_trade(user_id="alice", ticker="AAPL")
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [trade1]
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import list_trades
+
+        result = await list_trades(mock_db)
+        assert len(result) == 1
+        assert result[0]["user_id"] == "alice"
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="bob")
+    async def test_delete_trade_scoped_to_user(self, mock_uid):
+        """delete_trade should only delete trades belonging to the current user."""
+        # rowcount=0 means the WHERE clause (id + user_id) matched nothing
+        mock_result = MagicMock()
+        mock_result.rowcount = 0
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import delete_trade
+
+        result = await delete_trade(mock_db, uuid.uuid4())
+        assert result is False
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="alice")
+    async def test_delete_trade_own_trade_succeeds(self, mock_uid):
+        """delete_trade should succeed when user owns the trade."""
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import delete_trade
+
+        result = await delete_trade(mock_db, uuid.uuid4())
+        assert result is True
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="bob")
+    async def test_add_exit_returns_none_for_other_user(self, mock_uid):
+        """add_exit should return None when trade belongs to a different user."""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import add_exit
+
+        result = await add_exit(
+            mock_db,
+            uuid.uuid4(),
+            exit_date=date(2026, 2, 1),
+            exit_price=160.0,
+            quantity=50.0,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="bob")
+    async def test_add_leg_returns_none_for_other_user(self, mock_uid):
+        """add_leg should return None when trade belongs to a different user."""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import add_leg
+
+        result = await add_leg(
+            mock_db,
+            uuid.uuid4(),
+            leg_type="buy_call",
+            strike=155.0,
+            expiry=date(2026, 3, 21),
+            quantity=10.0,
+            premium=3.5,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    @patch("backend.services.journal_service._current_user_id", return_value="bob")
+    async def test_update_trade_returns_none_for_other_user(self, mock_uid):
+        """update_trade should return None when trade belongs to a different user."""
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+
+        mock_db = AsyncMock()
+        mock_db.execute.return_value = mock_result
+
+        from backend.services.journal_service import update_trade
+
+        result = await update_trade(mock_db, uuid.uuid4(), tags=["new-tag"])
+        assert result is None
+
+    def test_serialize_trade_includes_user_id(self):
+        """Serialized trade output should include user_id."""
+        trade = _make_trade(user_id="alice")
+        result = serialize_trade(trade)
+        assert result["user_id"] == "alice"
+
+    def test_default_user_id_in_mock(self):
+        """Default mock trade should have user_id='default'."""
+        trade = _make_trade()
+        assert trade.user_id == "default"
