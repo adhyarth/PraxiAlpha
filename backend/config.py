@@ -50,6 +50,9 @@ class Settings(BaseSettings):
     fred_api_key: str = ""
     te_api_key: str = ""  # TradingEconomics API key (optional, falls back to guest:guest)
 
+    # ---- User Isolation (Trading Journal) ----
+    praxialpha_user_id: str = "default"  # Set per-user in .env for trade privacy
+
     @property
     def async_database_url(self) -> str:
         """Build async database URL if not explicitly set."""

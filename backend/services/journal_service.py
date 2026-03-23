@@ -18,6 +18,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from backend.config import get_settings
 from backend.models.journal import (
     AssetType,
     LegType,
@@ -30,6 +31,28 @@ from backend.models.journal import (
 )
 
 logger = logging.getLogger(__name__)
+
+_USER_ID_MAX_LENGTH = 50
+
+
+def _current_user_id() -> str:
+    """Return the active user_id from settings (PRAXIALPHA_USER_ID env var)."""
+    raw_user_id = get_settings().praxialpha_user_id
+
+    if raw_user_id is None:
+        raise RuntimeError("PRAXIALPHA_USER_ID is not configured")
+
+    user_id = raw_user_id.strip()
+
+    if not user_id:
+        raise ValueError("PRAXIALPHA_USER_ID must be non-empty after trimming whitespace")
+
+    if len(user_id) > _USER_ID_MAX_LENGTH:
+        raise ValueError(
+            f"PRAXIALPHA_USER_ID must be at most {_USER_ID_MAX_LENGTH} characters long"
+        )
+
+    return user_id
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +171,7 @@ def serialize_trade(trade: Trade, include_children: bool = True) -> dict[str, An
 
     result: dict[str, Any] = {
         "id": str(trade.id),
+        "user_id": trade.user_id,
         "ticker": trade.ticker,
         "direction": trade.direction.value
         if isinstance(trade.direction, TradeDirection)
@@ -205,6 +229,7 @@ async def create_trade(
     """Create a new trade entry."""
     trade = Trade(
         ticker=ticker.upper(),
+        user_id=_current_user_id(),
         direction=TradeDirection(direction),
         asset_type=AssetType(asset_type),
         trade_type=TradeType(trade_type),
@@ -234,10 +259,11 @@ async def create_trade(
 
 
 async def get_trade(db: AsyncSession, trade_id: uuid.UUID) -> dict[str, Any] | None:
-    """Get a single trade by ID, including exits and legs."""
+    """Get a single trade by ID, including exits and legs. Scoped to current user."""
+    user_id = _current_user_id()
     stmt = (
         select(Trade)
-        .where(Trade.id == trade_id)
+        .where(Trade.id == trade_id, Trade.user_id == user_id)
         .options(selectinload(Trade.exits), selectinload(Trade.legs))
     )
     result = await db.execute(stmt)
@@ -266,7 +292,8 @@ async def list_trades(
     Note: `status` filtering is done in Python after fetching, since status
     is a computed field (not a DB column).
     """
-    stmt = select(Trade).options(selectinload(Trade.exits))
+    user_id = _current_user_id()
+    stmt = select(Trade).options(selectinload(Trade.exits)).where(Trade.user_id == user_id)
 
     # DB-level filters
     if ticker:
@@ -336,9 +363,10 @@ async def update_trade(
         # Nothing to update — just return current state
         return await get_trade(db, trade_id)
 
+    user_id = _current_user_id()
     stmt = (
         select(Trade)
-        .where(Trade.id == trade_id)
+        .where(Trade.id == trade_id, Trade.user_id == user_id)
         .options(selectinload(Trade.exits), selectinload(Trade.legs))
     )
     result = await db.execute(stmt)
@@ -368,8 +396,9 @@ async def update_trade(
 
 
 async def delete_trade(db: AsyncSession, trade_id: uuid.UUID) -> bool:
-    """Delete a trade and all its exits/legs (CASCADE). Returns True if found."""
-    stmt = delete(Trade).where(Trade.id == trade_id)
+    """Delete a trade and all its exits/legs (CASCADE). Returns True if found. Scoped to current user."""
+    user_id = _current_user_id()
+    stmt = delete(Trade).where(Trade.id == trade_id, Trade.user_id == user_id)
     result = await db.execute(stmt)
     deleted: bool = result.rowcount > 0  # type: ignore[attr-defined]
     if deleted:
@@ -397,10 +426,11 @@ async def add_exit(
     Validates that exit quantity doesn't exceed remaining quantity.
     Returns the updated trade (with new exit included), or None if trade not found.
     """
-    # Fetch trade with exits
+    # Fetch trade with exits (scoped to current user)
+    user_id = _current_user_id()
     stmt = (
         select(Trade)
-        .where(Trade.id == trade_id)
+        .where(Trade.id == trade_id, Trade.user_id == user_id)
         .options(selectinload(Trade.exits), selectinload(Trade.legs))
     )
     result = await db.execute(stmt)
@@ -452,8 +482,9 @@ async def add_leg(
 
     Returns the updated trade (with new leg included), or None if trade not found.
     """
-    # Verify trade exists
-    stmt = select(Trade).where(Trade.id == trade_id)
+    # Verify trade exists (scoped to current user)
+    user_id = _current_user_id()
+    stmt = select(Trade).where(Trade.id == trade_id, Trade.user_id == user_id)
     result = await db.execute(stmt)
     trade = result.scalar_one_or_none()
     if trade is None:

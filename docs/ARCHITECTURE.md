@@ -375,7 +375,7 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 │ Column              │ Purpose                                         │
 ├─────────────────────┼─────────────────────────────────────────────────┤
 │ id                  │ UUID primary key                                │
-│ user_id             │ PLANNED (Session 19): owner identifier (from PRAXIALPHA_USER_ID env) │
+│ user_id             │ VARCHAR(50), NOT NULL, indexed, default 'default' — owner identifier (from PRAXIALPHA_USER_ID env) │
 │ ticker              │ "AAPL", "TSLA" — the traded symbol              │
 │ direction           │ ENUM: 'long' / 'short'                         │
 │ asset_type          │ ENUM: 'shares' / 'options'                     │
