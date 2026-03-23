@@ -13,6 +13,12 @@
 - **`_fetch_and_upsert_date()` helper** — handles single-date bulk fetch, record matching, batch upsert, and `latest_date` update. Extracted from the monolithic task for testability.
 - **`ohlcv_max_gap_days` config setting** — caps auto-fill at 60 calendar days (configurable). Beyond that, the task logs a warning and recommends the manual backfill script.
 - **12 new gap-fill tests** (434 total) — `_candidate_dates` (6 scenarios: no gap, single day, weekend skip, multi-day, full week, Saturday anchor), `_fetch_and_upsert_date` (2 scenarios: empty bulk, known/unknown ticker matching), integration (4 scenarios: up-to-date, cap exceeded, 5-day outage, holiday in gap).
+- **3 new options-exclusion tests** (437 total) — `test_skips_options_trades`, `test_includes_equity_but_skips_options`, `test_returns_reason_for_options_trade`.
+
+### Fixed
+- **Options trades excluded from what-if snapshots** — `get_closed_trades_needing_snapshots()` now skips trades with `asset_type == "options"`. The Celery snapshot task was previously attempting to compute hypothetical PnL for options trades using equity OHLCV prices, which is meaningless without live options pricing data.
+- **What-if summary returns explicit reason for options trades** — `get_whatif_summary()` now returns a `"reason"` field explaining why what-if analysis is unavailable for options trades, instead of silently showing zero snapshots.
+- **Streamlit what-if card shows info banner for options** — `render_whatif_summary()` displays an `st.info()` message when the API returns a `reason` field, rather than the generic "no snapshots yet" caption.
 
 ### Changed
 - **`daily_ohlcv_update` rewritten** — replaced single-day fetch with gap-aware loop. Uses `MAX(latest_date)` from active stocks as the anchor. Falls back to single-day fetch when no history exists (initial backfill needed).

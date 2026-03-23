@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 26 — Skip Options What-If |
 | **Branch** | `fix/skip-options-what-if` |
-| **Status** | Code complete, CI green (437 tests). Docs pending. |
-| **Last checkpoint** | All code committed. 3 new tests. Proceeding to docs + PR. |
+| **Status** | PR #28 opened, awaiting review. |
+| **Last checkpoint** | All code + docs committed and pushed. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
