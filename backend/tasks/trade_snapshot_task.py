@@ -51,7 +51,7 @@ def generate_snapshots(self, snapshot_date_str: str | None = None):
         from sqlalchemy import select
         from sqlalchemy.exc import IntegrityError
 
-        from backend.database import async_session_factory
+        from backend.database import async_session_factory, engine
         from backend.models.ohlcv import DailyOHLCV
         from backend.models.stock import Stock
         from backend.services.trade_snapshot_service import (
@@ -59,6 +59,8 @@ def generate_snapshots(self, snapshot_date_str: str | None = None):
             create_snapshot,
             get_closed_trades_needing_snapshots,
         )
+
+        await engine.dispose()
 
         async with async_session_factory() as db:
             # 1. Find closed trades that need snapshots

@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-23 (Session 26 — Skip Options What-If)
+> **Last updated:** 2026-03-23 (Session 27 — Celery Task Bug Fixes)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 26 — Skip Options What-If |
+| **Session** | 27 — Celery Task Bug Fixes |
 | **Date** | 2026-03-23 |
-| **PR** | #28 (Skip Options What-If) |
-| **What was done** | Excluded options trades from what-if snapshot generation (no live options pricing). Added explicit reason in what-if summary API + Streamlit info banner. 3 new tests (437 total). |
+| **PR** | #29 (Celery Task Bug Fixes) |
+| **What was done** | Fixed 3 Celery task bugs: engine pool disposal (stale connections across event loops), timestamp cast in candle aggregate refresh, worker queue routing (`-Q celery,data_pipeline`). Staggered beat schedule to 7 PM ET window. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,7 +26,7 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 27 — Watchlist Backend |
+| **Session** | 28 — Watchlist Backend |
 | **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
 | **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |

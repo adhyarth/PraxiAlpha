@@ -40,16 +40,17 @@ celery_app.conf.update(
 
 # ---- Celery Beat Schedule (Daily Updates) ----
 celery_app.conf.beat_schedule = {
-    # Daily OHLCV update — runs at 6 PM ET (after market close + settlement)
+    # Daily OHLCV update — runs at 7 PM ET (after market close + settlement)
+    # Chains refresh_candle_aggregates automatically on success.
     "daily-ohlcv-update": {
         "task": "backend.tasks.data_tasks.daily_ohlcv_update",
-        "schedule": crontab(hour=18, minute=0),  # 6:00 PM ET
+        "schedule": crontab(hour=19, minute=0),  # 7:00 PM ET
         "options": {"queue": "data_pipeline"},
     },
-    # Daily macro data update — runs at 6:30 PM ET
+    # Daily macro data update — runs at 7:10 PM ET
     "daily-macro-update": {
         "task": "backend.tasks.data_tasks.daily_macro_update",
-        "schedule": crontab(hour=18, minute=30),  # 6:30 PM ET
+        "schedule": crontab(hour=19, minute=10),  # 7:10 PM ET
         "options": {"queue": "data_pipeline"},
     },
     # Daily economic calendar sync — runs at 7 AM ET (before market open)
@@ -58,10 +59,10 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=7, minute=0),  # 7:00 AM ET
         "options": {"queue": "data_pipeline"},
     },
-    # Daily trade snapshot generation — runs at 7 PM ET (after OHLCV update)
+    # Daily trade snapshot generation — runs at 7:20 PM ET (after OHLCV update)
     "daily-trade-snapshots": {
         "task": "backend.tasks.trade_snapshot_task.generate_snapshots",
-        "schedule": crontab(hour=19, minute=0),  # 7:00 PM ET
+        "schedule": crontab(hour=19, minute=20),  # 7:20 PM ET
         "options": {"queue": "data_pipeline"},
     },
 }
