@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_db
-from backend.services import journal_service
+from backend.services import journal_service, trade_snapshot_service
 
 router = APIRouter(prefix="/journal", tags=["Trading Journal"])
 
@@ -219,3 +219,40 @@ async def add_leg(
     if trade is None:
         raise HTTPException(status_code=404, detail="Trade not found")
     return trade
+
+
+# ---------------------------------------------------------------------------
+# Post-Close What-If Snapshot Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{trade_id}/snapshots")
+async def list_trade_snapshots(
+    trade_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all post-close price snapshots for a trade, ordered by date."""
+    snapshots = await trade_snapshot_service.list_snapshots(db, trade_id)
+    if snapshots is None:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return {"count": len(snapshots), "snapshots": snapshots}
+
+
+@router.get("/{trade_id}/what-if")
+async def get_whatif_summary(
+    trade_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get the what-if summary for a closed trade.
+
+    Compares actual exit PnL against the best/worst hypothetical PnL
+    if the full position had been held longer.
+    """
+    summary = await trade_snapshot_service.get_whatif_summary(db, trade_id)
+    if summary is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Trade not found or not closed",
+        )
+    return summary

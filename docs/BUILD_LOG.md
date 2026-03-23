@@ -1357,3 +1357,101 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
    - **Why:** Consistency with the gitignore policy.
 
 **7 new validation tests added** for `_current_user_id()`: valid ID, whitespace stripping, None → RuntimeError, empty → ValueError, whitespace-only → ValueError, too-long → ValueError, exactly-max-length valid. Test count: **286 (7 new)**.
+
+### Session 20 — 2026-03-22: Post-Close "What-If" Implementation (Phase 2)
+
+**Goal:** Implement the post-close "what-if" tracking feature designed in Session 17 — TradeSnapshot model, snapshot service, Celery periodic task, API endpoints, Alembic migration, and comprehensive tests.
+
+**Branch:** `feat/what-if-snapshots`
+
+#### What Was Done
+
+1. **TradeSnapshot model** (`backend/models/trade_snapshot.py`)
+   - 7 columns: UUID PK, `trade_id` FK (CASCADE), `snapshot_date`, `close_price`, `hypothetical_pnl`, `hypothetical_pnl_pct`, `created_at`
+   - `UNIQUE(trade_id, snapshot_date)` constraint (`uq_trade_snapshot_date`) prevents duplicate snapshots
+   - SQLAlchemy relationship back to `Trade` model
+   - Registered in `backend/models/__init__.py`
+
+2. **Snapshot service** (`backend/services/trade_snapshot_service.py`)
+   - `compute_hypothetical_pnl()` — direction-aware PnL using Decimal arithmetic (long vs short)
+   - `create_snapshot()` — insert a single snapshot row
+   - `list_snapshots()` — list all snapshots for a trade (user-scoped), ordered by date
+   - `get_whatif_summary()` — compute best/worst/latest hypothetical PnL vs actual exit PnL
+   - `get_closed_trades_needing_snapshots()` — find eligible trades for Celery task
+   - `MAX_TRACKING_DAYS` — per-timeframe tracking limits: daily=30, weekly=112, monthly/quarterly=540
+   - `_serialize_snapshot()` — JSON serialization helper
+   - All queries scoped to `_current_user_id()` (user isolation from Session 19)
+
+3. **Celery periodic task** (`backend/tasks/trade_snapshot_task.py`)
+   - `generate_snapshots` task — finds eligible closed trades, fetches closing prices from `daily_ohlcv`, computes hypothetical PnL, creates snapshots
+   - Registered in `celery_app.py` beat schedule as `daily-trade-snapshots` at 7:30 PM ET
+   - Retry logic (max 3 retries, 5-minute delay)
+
+4. **API endpoints** (added to `backend/api/routes/journal.py`)
+   - `GET /api/v1/journal/{trade_id}/snapshots` — list all snapshots for a trade
+   - `GET /api/v1/journal/{trade_id}/what-if` — get what-if summary (best/worst/latest hypothetical vs actual PnL)
+
+5. **Alembic migration** (`data/migrations/versions/003_add_trade_snapshots.py`)
+   - Creates `trade_snapshots` table with all columns, FK, index, and UNIQUE constraint
+   - Local-only (migrations are gitignored)
+
+6. **37 new tests** (`backend/tests/test_trade_snapshots.py`) — 323 total:
+   - Model structure: import, columns, unique constraint, repr, registration (5 tests)
+   - PnL computation: long profit/loss, short profit/loss, zero movement, decimal precision, fractional qty (7 tests)
+   - Serialization: all fields, None created_at (2 tests)
+   - Service CRUD: list snapshots (nonexistent trade, empty, ordered), what-if summary (nonexistent, open, no snapshots, best/worst/latest) (7 tests)
+   - User isolation: list and what-if return None for other users (2 tests)
+   - Max tracking: daily=30, weekly=112, monthly=540, quarterly=540 (4 tests)
+   - Celery: task registration, beat schedule (2 tests)
+   - API routes: router paths exist, GET methods (3 tests)
+   - Create snapshot: creates and returns (1 test)
+   - Eligible trade finder: open trades skipped, past max tracking skipped, eligible returned, existing snapshot skipped (4 tests)
+
+7. **Bug fix: MagicMock stop_loss in tests**
+   - Root cause: `_make_mock_trade()` didn't set `stop_loss`, so MagicMock returned another MagicMock which failed `Decimal(str(...))` conversion in `compute_trade_metrics()`
+   - Fix: added `stop_loss=None` to mock defaults (5 tests were failing)
+
+8. **Session 19 post-merge cleanup** (carried from main)
+   - `docs/PROGRESS.md` — updated crash recovery block to reflect Session 19 merged, ready for Session 20
+
+#### Key Design Decisions
+- **Full position hypothetical PnL** — uses entire original `total_quantity`, not remaining quantity at close, for a clean "what if I never sold?" comparison
+- **Direction-aware computation** — long: `(close - entry) * qty`, short: `(entry - close) * qty`. Uses Decimal arithmetic for precision.
+- **User isolation inherited** — snapshots inherit user isolation via `trade_id` FK. Service queries verify trade ownership before returning data.
+- **Max tracking by timeframe** — prevents indefinite snapshot accumulation. Daily trades tracked for 30 days, weekly for 16 weeks, monthly/quarterly for 18 months.
+- **Ternary operator for ruff SIM108** — replaced if/else block with ternary per ruff linter suggestion.
+
+#### Lessons Learned
+- MagicMock returns MagicMock for unset attributes, which fails Decimal conversion. Always explicitly set numeric attributes (especially `stop_loss`) to `None` or a real value.
+- The `compute_trade_metrics()` function from journal_service checks `if trade.stop_loss is not None` before using it — but MagicMock is truthy, so the check passes and then `Decimal(str(MagicMock()))` raises `decimal.InvalidOperation`.
+- Carrying uncommitted changes to a feature branch (from post-merge cleanup) works cleanly — just create the branch before committing.
+
+#### Files Changed (8 files)
+- `backend/models/trade_snapshot.py` — new TradeSnapshot model
+- `backend/models/__init__.py` — registered TradeSnapshot
+- `backend/services/trade_snapshot_service.py` — new snapshot service (CRUD, what-if, PnL calc)
+- `backend/tasks/trade_snapshot_task.py` — new Celery task
+- `backend/tasks/celery_app.py` — registered task + beat schedule
+- `backend/api/routes/journal.py` — 2 new endpoints
+- `backend/tests/test_trade_snapshots.py` — 37 new tests
+- `data/migrations/versions/003_add_trade_snapshots.py` — Alembic migration (local-only)
+
+#### Test Count: 323 (37 new)
+
+#### PR Review Fixes (PR #20 — 11 comments from copilot-pull-request-reviewer)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Fixed DailyOHLCV price query to join Stock** (`trade_snapshot_task.py`) — replaced `DailyOHLCV.ticker.in_(tickers)` with `Stock.ticker.in_(tickers)` joined via `Stock.id == DailyOHLCV.stock_id` | `DailyOHLCV` uses `stock_id` (integer FK), not `ticker` (string). The original query referenced a non-existent column and would fail at runtime. | Task would crash on every run with `AttributeError: type object 'DailyOHLCV' has no attribute 'ticker'`. Zero snapshots would ever be created. |
+| 2 | **Added per-trade rollback on snapshot creation error** (`trade_snapshot_task.py`) — wrapped `create_snapshot` + `db.commit()` in try/except with `IntegrityError` (duplicate → skip) and `Exception` (→ rollback + log) | The original code committed all snapshots in a single batch at the end. One failure (e.g., IntegrityError from a duplicate) would poison the entire session and skip all remaining trades. | A single duplicate snapshot would roll back the entire batch, losing all snapshots for that run. Transient DB errors on one trade would kill snapshots for all other trades. |
+| 3 | **Added Celery retry logic with correct exception chaining** (`trade_snapshot_task.py`) — `raise self.retry(exc=exc) from exc` in outer try/except | The original task had no retry mechanism. A transient failure (DB restart, network blip) would permanently fail the task with no automatic recovery. `from exc` preserves the original traceback for debugging. | Transient failures would require manual intervention to re-trigger snapshot generation. Without `from exc`, the retry exception would mask the original error, making debugging harder. |
+| 4 | **Used US/Eastern timezone for "today"** (`trade_snapshot_task.py`) — replaced `date.today()` with `datetime.now(ZoneInfo("US/Eastern")).date()` | The task runs at 7:00 PM ET. On a UTC-based server, `date.today()` at 7 PM ET = 11 PM UTC, which is still the correct date. But near midnight ET (if the task is delayed), UTC could be the next day. Using ET explicitly ensures the snapshot date always matches the US trading day. | Edge case: if the task runs late (e.g., 11:30 PM ET = 3:30 AM UTC next day), `date.today()` on a UTC server would return tomorrow's date, creating a snapshot for a date that hasn't had a market close yet. |
+| 5 | **Added `SNAPSHOT_CADENCE_DAYS` for timeframe-aware cadence** (`trade_snapshot_service.py`) — daily=1, weekly=7, monthly/quarterly=30 | The original implementation snapshotted every eligible trade every day regardless of timeframe. A monthly trade getting daily snapshots is noisy and wasteful — 30 rows when 1 would suffice. | Monthly trades would accumulate 540 daily snapshots (18 months × 30 days/month) instead of 18 monthly snapshots. Database bloat and noisy what-if summaries with too many data points. |
+| 6 | **Batch-checked existing snapshots** (`trade_snapshot_service.py`) — replaced N individual `SELECT ... WHERE trade_id = X AND snapshot_date = Y` queries with a single `SELECT trade_id WHERE trade_id IN (...) AND snapshot_date = Y` | The original N+1 pattern issued one query per candidate trade to check for existing snapshots. With 100 closed trades, that's 100 extra queries per task run. | Linear query growth with trade count. At 500 trades, the task would issue 500 individual queries just to check for duplicates, adding significant latency to each run. |
+| 7 | **Fixed CHANGELOG schedule time** (`docs/CHANGELOG.md`) — changed "7:30 PM ET" to "7:00 PM ET" | The code in `celery_app.py` uses `crontab(hour=0, minute=0)` which is midnight UTC = 7:00 PM ET (during EDT) or 8:00 PM ET (during EST). The CHANGELOG said 7:30 PM. | Documentation mismatch — users expecting the task at 7:30 PM would see it run 30 minutes early and think it's a bug. |
+| 8 | **Added snapshot cadence entry to CHANGELOG** (`docs/CHANGELOG.md`) — new bullet under Added section | The cadence feature was implemented but not documented in the changelog. | Missing changelog entry for a user-facing behavior change. |
+| 9 | **Fixed PROGRESS.md encoding corruption** (`docs/PROGRESS.md`) — reconstructed header from `# 📊 Pr> **Last...` garbage to clean `# 📊 PraxiAlpha — Project Progress` | A prior file edit corrupted the file header, merging the title with the "Last updated" line and producing garbled characters. The crash-recovery block was duplicated and the emoji was corrupted (`�` instead of `🚨`). | PROGRESS.md is the crash-recovery file. If it's unreadable, a recovery session can't determine where to resume, defeating the entire checkpoint mechanism. |
+| 10 | **Updated test mocks for batch query pattern** (`test_trade_snapshots.py`) — changed `scalar_one_or_none` mock to `.all()` returning list of tuples | Tests still mocked the old per-trade snapshot existence check pattern. After switching to batch query, the mocks needed to return `[(trade_id,)]` tuples instead of a single scalar. | Tests would pass but wouldn't actually test the new batch query code path. False confidence — a real bug in the batch logic would go undetected. |
+| 11 | **Added 8 new cadence tests** (`test_trade_snapshots.py`) — `TestSnapshotCadence` (4 constant tests) + weekly/monthly cadence skip/eligible tests (4 behavioral tests) | The cadence feature had no test coverage. Without tests, a future refactor could break the cadence logic silently. | Regression risk — changing `SNAPSHOT_CADENCE_DAYS` values or the modulo logic would not be caught by CI. |
+
+**Test count after PR fixes: 331 (8 new cadence/constant tests)**

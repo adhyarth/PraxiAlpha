@@ -6,6 +6,7 @@ from backend.models.macro import MacroData
 from backend.models.ohlcv import DailyOHLCV
 from backend.models.split import StockSplit
 from backend.models.stock import Stock
+from backend.models.trade_snapshot import TradeSnapshot
 
 __all__ = [
     "Stock",
@@ -17,4 +18,5 @@ __all__ = [
     "Trade",
     "TradeExit",
     "TradeLeg",
+    "TradeSnapshot",
 ]

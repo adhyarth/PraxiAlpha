@@ -8,6 +8,12 @@
 ## [Unreleased]
 
 ### Added
+- **Post-close "what-if" implementation** — `TradeSnapshot` model, snapshot service (create, list, what-if summary), Celery periodic task (`generate_snapshots`), 2 new API endpoints (`GET /snapshots`, `GET /what-if`), Alembic migration 003 (local-only)
+- **Direction-aware hypothetical PnL** — `compute_hypothetical_pnl()` helper using Decimal arithmetic, supports long and short trades
+- **Max tracking durations by timeframe** — daily: 30 days, weekly: 112 days (16 weeks), monthly/quarterly: 540 days (18 months)
+- **Celery beat schedule entry** — `daily-trade-snapshots` runs at 7:00 PM ET to snapshot all eligible closed trades
+- **Snapshot cadence by timeframe** — daily trades: every day, weekly trades: every 7 days, monthly/quarterly trades: every 30 days
+- **37 new snapshot tests** (323 total) — model structure, PnL computation (7 scenarios), serialization, service CRUD, what-if summary, user isolation, max tracking, Celery task registration, API routes, create snapshot, eligible trade finder
 - **User isolation implementation** — `user_id` column on `trades` table, `PRAXIALPHA_USER_ID` env var in `config.py`, all journal service queries filtered by `user_id`, Alembic migration (local-only, not tracked in repo)
 - **11 new isolation tests** (279 total) — create sets user_id, get/list/update/delete/add_exit/add_leg scoped to user, cross-user access returns None, serialization includes user_id
 - **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
