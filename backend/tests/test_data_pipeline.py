@@ -1,9 +1,10 @@
 """
 PraxiAlpha — Data Pipeline Tests
 
-Tests for EODHD fetcher, FRED fetcher, and data validator.
+Tests for EODHD fetcher, FRED fetcher, data validator, and OHLCV gap-fill logic.
 """
 
+import importlib.util
 from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -12,7 +13,12 @@ import pytest
 
 from backend.models.macro import FRED_SERIES
 from backend.services.data_pipeline.data_validator import DataValidator
-from backend.tasks.data_tasks import _candidate_dates, _fetch_and_upsert_date
+
+# Celery is not installed in the lightweight CI test environment.
+# Guard the import so the rest of the test file still runs.
+_has_celery = importlib.util.find_spec("celery") is not None
+if _has_celery:
+    from backend.tasks.data_tasks import _candidate_dates, _fetch_and_upsert_date
 
 
 class TestDataValidator:
@@ -245,6 +251,7 @@ class TestValidateMacroExtended:
 # ============================================================
 
 
+@pytest.mark.skipif(not _has_celery, reason="celery not installed")
 class TestCandidateDates:
     """Tests for the _candidate_dates helper."""
 
@@ -297,6 +304,7 @@ class TestCandidateDates:
         assert result == [date(2026, 3, 23)]
 
 
+@pytest.mark.skipif(not _has_celery, reason="celery not installed")
 class TestFetchAndUpsertDate:
     """Tests for the _fetch_and_upsert_date helper."""
 
@@ -367,6 +375,7 @@ class TestFetchAndUpsertDate:
         assert result["skipped"] == 1
 
 
+@pytest.mark.skipif(not _has_celery, reason="celery not installed")
 class TestDailyOhlcvUpdateGapFill:
     """Integration-style tests for the gap-fill task logic."""
 
