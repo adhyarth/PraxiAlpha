@@ -1915,3 +1915,19 @@ Addressed all 6 Copilot review comments on PR #27:
 - `docker-compose.yml` — added `-Q celery,data_pipeline` to worker command
 
 #### Test Count: 437 (0 new)
+
+#### PR Review Fixes (PR #29 — 4 comments from copilot-pull-request-reviewer)
+
+1. **Deduplicated CHANGELOG `### Fixed` / `### Changed` headings**
+   - *What:* Moved the 3 new Fixed bullets and 1 Changed bullet into the existing sections instead of creating duplicate headings at the top of `[Unreleased]`.
+   - *Why:* Keep a Changelog format requires each category to appear only once per release section. Duplicate headings break the structure.
+   - *Impact if not fixed:* Changelog parsers and humans scanning the file would see fragmented/duplicate sections, making release notes unreliable.
+
+2. **Updated `daily_ohlcv_update` docstring** — changed "6 PM ET" → "7 PM ET"
+   - *Why:* In-code documentation must match the actual beat schedule to avoid misleading future debugging.
+
+3. **Updated `daily_macro_update` docstring** — changed "6:30 PM ET" → "7:10 PM ET"
+   - *Why:* Same reason as above — docstring out of sync with schedule config.
+
+4. **Fixed PROGRESS.md crash-recovery checkpoint** — updated Status/Last checkpoint to reflect PR state
+   - *Why:* The crash-recovery block is the first thing read after a crash. If it says "docs in progress" when docs are done, the next session wastes time re-doing completed work.
