@@ -18,7 +18,7 @@
 | **Session** | 25 — Smart OHLCV Gap-Fill |
 | **Date** | 2026-03-23 |
 | **PR** | #27 (Smart OHLCV Gap-Fill) |
-| **What was done** | Rewrote `daily_ohlcv_update` Celery task with gap-detection loop — auto-fills all missing trading days since last fetch. Extracted helpers, added config setting, 12 new tests (434 total). |
+| **What was done** | Rewrote `daily_ohlcv_update` Celery task with gap-detection loop — auto-fills all missing trading days since last fetch. Extracted helpers, added config setting, 12 new tests (434 total). PR review fixes addressed (6 comments). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
