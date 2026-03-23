@@ -244,11 +244,15 @@ async def create_trade(
     )
     db.add(trade)
     await db.flush()
-    # Refresh to get server defaults (created_at, updated_at)
-    await db.refresh(trade, attribute_names=["id", "created_at", "updated_at"])
-    # Initialize empty relationships for serialization
-    trade.exits = []
-    trade.legs = []
+    # Re-fetch with eager-loaded relationships to avoid MissingGreenlet
+    # (assigning trade.exits = [] triggers a lazy load in async context)
+    stmt = (
+        select(Trade)
+        .where(Trade.id == trade.id)
+        .options(selectinload(Trade.exits), selectinload(Trade.legs))
+    )
+    result = await db.execute(stmt)
+    trade = result.scalar_one()
     logger.info("Created trade %s: %s %s %s", trade.id, ticker, direction, entry_date)
     return serialize_trade(trade)
 
