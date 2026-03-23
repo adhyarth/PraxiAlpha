@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 20 — Post-Close "What-If" Implementation |
-| **Date** | 2026-03-22 |
-| **PR** | #20 |
-| **What was done** | TradeSnapshot model, snapshot service (create, list, what-if summary, PnL calc), Celery periodic task (`generate_snapshots`), 2 new API endpoints (`GET /snapshots`, `GET /what-if`), Alembic migration 003, 37 new tests (323 total). |
+| **Session** | 21 — Journal UI Roadmap Reorder |
+| **Date** | 2026-03-23 |
+| **PR** | #21 |
+| **What was done** | Docs-only: inserted Journal Streamlit UI as Session 23, renumbered Sessions 22–27, updated Phase 2 checklists in DESIGN_DOC.md and PROGRESS.md, added watchlist backend to DESIGN_DOC Phase 2. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
