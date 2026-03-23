@@ -15,7 +15,7 @@
 |-|-|
 | **Session** | Bugfix — fix MissingGreenlet in journal create_trade |
 | **Branch** | `fix/journal-create-trade-greenlet` |
-| **Status** | Code fix + test updates done. Running CI checks. |
+| **Status** | CI passed, docs pending |
 | **Last checkpoint** | Code committed, pre-CI |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
