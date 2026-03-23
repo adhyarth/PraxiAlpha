@@ -2,9 +2,9 @@
 
 > *"Disciplined action that generates alpha."*
 
-**Version:** 1.2  
+**Version:** 1.3  
 **Created:** March 12, 2026  
-**Updated:** March 14, 2026  
+**Updated:** March 22, 2026  
 **Author:** Adhyarth Varia  
 **Status:** Draft — Finalized for Phase 1  
 
@@ -681,12 +681,20 @@ This layer sits **between every signal and every trade execution**. No trade byp
 │ comments         │     │   buy_put/       │     │ invested_value   │
 └──────────────────┘     │   sell_put)      │     │ daily_pnl        │
                          │ strike           │     │ total_pnl        │
-                         │ expiry           │     │ drawdown_pct     │
-                         │ quantity         │     │ market_regime    │
-                         │ premium          │     │ positions (JSON) │
-                         └──────────────────┘     │ sector_exposure  │
-                                                   │  (JSON)          │
-                                                   └──────────────────┘
+┌──────────────────┐     │ expiry           │     │ drawdown_pct     │
+│ trade_snapshots  │     │ quantity         │     │ market_regime    │
+├──────────────────┤     │ premium          │     │ positions (JSON) │
+│ id (PK, UUID)    │     └──────────────────┘     │ sector_exposure  │
+│ trade_id (FK)    │                               │  (JSON)          │
+│ snapshot_date    │                               └──────────────────┘
+│ close_price      │
+│ hypothetical_pnl │
+│ hypothetical_    │
+│  pnl_pct         │
+│ created_at       │
+└──────────────────┘
+  UNIQUE(trade_id,
+   snapshot_date)
 ```
 
 ### Data Volume Estimates
@@ -699,6 +707,7 @@ This layer sits **between every signal and every trade execution**. No trade byp
 | Macro data (50 indicators × 30 years × 252 days) | ~378K rows | ~55 MB |
 | Technical indicators (computed) | ~75.6M rows | ~19 GB |
 | Trade journal & portfolio snapshots | Growing | ~50 MB (initial) |
+| Trade post-close snapshots (~30 rows/trade × N trades) | Growing | ~1 MB (initial) |
 | Economic calendar events | ~20K rows/year (US high-importance) | ~5 MB |
 | **Total estimated** | | **~33 GB** |
 
@@ -744,6 +753,7 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 - [ ] Add event importance filtering (Low/Medium/High) and country filtering
 - [ ] Build Trading Journal backend (trades, exits, legs — open/partial/closed tracking)
 - [ ] Build Trading Journal PDF report generator (annotated charts with entry/exit markers)
+- [ ] Build Trading Journal post-close "what-if" tracking (auto-snapshot prices after trade close, hypothetical PnL analysis)
 - [ ] Build watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)
 

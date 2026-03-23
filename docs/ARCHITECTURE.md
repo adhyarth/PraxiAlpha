@@ -452,6 +452,34 @@ This avoids data synchronization issues (no triggers or materialized views neede
 
 **Why separate legs?** Multi-leg strategies (vertical spreads, iron condors, straddles) involve multiple simultaneous positions. Each leg has its own strike, expiry, and premium.
 
+#### `trade_snapshots` — Post-Close "What-If" Tracking (Planned)
+```sql
+-- Price snapshots after a trade is closed, for hypothetical PnL analysis
+┌─────────────────────┬──────────────────────────────────────────────────┐
+│ Column              │ Purpose                                          │
+├─────────────────────┼──────────────────────────────────────────────────┤
+│ id                  │ UUID primary key                                 │
+│ trade_id            │ → links to trades.id (FK, CASCADE)               │
+│ snapshot_date       │ The date of the price snapshot                   │
+│ close_price         │ Closing price of the ticker on that date         │
+│ hypothetical_pnl    │ PnL if full position held to this date           │
+│ hypothetical_pnl_pct│ PnL % relative to avg entry price               │
+│ created_at          │ Record creation time                             │
+└─────────────────────┴──────────────────────────────────────────────────┘
+-- UNIQUE constraint: (trade_id, snapshot_date)
+```
+
+**Key design decisions:**
+- **Auto-generated via Celery task** — a periodic task scans closed trades, fetches the closing price from `daily_ohlcv` (or weekly/monthly aggregates), computes hypothetical PnL, and inserts snapshot rows.
+- **Full position assumed** — hypothetical PnL is calculated as if the *entire original position* was still open. No partial/hybrid scenarios.
+- **Direction-aware PnL** — long trades: `(close_price - entry_price) * total_quantity`; short trades: `(entry_price - close_price) * total_quantity`.
+- **Max tracking duration by timeframe:**
+  - Daily trades → 30 calendar days (snapshot every trading day)
+  - Weekly trades → 16 calendar weeks (snapshot weekly)
+  - Monthly trades → 18 calendar months (snapshot monthly)
+- **Tracking stops** when the max duration is reached or no more price data is available (e.g., stock delisted).
+- **Unique constraint** on `(trade_id, snapshot_date)` prevents duplicate snapshots and allows safe upsert.
+
 ---
 
 ## 🌐 API Layer
@@ -482,7 +510,13 @@ More endpoints will be added as we build analysis, trading, and other modules.
 | `DELETE` | `/api/v1/journal/{trade_id}` | Delete a trade |
 | `POST` | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit fill |
 | `POST` | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| `GET` | `/api/v1/journal/report` | Generate PDF report with charts (Session 17) |
+| `GET` | `/api/v1/journal/report` | Generate PDF report with charts (Session 18) |
+
+#### Planned: Post-Close What-If Endpoints (Session 19)
+| Method | Path | What It Does |
+|--------|------|-------------|
+| `GET` | `/api/v1/journal/{trade_id}/snapshots` | List post-close "what-if" snapshots |
+| `GET` | `/api/v1/journal/{trade_id}/what-if` | Summary: best/worst hypothetical PnL vs actual exit |
 
 ---
 
@@ -610,4 +644,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-17 — Phase 2 (Charting & Dashboard — technical indicators, candlestick charts, candle aggregates complete)*
+*Last updated: 2026-03-22 — Phase 2 (added trade_snapshots schema for post-close "what-if" tracking)*
