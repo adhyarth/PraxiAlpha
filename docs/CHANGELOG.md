@@ -9,12 +9,6 @@
 
 ### Added
 - **Trading Journal Streamlit UI session** added to roadmap (Session 23) — trade list, entry form, detail view, PDF download, what-if display. After Session 23, the full journal is usable from the Streamlit dashboard.
-
-### Changed
-- **Session reorder** — inserted Journal UI Roadmap Reorder as Session 21 (docs-only), PDF Report → Session 22, Journal UI → Session 23, Watchlist Backend → 24, Watchlist UI → 25, Dashboard Polish → 26, Phase 3 Kickoff → 27
-- **Phase 2 checklist** updated in `DESIGN_DOC.md` and `PROGRESS.md` to include Journal Streamlit UI item
-
-### Added
 - **Post-close "what-if" implementation** — `TradeSnapshot` model, snapshot service (create, list, what-if summary), Celery periodic task (`generate_snapshots`), 2 new API endpoints (`GET /snapshots`, `GET /what-if`), Alembic migration 003 (local-only)
 - **Direction-aware hypothetical PnL** — `compute_hypothetical_pnl()` helper using Decimal arithmetic, supports long and short trades
 - **Max tracking durations by timeframe** — daily: 30 days, weekly: 112 days (16 weeks), monthly/quarterly: 540 days (18 months)
@@ -44,6 +38,8 @@
 - **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 20 (PDF Report) inserted before Watchlist sessions
 
 ### Changed
+- **Session reorder** — inserted Journal UI Roadmap Reorder as Session 21 (docs-only), PDF Report → Session 22, Journal UI → Session 23, Watchlist Backend → 24, Watchlist UI → 25, Dashboard Polish → 26, Phase 3 Kickoff → 27
+- **Phase 2 checklist** updated in `DESIGN_DOC.md` and `docs/PROGRESS.md` to include Journal Streamlit UI item
 - **`backend/config.py`** — added `praxialpha_user_id: str = "default"` setting
 - **`backend/models/journal.py`** — added `user_id: Mapped[str]` column to `Trade` (indexed, NOT NULL, server_default `'default'`)
 - **`backend/services/journal_service.py`** — all CRUD functions now filter by `_current_user_id()`, `create_trade` auto-sets `user_id`, `serialize_trade` includes `user_id` in output
