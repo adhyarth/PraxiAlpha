@@ -40,8 +40,15 @@
 - **Trading Journal PDF report plan** — per-trade annotated candlestick charts (matching trade timeframe), entry/exit markers, stop/TP lines, summary statistics, timeframe-based lookback (daily=1yr, weekly=2yr, monthly=5yr, quarterly=10yr)
 - **Trading Journal API endpoints planned** — 8 endpoints for CRUD, partial exits, option legs, and PDF report generation (`/api/v1/journal/`)
 - **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 20 (PDF Report) inserted before Watchlist sessions
+- **Trading Journal Streamlit UI** — full journal page (`streamlit_app/pages/journal.py`) with trade list (filters, PnL columns, status badges), new trade entry form, trade detail view (exits, option legs, what-if snapshots, edit, delete), and PDF report download button in sidebar.
+- **Journal API client** — `streamlit_app/components/journal_api.py` — HTTP helper functions for all 10 journal API endpoints (list, get, create, update, delete, add exit, add leg, list snapshots, what-if summary, download report).
+- **Journal trade form component** — `streamlit_app/components/journal_trade_form.py` — reusable Streamlit forms for create, edit, add exit, and add option leg.
+- **Journal trade detail component** — `streamlit_app/components/journal_trade_detail.py` — renders trade info card, exits table, legs table, what-if summary, and snapshot history.
+- **55 new UI tests** (422 total) — formatting helpers (12), API client (19), URL construction (3), rendering with mocked st (12), page helpers (9).
 
 ### Changed
+- **`streamlit_app/pages/journal.py`** — replaced Phase 7 placeholder with full journal UI (list, detail, new trade views with session_state routing)
+- **`streamlit_app/app.py`** — updated sidebar navigation: Journal link now active (was Phase 7 placeholder), moved from bottom to after Charts
 - **Session reorder** — inserted Journal UI Roadmap Reorder as Session 21 (docs-only), PDF Report → Session 22, Journal UI → Session 23, Watchlist Backend → 24, Watchlist UI → 25, Dashboard Polish → 26, Phase 3 Kickoff → 27
 - **Phase 2 checklist** updated in `DESIGN_DOC.md` and `docs/PROGRESS.md` to include Journal Streamlit UI item
 - **`backend/config.py`** — added `praxialpha_user_id: str = "default"` setting

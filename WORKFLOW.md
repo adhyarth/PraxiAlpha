@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-23 (Session 21 — Journal UI Roadmap Reorder)
+> **Last updated:** 2026-03-23 (Session 23 — Trading Journal Streamlit UI)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 21 — Journal UI Roadmap Reorder |
+| **Session** | 23 — Trading Journal Streamlit UI |
 | **Date** | 2026-03-23 |
-| **PR** | #21 |
-| **What was done** | Docs-only: inserted Journal Streamlit UI as Session 23, renumbered Sessions 22–27, updated Phase 2 checklists in DESIGN_DOC.md and PROGRESS.md, added watchlist backend to DESIGN_DOC Phase 2. |
+| **PR** | #24 |
+| **What was done** | Full Streamlit journal page: trade list with filters/PnL, entry form, detail view (exits, legs, what-if, edit, delete), PDF report download, API client module, 3 components, 55 new tests (422 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,14 +26,13 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 22 — Trading Journal PDF Report |
-| **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
-| **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal_report.py` |
+| **Session** | 24 — Watchlist Backend |
+| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
+| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
 
-> **After Session 22:** Session 23 builds the Streamlit Journal UI — trade list,
-> entry form, detail view, PDF download, what-if display. Once Session 23 is merged,
-> you can use the full journal from the Streamlit dashboard.
+> **After Session 24:** Session 25 builds the Streamlit Watchlist UI — create/rename/delete watchlists,
+> add/remove tickers, sparkline/change columns.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
