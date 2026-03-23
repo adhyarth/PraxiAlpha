@@ -1878,3 +1878,40 @@ Addressed all 6 Copilot review comments on PR #27:
 | # | What Was Changed | Why | Impact If Not Fixed |
 |---|-----------------|-----|---------------------|
 | 1 | **Consolidated duplicate `### Added` / `### Fixed` / `### Changed` headings** in `docs/CHANGELOG.md` `[Unreleased]` section — merged all bullets into single heading per category. Moved items that were under wrong headings (e.g. "Added" items listed under "Changed") to their correct sections. Folded `### Fixed (PR #15 review)`, `### Fixed (PR #16 review — Round 1)`, `### Fixed (PR #16 review — Round 2)` into the single `### Fixed` block with PR attribution in parentheses. | The `[Unreleased]` section had accumulated multiple duplicate headings across sessions (multiple `### Added`, `### Changed`, `### Fixed` blocks). This violates the [Keep a Changelog](https://keepachangelog.com/) format the project documents, which requires exactly one heading per category per release. | Changelog becomes increasingly unreadable as sessions accumulate. Automated tooling (e.g. `standard-version`, `release-please`) would break on duplicate headings. |
+
+### Session 27 — 2026-03-23: Celery Task Bug Fixes (Phase 2)
+
+**Goal:** Fix three production bugs in Celery tasks that prevented daily scheduled tasks from executing correctly, and stagger the beat schedule to a 7 PM ET window.
+
+**Branch:** `fix/celery-task-bugs`
+
+#### What Was Done
+1. **Engine pool disposal (`engine.dispose()`)** — Added `await engine.dispose()` at the top of every async Celery task's inner `_run()` / `_sync()` function. This disposes the stale connection pool from any previous event loop so that connections are re-created under the current loop created by `asyncio.run()`. Without this, pooled connections carry Futures bound to the old (now-closed) loop, causing "Future attached to a different loop" errors on the second and subsequent executions in the same worker process. Affected tasks: `daily_ohlcv_update`, `daily_macro_update`, `backfill_stock`, `backfill_all_stocks`, `daily_economic_calendar_sync`, `generate_snapshots`.
+
+2. **Timestamp cast fix in candle aggregate refresh** — Changed the `refresh_continuous_aggregate()` call from `now() - '{lookback}'::interval` to `(now() - '{lookback}'::interval)::date`. TimescaleDB requires both boundary arguments to be the same type; without the cast, the start boundary was a `timestamptz` while the end was `date`, causing a type mismatch error.
+
+3. **Worker queue routing fix** — Added `-Q celery,data_pipeline` to the Celery worker command in `docker-compose.yml`. All scheduled tasks are routed to the `data_pipeline` queue via `"options": {"queue": "data_pipeline"}` in the beat schedule, but the worker was only listening on the default `celery` queue. Tasks were being published but never consumed.
+
+4. **Beat schedule staggered to 7 PM ET** — Moved all post-market tasks to a 7 PM ET window with 10-minute gaps to avoid resource contention:
+   - `daily_ohlcv_update`: 6:00 PM → 7:00 PM ET (chains `refresh_candle_aggregates` on success)
+   - `daily_macro_update`: 6:30 PM → 7:10 PM ET
+   - `daily_trade_snapshots`: 7:00 PM → 7:20 PM ET
+   - `daily_economic_calendar_sync`: unchanged at 7:00 AM ET
+
+#### Key Design Decisions
+- **`engine.dispose()` placement** — placed inside each task's async `_run()` function (not at module level or in a signal handler) because the disposal must happen *within* the new event loop created by `asyncio.run()`. Calling it before `asyncio.run()` wouldn't work since `dispose()` is async.
+- **No new tests** — these are infrastructure/runtime fixes (Docker config, connection pool lifecycle, SQL type cast) that are not unit-testable without a live Celery worker + TimescaleDB. Verified by rebuilding containers and confirming tasks execute on schedule.
+- **Stagger spacing** — 10-minute gaps between tasks gives each task time to complete before the next starts, particularly important since OHLCV update chains candle aggregate refresh.
+
+#### Lessons Learned
+- Celery workers with `asyncio.run()` create a fresh event loop per task execution, but SQLAlchemy's async engine keeps a connection pool bound to the loop that created it. Must dispose between loops.
+- Docker Compose volume mounts (`- .:/app`) mean code changes are live in containers, but Celery workers and beat need to be restarted to pick up Python module changes (they cache imports).
+- Queue routing is silent — tasks get published to the queue but if no worker listens on that queue, they just sit in Redis forever with no error logged on the beat or worker side.
+
+#### Files Changed
+- `backend/tasks/data_tasks.py` — added `engine.dispose()` to 5 tasks, fixed timestamp cast
+- `backend/tasks/trade_snapshot_task.py` — added `engine.dispose()` to `generate_snapshots`
+- `backend/tasks/celery_app.py` — staggered beat schedule to 7 PM ET window
+- `docker-compose.yml` — added `-Q celery,data_pipeline` to worker command
+
+#### Test Count: 437 (0 new)
