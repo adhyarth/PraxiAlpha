@@ -1752,3 +1752,14 @@ This preserves the optimization (no legs loaded for list view) while fixing the 
 
 #### Updated Files (addendum)
 - `backend/services/journal_service.py` — conditional `selectinload(Trade.legs)` in `list_trades`
+
+#### PR Review Fixes (PR #25 — 3 comments from copilot-pull-request-reviewer)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Added `mock_db.execute.assert_awaited_once()` to `test_create_trade_returns_serialized`** — also moved `exits`/`legs` init from `capture_add()` to `_refetch_result()` | Test mocked `db.execute()` but never asserted it was awaited. Since `capture_add()` pre-populated `exits`/`legs`, the test would still pass even if `create_trade()` regressed to not re-fetching — defeating the purpose of the MissingGreenlet fix. | A regression removing the re-fetch (the core fix) would pass all tests silently. The MissingGreenlet bug could return without CI catching it. |
+| 2 | **Added `mock_db.execute.assert_awaited_once()` to `test_create_trade_uppercases_ticker`** — same mock restructuring | Same issue — `capture_add()` set `exits`/`legs`, masking whether the re-fetch actually happened. | Same silent regression risk as #1. |
+| 3 | **Added `mock_db.execute.assert_awaited_once()` to `test_create_trade_sets_user_id`** — same mock restructuring | Same pattern across all 3 create_trade tests. | Same silent regression risk. All 3 tests now enforce the re-fetch code path. |
+
+**Test count: 422 (0 new — assertions added to 3 existing tests)**
+**CI: ruff ✅ | format ✅ | mypy ✅ | pytest 422/422 ✅**
