@@ -51,6 +51,8 @@ def _fmt_price(value: float | None) -> str:
     """Format a price."""
     if value is None:
         return "—"
+    if value < 0:
+        return f"-${abs(value):,.2f}"
     return f"${value:,.2f}"
 
 

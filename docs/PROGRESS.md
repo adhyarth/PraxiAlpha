@@ -13,9 +13,9 @@
 
 | | |
 |-|-|
-| **Session** | _(none active)_ |
-| **Branch** | `main` |
-| **Status** | Session 23 merged. Ready to start Session 24. |
+| **Session** | 23 — Journal Streamlit UI |
+| **Branch** | `feat/journal-streamlit-ui` |
+| **Status** | PR #24 open — addressing review comments. |
 | **Last checkpoint** | — |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.

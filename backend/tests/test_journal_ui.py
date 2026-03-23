@@ -16,6 +16,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Skip all tests in this module if Streamlit is not available (CI doesn't install it).
+pytest.importorskip("streamlit")
+
+
 # ===========================================================================
 # Test: journal_trade_detail.py — formatting helpers
 # ===========================================================================
@@ -70,6 +74,8 @@ class TestDetailFormatters:
         assert _fmt_price(150.0) == "$150.00"
         assert _fmt_price(None) == "—"
         assert _fmt_price(1234567.89) == "$1,234,567.89"
+        assert _fmt_price(-5.00) == "-$5.00"
+        assert _fmt_price(0.0) == "$0.00"
 
     def test_fmt_r_positive(self):
         from streamlit_app.components.journal_trade_detail import _fmt_r
