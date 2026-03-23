@@ -16,7 +16,7 @@
 | **Session** | 27 — Celery Task Bug Fixes |
 | **Branch** | `fix/celery-task-bugs` |
 | **Status** | PR #29 opened, awaiting review. |
-| **Last checkpoint** | All code + docs committed and pushed. |
+| **Last checkpoint** | All code + docs committed and pushed. PR #29 created. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

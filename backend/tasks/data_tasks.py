@@ -145,7 +145,7 @@ def daily_ohlcv_update(self):
     Daily task: Fetch OHLCV data for **all missing dates** since the last
     successful update.
 
-    Runs at 6 PM ET daily via Celery Beat.
+    Runs at 7 PM ET daily via Celery Beat.
 
     **Gap-fill logic:**
     1. Query ``MAX(latest_date)`` across all active stocks.
@@ -289,7 +289,7 @@ def daily_macro_update(self):
     """
     Daily task: Fetch latest macro data from FRED.
 
-    Runs at 6:30 PM ET daily via Celery Beat.
+    Runs at 7:10 PM ET daily via Celery Beat.
     Fetches only the last 7 days of observations for each series
     to keep API calls minimal. The upsert handles deduplication.
     """

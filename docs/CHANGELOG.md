@@ -7,14 +7,6 @@
 
 ## [Unreleased]
 
-### Fixed
-- **Engine pool disposal in Celery tasks** — all async Celery tasks (`daily_ohlcv_update`, `daily_macro_update`, `backfill_stock`, `backfill_all_stocks`, `daily_economic_calendar_sync`, `generate_snapshots`) now call `await engine.dispose()` before creating sessions, preventing "Future attached to a different loop" errors on repeated task executions in the same worker process.
-- **Timestamp cast in candle aggregate refresh** — `refresh_continuous_aggregate()` call now casts `(now() - interval)::date` instead of raw `now() - interval`, fixing TimescaleDB type mismatch errors.
-- **Celery worker queue routing** — added `-Q celery,data_pipeline` to the worker command in `docker-compose.yml` so that tasks routed to the `data_pipeline` queue are actually consumed (previously only the default `celery` queue was listened to).
-
-### Changed
-- **Celery beat schedule staggered to 7 PM ET** — `daily_ohlcv_update` moved from 6:00 PM → 7:00 PM ET, `daily_macro_update` from 6:30 PM → 7:10 PM ET, `daily_trade_snapshots` from 7:00 PM → 7:20 PM ET. Provides more settlement time and staggers tasks to avoid resource contention. `refresh_candle_aggregates` is chained after OHLCV (no separate schedule entry).
-
 ### Added
 - **Smart OHLCV gap-fill** — `daily_ohlcv_update` Celery task now auto-detects missing dates since the last successful fetch and fills all gaps using one EODHD bulk API call per missing trading day. On a normal day this is still 1 API call; after a 5-day outage it self-heals with ~3-4 calls (weekdays only).
 - **`_candidate_dates()` helper** — generates weekday-only date lists for gap-fill, extracted for testability.
@@ -59,6 +51,9 @@
 - **55 new UI tests** (422 total) — formatting helpers (12), API client (19), URL construction (3), rendering with mocked st (12), page helpers (9).
 
 ### Fixed
+- **Engine pool disposal in Celery tasks** — all async Celery tasks (`daily_ohlcv_update`, `daily_macro_update`, `backfill_stock`, `backfill_all_stocks`, `daily_economic_calendar_sync`, `generate_snapshots`) now call `await engine.dispose()` before creating sessions, preventing "Future attached to a different loop" errors on repeated task executions in the same worker process.
+- **Timestamp cast in candle aggregate refresh** — `refresh_continuous_aggregate()` call now casts `(now() - interval)::date` instead of raw `now() - interval`, fixing TimescaleDB type mismatch errors.
+- **Celery worker queue routing** — added `-Q celery,data_pipeline` to the worker command in `docker-compose.yml` so that tasks routed to the `data_pipeline` queue are actually consumed (previously only the default `celery` queue was listened to).
 - **Options trades excluded from what-if snapshots** — `get_closed_trades_needing_snapshots()` now skips trades with `asset_type == "options"`. The Celery snapshot task was previously attempting to compute hypothetical PnL for options trades using equity OHLCV prices, which is meaningless without live options pricing data.
 - **What-if summary returns explicit reason for options trades** — `get_whatif_summary()` now returns a `"reason"` field explaining why what-if analysis is unavailable for options trades, instead of silently showing zero snapshots.
 - **Streamlit what-if card shows info banner for options** — `render_whatif_summary()` displays an `st.info()` message when the API returns a `reason` field, rather than the generic "no snapshots yet" caption.
@@ -83,6 +78,7 @@
 - **Tags type annotation** (PR #16 review — Round 2) — `Mapped[list | None]` → `Mapped[list[str] | None]` for type safety on JSONB tags column
 
 ### Changed
+- **Celery beat schedule staggered to 7 PM ET** — `daily_ohlcv_update` moved from 6:00 PM → 7:00 PM ET, `daily_macro_update` from 6:30 PM → 7:10 PM ET, `daily_trade_snapshots` from 7:00 PM → 7:20 PM ET. Provides more settlement time and staggers tasks to avoid resource contention. `refresh_candle_aggregates` is chained after OHLCV (no separate schedule entry).
 - **`daily_ohlcv_update` rewritten** — replaced single-day fetch with gap-aware loop. Uses `MAX(latest_date)` from active stocks as the anchor. Falls back to single-day fetch when no history exists (initial backfill needed).
 - **Trading Journal Streamlit UI session** added to roadmap (Session 23) — trade list, entry form, detail view, PDF download, what-if display. After Session 23, the full journal is usable from the Streamlit dashboard.
 - **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
