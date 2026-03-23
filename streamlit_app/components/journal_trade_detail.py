@@ -12,7 +12,6 @@ from typing import Any
 
 import streamlit as st
 
-
 # ---------------------------------------------------------------------------
 # Formatting helpers
 # ---------------------------------------------------------------------------
@@ -86,9 +85,13 @@ def render_trade_info(trade: dict[str, Any]) -> None:
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         pnl = trade.get("realized_pnl", 0)
-        delta_color = "normal" if pnl != 0 else "off"
-        st.metric("Realized PnL", _fmt_pnl(pnl), delta=_fmt_pct(trade.get("return_pct")),
-                   delta_color=delta_color)
+        delta_color: str = "normal" if pnl != 0 else "off"
+        st.metric(
+            "Realized PnL",
+            _fmt_pnl(pnl),
+            delta=_fmt_pct(trade.get("return_pct")),
+            delta_color=delta_color,  # type: ignore[arg-type]
+        )
     with col2:
         st.metric("R-Multiple", _fmt_r(trade.get("r_multiple")))
     with col3:
@@ -137,12 +140,14 @@ def render_exits_table(trade: dict[str, Any]) -> None:
     # Build table data
     rows = []
     for ex in exits:
-        rows.append({
-            "Date": ex.get("exit_date", "—"),
-            "Price": _fmt_price(ex.get("exit_price")),
-            "Quantity": f"{ex.get('quantity', 0):,.2f}",
-            "Comments": ex.get("comments") or "—",
-        })
+        rows.append(
+            {
+                "Date": ex.get("exit_date", "—"),
+                "Price": _fmt_price(ex.get("exit_price")),
+                "Quantity": f"{ex.get('quantity', 0):,.2f}",
+                "Comments": ex.get("comments") or "—",
+            }
+        )
 
     st.dataframe(rows, use_container_width=True, hide_index=True)
 
@@ -164,13 +169,15 @@ def render_legs_table(trade: dict[str, Any]) -> None:
     rows = []
     for lg in legs:
         leg_type_display = (lg.get("leg_type") or "—").replace("_", " ").title()
-        rows.append({
-            "Type": leg_type_display,
-            "Strike": _fmt_price(lg.get("strike")),
-            "Expiry": lg.get("expiry", "—"),
-            "Contracts": f"{lg.get('quantity', 0):,.2f}",
-            "Premium": _fmt_price(lg.get("premium")),
-        })
+        rows.append(
+            {
+                "Type": leg_type_display,
+                "Strike": _fmt_price(lg.get("strike")),
+                "Expiry": lg.get("expiry", "—"),
+                "Contracts": f"{lg.get('quantity', 0):,.2f}",
+                "Premium": _fmt_price(lg.get("premium")),
+            }
+        )
 
     st.dataframe(rows, use_container_width=True, hide_index=True)
 
@@ -194,7 +201,9 @@ def render_whatif_summary(summary: dict[str, Any] | None) -> None:
 
     total_snapshots = summary.get("total_snapshots", 0)
     if total_snapshots == 0:
-        st.caption("No post-close snapshots yet. Snapshots are collected automatically after a trade closes.")
+        st.caption(
+            "No post-close snapshots yet. Snapshots are collected automatically after a trade closes."
+        )
         return
 
     col1, col2, col3 = st.columns(3)
@@ -213,8 +222,10 @@ def render_whatif_summary(summary: dict[str, Any] | None) -> None:
                 f"PnL: **{_fmt_pnl(best.get('hypothetical_pnl'))}** "
                 f"({_fmt_pct(best.get('hypothetical_pnl_pct'))})"
             )
-            st.caption(f"Date: {best.get('snapshot_date', '—')} — "
-                       f"Close: {_fmt_price(best.get('close_price'))}")
+            st.caption(
+                f"Date: {best.get('snapshot_date', '—')} — "
+                f"Close: {_fmt_price(best.get('close_price'))}"
+            )
 
     worst = summary.get("worst_hypothetical")
     if worst:
@@ -224,8 +235,10 @@ def render_whatif_summary(summary: dict[str, Any] | None) -> None:
                 f"PnL: **{_fmt_pnl(worst.get('hypothetical_pnl'))}** "
                 f"({_fmt_pct(worst.get('hypothetical_pnl_pct'))})"
             )
-            st.caption(f"Date: {worst.get('snapshot_date', '—')} — "
-                       f"Close: {_fmt_price(worst.get('close_price'))}")
+            st.caption(
+                f"Date: {worst.get('snapshot_date', '—')} — "
+                f"Close: {_fmt_price(worst.get('close_price'))}"
+            )
 
     latest = summary.get("latest_snapshot")
     if latest:
@@ -258,11 +271,13 @@ def render_snapshot_table(snapshots_data: dict[str, Any] | None) -> None:
 
     rows = []
     for s in snapshots:
-        rows.append({
-            "Date": s.get("snapshot_date", "—"),
-            "Close Price": _fmt_price(s.get("close_price")),
-            "Hypothetical PnL": _fmt_pnl(s.get("hypothetical_pnl")),
-            "Hypothetical PnL %": _fmt_pct(s.get("hypothetical_pnl_pct")),
-        })
+        rows.append(
+            {
+                "Date": s.get("snapshot_date", "—"),
+                "Close Price": _fmt_price(s.get("close_price")),
+                "Hypothetical PnL": _fmt_pnl(s.get("hypothetical_pnl")),
+                "Hypothetical PnL %": _fmt_pct(s.get("hypothetical_pnl_pct")),
+            }
+        )
 
     st.dataframe(rows, use_container_width=True, hide_index=True)

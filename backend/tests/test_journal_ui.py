@@ -10,13 +10,11 @@ Tests for:
 All tests mock httpx and Streamlit — no real backend or browser needed in CI.
 """
 
-import importlib.util
 from datetime import date
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ===========================================================================
 # Test: journal_trade_detail.py — formatting helpers
@@ -97,8 +95,13 @@ class TestDetailFormatters:
 class TestJournalApi:
     """Test the journal API client functions with mocked httpx."""
 
-    def _mock_response(self, status_code: int = 200, json_data: Any = None,
-                       content: bytes = b"", headers: dict | None = None):
+    def _mock_response(
+        self,
+        status_code: int = 200,
+        json_data: Any = None,
+        content: bytes = b"",
+        headers: dict | None = None,
+    ):
         """Create a mock httpx response."""
         resp = MagicMock()
         resp.status_code = status_code
@@ -124,9 +127,7 @@ class TestJournalApi:
     def test_list_trades_with_filters(self, mock_get):
         from streamlit_app.components.journal_api import list_trades
 
-        mock_get.return_value = self._mock_response(
-            json_data={"count": 0, "trades": []}
-        )
+        mock_get.return_value = self._mock_response(json_data={"count": 0, "trades": []})
         result = list_trades(
             ticker="TSLA",
             status="closed",
@@ -143,7 +144,7 @@ class TestJournalApi:
         assert params["ticker"] == "TSLA"
         assert params["status"] == "closed"
 
-    @patch("httpx.get", side_effect=Exception("connection refused"))
+    @patch("httpx.get", side_effect=__import__("httpx").ConnectError("connection refused"))
     def test_list_trades_backend_down(self, mock_get):
         from streamlit_app.components.journal_api import list_trades
 
@@ -193,9 +194,7 @@ class TestJournalApi:
     def test_update_trade_success(self, mock_put):
         from streamlit_app.components.journal_api import update_trade
 
-        mock_put.return_value = self._mock_response(
-            json_data={"id": "abc", "stop_loss": 140.0}
-        )
+        mock_put.return_value = self._mock_response(json_data={"id": "abc", "stop_loss": 140.0})
         result = update_trade("abc", {"stop_loss": 140.0})
         assert result is not None
 
@@ -230,8 +229,16 @@ class TestJournalApi:
         mock_post.return_value = self._mock_response(
             json_data={"id": "abc", "legs": [{"leg_type": "buy_call"}]}
         )
-        result = add_leg("abc", {"leg_type": "buy_call", "strike": 150, "expiry": "2026-06-01",
-                                  "quantity": 1, "premium": 5.0})
+        result = add_leg(
+            "abc",
+            {
+                "leg_type": "buy_call",
+                "strike": 150,
+                "expiry": "2026-06-01",
+                "quantity": 1,
+                "premium": 5.0,
+            },
+        )
         assert result is not None
 
     @patch("httpx.get")
@@ -288,7 +295,7 @@ class TestJournalApi:
         pdf_bytes, filename = download_report()
         assert pdf_bytes is None
 
-    @patch("httpx.get", side_effect=Exception("timeout"))
+    @patch("httpx.get", side_effect=__import__("httpx").TimeoutException("timeout"))
     def test_download_report_network_error(self, mock_get):
         from streamlit_app.components.journal_api import download_report
 
@@ -373,6 +380,17 @@ class TestRenderTradeInfo:
     def test_renders_header(self, mock_st, _sample_trade):
         from streamlit_app.components.journal_trade_detail import render_trade_info
 
+        # st.columns(4) is called twice — need to return 4 mock context managers each time
+        def _make_cols(n):
+            cols = []
+            for _ in range(n):
+                col = MagicMock()
+                col.__enter__ = MagicMock(return_value=col)
+                col.__exit__ = MagicMock(return_value=False)
+                cols.append(col)
+            return cols
+
+        mock_st.columns.side_effect = [_make_cols(4), _make_cols(4)]
         render_trade_info(_sample_trade)
         # Verify markdown was called (for header)
         assert mock_st.markdown.called
@@ -381,12 +399,17 @@ class TestRenderTradeInfo:
     def test_renders_metrics(self, mock_st, _sample_trade):
         from streamlit_app.components.journal_trade_detail import render_trade_info
 
-        # Mock columns
-        mock_col = MagicMock()
-        mock_st.columns.return_value = [mock_col, mock_col, mock_col, mock_col]
-        mock_col.__enter__ = MagicMock(return_value=mock_col)
-        mock_col.__exit__ = MagicMock(return_value=False)
+        # Mock columns — called twice (4-col metrics row + 4-col details grid)
+        def _make_cols(n):
+            cols = []
+            for _ in range(n):
+                col = MagicMock()
+                col.__enter__ = MagicMock(return_value=col)
+                col.__exit__ = MagicMock(return_value=False)
+                cols.append(col)
+            return cols
 
+        mock_st.columns.side_effect = [_make_cols(4), _make_cols(4)]
         render_trade_info(_sample_trade)
         assert mock_st.columns.called
 
@@ -518,16 +541,18 @@ class TestRenderSnapshotTable:
     def test_renders_snapshots(self, mock_st):
         from streamlit_app.components.journal_trade_detail import render_snapshot_table
 
-        render_snapshot_table({
-            "snapshots": [
-                {
-                    "snapshot_date": "2026-03-01",
-                    "close_price": 155.0,
-                    "hypothetical_pnl": 500.0,
-                    "hypothetical_pnl_pct": 3.33,
-                }
-            ]
-        })
+        render_snapshot_table(
+            {
+                "snapshots": [
+                    {
+                        "snapshot_date": "2026-03-01",
+                        "close_price": 155.0,
+                        "hypothetical_pnl": 500.0,
+                        "hypothetical_pnl_pct": 3.33,
+                    }
+                ]
+            }
+        )
         assert mock_st.dataframe.called
 
 

@@ -5,7 +5,7 @@ Reusable Streamlit form for creating and editing trades.
 Handles entry form, exit form, and option leg form.
 """
 
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import streamlit as st
@@ -43,13 +43,21 @@ def render_trade_form(key: str = "new_trade") -> dict[str, Any] | None:
         col3, col4 = st.columns(2)
         with col3:
             stop_loss = st.number_input(
-                "Stop Loss", min_value=0.0, value=0.0, step=0.01, format="%.2f",
-                help="Set to 0 for no stop-loss"
+                "Stop Loss",
+                min_value=0.0,
+                value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Set to 0 for no stop-loss",
             )
         with col4:
             take_profit = st.number_input(
-                "Take Profit", min_value=0.0, value=0.0, step=0.01, format="%.2f",
-                help="Set to 0 for no take-profit"
+                "Take Profit",
+                min_value=0.0,
+                value=0.0,
+                step=0.01,
+                format="%.2f",
+                help="Set to 0 for no take-profit",
             )
 
         tags_input = st.text_input(

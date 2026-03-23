@@ -121,9 +121,7 @@ with st.sidebar:
 
     st.divider()
     st.subheader("Date Range")
-    filter_start = st.date_input(
-        "From", value=date.today() - timedelta(days=365), key="jf_start"
-    )
+    filter_start = st.date_input("From", value=date.today() - timedelta(days=365), key="jf_start")
     filter_end = st.date_input("To", value=date.today(), key="jf_end")
 
     st.divider()
@@ -220,16 +218,11 @@ def _render_trade_list() -> None:
 
         # Each trade is a row
         with st.container():
-            col1, col2, col3, col4, col5, col6 = st.columns(
-                [2, 1.5, 1.5, 2, 2, 1.5]
-            )
+            col1, col2, col3, col4, col5, col6 = st.columns([2, 1.5, 1.5, 2, 2, 1.5])
             with col1:
-                st.markdown(
-                    f"**{direction_icon} {trade['ticker']}**"
-                )
+                st.markdown(f"**{direction_icon} {trade['ticker']}**")
                 st.caption(
-                    f"{trade.get('entry_date', '—')} · "
-                    f"{trade.get('timeframe', '—').capitalize()}"
+                    f"{trade.get('entry_date', '—')} · {trade.get('timeframe', '—').capitalize()}"
                 )
             with col2:
                 st.markdown(f"{status_badge}")
@@ -279,10 +272,7 @@ def _render_trade_detail() -> None:
 
     trade = get_trade(trade_id)
     if trade is None:
-        st.error(
-            "Could not load trade. It may have been deleted "
-            "or the backend is unavailable."
-        )
+        st.error("Could not load trade. It may have been deleted or the backend is unavailable.")
         return
 
     # Trade info card
@@ -361,20 +351,19 @@ def _render_trade_detail() -> None:
             "I understand this action is irreversible",
             key=f"confirm_delete_{trade_id}",
         )
-        if confirm:
-            if st.button(
-                "🗑️ Delete Trade",
-                key=f"delete_{trade_id}",
-                type="primary",
-                use_container_width=True,
-            ):
-                success = delete_trade(trade_id)
-                if success:
-                    st.success("Trade deleted.")
-                    _switch_to_list()
-                    st.rerun()
-                else:
-                    st.error("Failed to delete trade. Check backend connection.")
+        if confirm and st.button(
+            "🗑️ Delete Trade",
+            key=f"delete_{trade_id}",
+            type="primary",
+            use_container_width=True,
+        ):
+            success = delete_trade(trade_id)
+            if success:
+                st.success("Trade deleted.")
+                _switch_to_list()
+                st.rerun()
+            else:
+                st.error("Failed to delete trade. Check backend connection.")
 
 
 # ============================================================
@@ -393,15 +382,12 @@ def _render_new_trade() -> None:
         result = create_trade(payload)
         if result:
             st.success(
-                f"Trade created: **{result.get('ticker', '')}** "
-                f"({result.get('direction', '')})"
+                f"Trade created: **{result.get('ticker', '')}** ({result.get('direction', '')})"
             )
             _switch_to_detail(result["id"])
             st.rerun()
         else:
-            st.error(
-                "Failed to create trade. Check backend connection and input values."
-            )
+            st.error("Failed to create trade. Check backend connection and input values.")
 
 
 # ============================================================
