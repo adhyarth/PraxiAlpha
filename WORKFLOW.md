@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-23 (Session 25 — Smart OHLCV Gap-Fill)
+> **Last updated:** 2026-03-23 (Session 26 — Skip Options What-If)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 25 — Smart OHLCV Gap-Fill |
+| **Session** | 26 — Skip Options What-If |
 | **Date** | 2026-03-23 |
-| **PR** | #27 (Smart OHLCV Gap-Fill) |
-| **What was done** | Rewrote `daily_ohlcv_update` Celery task with gap-detection loop — auto-fills all missing trading days since last fetch. Extracted helpers, added config setting, 12 new tests (434 total). PR review fixes addressed (6 comments). |
+| **PR** | #28 (Skip Options What-If) |
+| **What was done** | Excluded options trades from what-if snapshot generation (no live options pricing). Added explicit reason in what-if summary API + Streamlit info banner. 3 new tests (437 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,12 +26,12 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 26 — Watchlist Backend |
+| **Session** | 27 — Watchlist Backend |
 | **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
 | **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
 
-> **After Session 26:** Session 27 builds the Streamlit Watchlist UI — create/rename/delete watchlists,
+> **After Session 27:** Session 28 builds the Streamlit Watchlist UI — create/rename/delete watchlists,
 > add/remove tickers, sparkline/change columns.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).

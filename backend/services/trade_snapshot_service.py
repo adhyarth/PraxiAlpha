@@ -24,7 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.models.journal import Timeframe, Trade, TradeDirection
+from backend.models.journal import AssetType, Timeframe, Trade, TradeDirection
 from backend.models.trade_snapshot import TradeSnapshot
 from backend.services.journal_service import _current_user_id, compute_trade_metrics
 
@@ -164,6 +164,23 @@ async def get_whatif_summary(
     if metrics["status"] != "closed":
         return None
 
+    # Options trades are not eligible for what-if analysis (no live options pricing)
+    if trade.asset_type == AssetType.OPTIONS:
+        return {
+            "trade_id": str(trade_id),
+            "ticker": trade.ticker,
+            "direction": trade.direction.value
+            if hasattr(trade.direction, "value")
+            else str(trade.direction),
+            "actual_pnl": metrics["realized_pnl"],
+            "actual_pnl_pct": metrics["return_pct"],
+            "best_hypothetical": None,
+            "worst_hypothetical": None,
+            "latest_snapshot": None,
+            "total_snapshots": 0,
+            "reason": "What-if analysis is not available for options trades (no live options pricing data).",
+        }
+
     # Fetch all snapshots
     stmt = (
         select(TradeSnapshot)
@@ -243,6 +260,11 @@ async def get_closed_trades_needing_snapshots(
     for trade in trades:
         metrics = compute_trade_metrics(trade)
         if metrics["status"] != "closed":
+            continue
+
+        # Skip options trades — we don't have live options pricing data,
+        # so equity OHLCV prices would produce meaningless what-if PnL.
+        if trade.asset_type == AssetType.OPTIONS:
             continue
 
         # Check max tracking duration
