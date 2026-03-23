@@ -2,9 +2,9 @@
 
 > *"Disciplined action that generates alpha."*
 
-**Version:** 1.3  
+**Version:** 1.4  
 **Created:** March 12, 2026  
-**Updated:** March 22, 2026  
+**Updated:** March 23, 2026  
 **Author:** Adhyarth Varia  
 **Status:** Draft — Finalized for Phase 1  
 
@@ -639,7 +639,8 @@ This layer sits **between every signal and every trade execution**. No trade byp
 │   watchlists     │     │     alerts       │     │     trades       │
 ├──────────────────┤     ├──────────────────┤     ├──────────────────┤
 │ id (PK, UUID)    │     │ id (PK)          │     │ id (PK, UUID)    │
-│ user_id (FK)     │     │ stock_id (FK)    │     │ ticker           │
+│ user_id (FK)     │     │ stock_id (FK)    │     │ user_id (IDX)    │
+│ name             │     │ condition        │     │ ticker           │
 │ name             │     │ condition        │     │ direction        │
 │ created_at       │     │ is_triggered     │     │  (long/short)    │
 │ updated_at       │     │ created_date     │     │ asset_type       │
@@ -1160,6 +1161,76 @@ Risk: 33 × $10 = $330 (0.33% of account) ✅
 - Keys stored in AWS Secrets Manager
 - Paper and Live keys are separate — impossible to accidentally use wrong one
 - All trading actions logged with full audit trail
+
+### User Isolation for Shared Local Deployments
+
+> **Problem:** PraxiAlpha may be shared with a small number of trusted users (e.g., friends/family learning to trade). Each user needs their own private trading journal — they should only see their own trades, exits, and snapshots. However, shared data (stocks, OHLCV, macro, calendar) should remain global since it's identical for all users.
+
+#### Decision: Lightweight `user_id`-Based Row Isolation (Option B)
+
+Three options were evaluated:
+
+| Option | Description | Pros | Cons |
+|--------|------------|------|------|
+| **A. Full Auth** | JWT/OAuth login, user table, RBAC | Industry standard, secure | Overkill for 2-5 trusted local users; adds login UI, token management, session handling |
+| **B. Env-Var `user_id`** ⭐ | Add `user_id` column to journal tables; value set from `PRAXIALPHA_USER_ID` in `.env`; all queries filtered automatically | Lightweight, no UI change, easy to implement, upgradeable to full auth later | Not "secure" — a user could change their env var to see others' data. Acceptable for trusted users. |
+| **C. Separate DB per user** | Each user gets their own PostgreSQL database | Zero code changes, total isolation | Duplicates ~33 GB of shared data per user; maintenance nightmare; no cross-user analytics possible |
+
+**Chosen: Option B** — Add a `user_id` (String) column to `trades`, `trade_exits` (inherited via `trade_id` FK), `trade_snapshots`, and future `watchlists`/`watchlist_items` tables. The value is read from `PRAXIALPHA_USER_ID` environment variable at startup.
+
+#### How It Works
+
+```
+.env (each user's machine)           Backend (FastAPI + Services)
+┌──────────────────────────┐         ┌──────────────────────────────┐
+│ PRAXIALPHA_USER_ID=alice │ ──────► │ config.py → settings.user_id │
+└──────────────────────────┘         │                              │
+                                     │ journal_service.py:          │
+                                     │   CREATE → sets user_id col  │
+                                     │   READ   → WHERE user_id=... │
+                                     │   LIST   → WHERE user_id=... │
+                                     │   UPDATE → WHERE user_id=... │
+                                     │   DELETE → WHERE user_id=... │
+                                     └──────────────────────────────┘
+```
+
+1. **Env var `PRAXIALPHA_USER_ID`** — each user sets a unique identifier in their `.env` (e.g., `alice`, `bob`). Defaults to `default` if unset.
+2. **`config.py`** — exposes `settings.user_id` as a validated string field.
+3. **`trades` model** — gains a `user_id: Mapped[str]` column (indexed, `NOT NULL`, `default='default'`).
+4. **`journal_service.py`** — all CRUD operations include `WHERE user_id = :user_id` filtering. Create operations auto-set `user_id` from settings.
+5. **API layer** — no changes needed (service handles filtering transparently).
+6. **Alembic migration** — adds `user_id` column with default `'default'` (backfills existing rows), creates index.
+
+#### What Changes
+
+| File | Change |
+|------|--------|
+| `.env.example` | Add `PRAXIALPHA_USER_ID=default` |
+| `backend/config.py` | Add `user_id: str = "default"` setting |
+| `backend/models/journal.py` | Add `user_id` column to `Trade` model |
+| `backend/services/journal_service.py` | Filter all queries by `user_id`; set `user_id` on create |
+| `backend/api/routes/journal.py` | No change (service handles it) |
+| `data/migrations/versions/...` | Alembic migration: add column + index |
+| `backend/tests/test_journal_*.py` | Update tests to verify user isolation |
+
+#### Security Notes
+- This is **not authentication** — it's privacy-by-convention for trusted users sharing a single deployment.
+- A user who changes their `PRAXIALPHA_USER_ID` env var *can* see another user's data. This is acceptable for the current use case (trusted friends/family on a local network).
+- When full auth is implemented (Phase 8+), the `user_id` column becomes the FK to a proper `users` table, and the env var approach is replaced by JWT claims. **Zero schema migration needed** — the column is already in place.
+
+#### Tables Affected (Current + Planned)
+
+| Table | `user_id` Column? | Isolation Behavior |
+|-------|-------------------|-------------------|
+| `trades` | ✅ Yes (new) | Each user sees only their own trades |
+| `trade_exits` | ❌ No (inherited) | Filtered via `trade_id` FK — exits belong to a trade, which belongs to a user |
+| `trade_legs` | ❌ No (inherited) | Same — legs belong to a trade |
+| `trade_snapshots` | ❌ No (inherited) | Same — snapshots belong to a trade |
+| `watchlists` | ✅ Yes (future — already has `user_id` in schema diagram) | Each user sees only their own watchlists |
+| `stocks` | ❌ No | Shared — market data is global |
+| `daily_ohlcv` | ❌ No | Shared — market data is global |
+| `macro_data` | ❌ No | Shared — market data is global |
+| `economic_calendar_events` | ❌ No | Shared — calendar data is global |
 
 ### Data Security
 - PostgreSQL connections encrypted (SSL)

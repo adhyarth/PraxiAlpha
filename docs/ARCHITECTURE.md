@@ -368,13 +368,14 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | CPIAUCSL | CPI | Inflation |
 | PCEPI | PCE Price Index | Fed's preferred inflation measure |
 
-#### `trades` — Trading Journal (Planned — Session 16)
+#### `trades` — Trading Journal (Session 16 + Session 18 user isolation)
 ```sql
 -- Parent trade record: one row per trade entry
 ┌─────────────────────┬─────────────────────────────────────────────────┐
 │ Column              │ Purpose                                         │
 ├─────────────────────┼─────────────────────────────────────────────────┤
 │ id                  │ UUID primary key                                │
+│ user_id             │ Owner identifier (from PRAXIALPHA_USER_ID env)  │
 │ ticker              │ "AAPL", "TSLA" — the traded symbol              │
 │ direction           │ ENUM: 'long' / 'short'                         │
 │ asset_type          │ ENUM: 'shares' / 'options'                     │
@@ -397,6 +398,7 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 ```
 
 **Key design decisions:**
+- **`user_id`** column (indexed, `NOT NULL`, `default='default'`) — enables lightweight per-user trade isolation without full authentication. Set from `PRAXIALPHA_USER_ID` env var. All journal queries filter by this value so each user sees only their own trades. Child tables (`trade_exits`, `trade_legs`, `trade_snapshots`) inherit isolation via `trade_id` FK — no separate `user_id` column needed. When full auth is added (Phase 8+), this column becomes an FK to a `users` table with zero migration changes.
 - **UUID** primary key (not auto-increment) — less predictable than sequential IDs, which makes simple ID guessing harder. Proper authentication and authorization are still required to protect data exposed via APIs.
 - **`status`** is derived from exit fills, not manually set — prevents stale state.
 - **`tags`** as JSONB array — fully flexible, no fixed taxonomy. Supports filtering via `@>` operator.
@@ -644,4 +646,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-22 — Phase 2 (added trade_snapshots schema for post-close "what-if" tracking)*
+*Last updated: 2026-03-22 — Phase 2 (added user_id column for trade isolation, trade_snapshots schema for post-close "what-if" tracking)*
