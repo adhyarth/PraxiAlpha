@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 22 — Trading Journal PDF Report |
 | **Branch** | `feat/journal-pdf-report` |
-| **Status** | Implementation complete. Report service, API endpoint, tests written. Ready for CI run. |
-| **Last checkpoint** | Step 5 — code + tests written, need CI |
+| **Status** | PR #22 created. Waiting for review. |
+| **Last checkpoint** | Step 8 — PR created, waiting for review |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -104,7 +104,7 @@
 | 19 | 2026-03-22 | User isolation implementation: user_id column on trades, config setting, all journal queries scoped, Alembic migration 002, 11 new tests (279 total). WORKFLOW.md Step 7 overhaul. | PR #19 |
 | 20 | 2026-03-22 | Post-close "what-if" implementation: TradeSnapshot model, snapshot service (PnL calc, what-if summary), Celery periodic task, 2 API endpoints, Alembic migration 003, 45 tests (331 total). PR review: fixed OHLCV query join, per-trade rollback, Celery retry, US/Eastern timezone, snapshot cadence, batch existence check. | PR #20 |
 | 21 | 2026-03-23 | Journal UI Roadmap Reorder: inserted Journal Streamlit UI as Session 23, renumbered Sessions 22–27, updated Phase 2 checklists in DESIGN_DOC and PROGRESS. Docs-only session. | PR #21 |
-| 22 | 2026-03-23 | Trading Journal PDF Report: report service (annotated Plotly charts, PDF export via fpdf2), API endpoint `GET /api/v1/journal/report`, 36 new tests (367 total). Added fpdf2 + kaleido deps. | PR #TBD |
+| 22 | 2026-03-23 | Trading Journal PDF Report: report service (annotated Plotly charts, PDF export via fpdf2), API endpoint `GET /api/v1/journal/report`, 36 new tests (367 total). Added fpdf2 + kaleido deps. | PR #22 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
