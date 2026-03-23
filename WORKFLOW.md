@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-23 (Bugfix — MissingGreenlet in journal create_trade + report endpoint)
+> **Last updated:** 2026-03-23 (PR #25 merged — MissingGreenlet bugfix, post-merge cleanup)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 23 — Trading Journal Streamlit UI |
+| **Session** | 23 — Trading Journal Streamlit UI + Bugfix PR #25 |
 | **Date** | 2026-03-23 |
-| **PR** | #24 |
-| **What was done** | Full Streamlit journal page: trade list with filters/PnL, entry form, detail view (exits, legs, what-if, edit, delete), PDF report download, API client module, 3 components, 55 new tests (422 total). |
+| **PR** | #24 (Session 23), #25 (MissingGreenlet bugfix) |
+| **What was done** | Full Streamlit journal page (trade list, entry form, detail view, PDF download), 55 new tests (422 total). Bugfix: resolved MissingGreenlet in `create_trade` and `list_trades` (PDF report). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
