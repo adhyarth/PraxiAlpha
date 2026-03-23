@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-23 (Session 23 — Trading Journal Streamlit UI)
+> **Last updated:** 2026-03-23 (PR #25 merged — MissingGreenlet bugfix)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | Bugfix — fix MissingGreenlet in journal create_trade + report endpoint |
-| **Branch** | `fix/journal-create-trade-greenlet` |
-| **Status** | PR #25 open — review fixes applied, pushing |
-| **Last checkpoint** | PR review fixes applied (3 comments → assert re-fetch, move exits/legs init), CI green 422/422 |
+| **Session** | Post-merge cleanup — PR #25 merged |
+| **Branch** | `main` |
+| **Status** | PR #25 merged, post-merge cleanup complete |
+| **Last checkpoint** | Branch deleted, docs updated, ready for Session 24 (Watchlist Backend) |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -106,6 +106,7 @@
 | 21 | 2026-03-23 | Journal UI Roadmap Reorder: inserted Journal Streamlit UI as Session 23, renumbered Sessions 22–27, updated Phase 2 checklists in DESIGN_DOC and PROGRESS. Docs-only session. | PR #21 |
 | 22 | 2026-03-23 | Trading Journal PDF Report: report service (annotated Plotly charts, PDF export via fpdf2), API endpoint `GET /api/v1/journal/report`, 36 new tests (367 total). Added fpdf2 + kaleido deps. | PR #22 |
 | 23 | 2026-03-23 | Trading Journal Streamlit UI: journal page (trade list with filters/PnL, entry form, detail view with exits/legs/what-if/edit/delete), PDF report download, API client module, 3 reusable components, 55 new tests (422 total). | PR #24 |
+| — | 2026-03-23 | Bugfix: MissingGreenlet in `create_trade` (selectinload re-fetch) and `list_trades` (conditional legs eager-load for PDF report). 3 tests updated with re-fetch assertions. | PR #25 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
