@@ -1,4 +1,11 @@
-# 📊 Pr> **Last updated:** 2026-03-22 (Session 20)
+# 📊 PraxiAlpha — Project Progress
+
+> **Purpose:** Full project status, phase checklists, session history, and upcoming roadmap.
+> This is the reference for "where are we overall?" — not day-to-day workflow.
+>
+> For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
+>
+> **Last updated:** 2026-03-22 (Session 20)
 
 ---
 
@@ -8,28 +15,8 @@
 |-|-|
 | **Session** | 20 — Post-Close "What-If" Implementation |
 | **Branch** | `feat/what-if-snapshots` |
-| **Status** | PR #20 open, awaiting review |
-| **Last checkpoint** | Step 8 — PR created |
-
-> If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.ject Progress
-
-> **Purpose:** Full project status, phase checklists, session history, and upcoming roadmap.
-> This is the reference for "where are we overall?" — not day-to-day workflow.
->
-> For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
->
-> **Last updated:** 2026-03-22 (Session 19)
-
----
-
-## � Current Session Status (crash recovery checkpoint)
-
-| | |
-|-|-|
-| **Session** | No active session |
-| **Branch** | `main` |
-| **Status** | Session 19 merged (PR #19). Ready for Session 20. |
-| **Last checkpoint** | Step 10 — post-merge cleanup complete |
+| **Status** | PR #20 open, addressing review comments |
+| **Last checkpoint** | Step 9 — PR review fixes |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
