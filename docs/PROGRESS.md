@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 18 — User Isolation Design |
 | **Branch** | `docs/user-isolation-design` |
-| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG). PR pending. |
-| **Last checkpoint** | Step 7 — documentation |
+| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). PR #18 open, review fixes in progress. |
+| **Last checkpoint** | Step 9 — PR review fixes |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

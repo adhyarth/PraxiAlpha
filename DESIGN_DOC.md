@@ -641,10 +641,10 @@ This layer sits **between every signal and every trade execution**. No trade byp
 │ id (PK, UUID)    │     │ id (PK)          │     │ id (PK, UUID)    │
 │ user_id (FK)     │     │ stock_id (FK)    │     │ user_id (IDX)    │
 │ name             │     │ condition        │     │ ticker           │
-│ name             │     │ condition        │     │ direction        │
-│ created_at       │     │ is_triggered     │     │  (long/short)    │
-│ updated_at       │     │ created_date     │     │ asset_type       │
-└──────────────────┘     └──────────────────┘     │  (shares/options)│
+│ created_at       │     │ is_triggered     │     │ direction        │
+│ updated_at       │     │ created_date     │     │  (long/short)    │
+└──────────────────┘     └──────────────────┘     │ asset_type       │
+                                                   │  (shares/options)│
                                                    │ trade_type       │
 ┌──────────────────┐                               │  (single_leg/   │
 │ watchlist_items  │                               │   multi_leg)     │
@@ -1176,7 +1176,7 @@ Three options were evaluated:
 | **B. Env-Var `user_id`** ⭐ | Add `user_id` column to journal tables; value set from `PRAXIALPHA_USER_ID` in `.env`; all queries filtered automatically | Lightweight, no UI change, easy to implement, upgradeable to full auth later | Not "secure" — a user could change their env var to see others' data. Acceptable for trusted users. |
 | **C. Separate DB per user** | Each user gets their own PostgreSQL database | Zero code changes, total isolation | Duplicates ~33 GB of shared data per user; maintenance nightmare; no cross-user analytics possible |
 
-**Chosen: Option B** — Add a `user_id` (String) column to `trades`, `trade_exits` (inherited via `trade_id` FK), `trade_snapshots`, and future `watchlists`/`watchlist_items` tables. The value is read from `PRAXIALPHA_USER_ID` environment variable at startup.
+**Chosen: Option B** — Add a `user_id` (String) column to `trades` and future `watchlists`/`watchlist_items` tables. `trade_exits`, `trade_legs`, and `trade_snapshots` do **not** get a `user_id` column — they inherit user isolation via their `trade_id` foreign key. The value is read from `PRAXIALPHA_USER_ID` environment variable at startup.
 
 #### How It Works
 

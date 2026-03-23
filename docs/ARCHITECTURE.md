@@ -368,14 +368,14 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | CPIAUCSL | CPI | Inflation |
 | PCEPI | PCE Price Index | Fed's preferred inflation measure |
 
-#### `trades` — Trading Journal (Session 16 + Session 18 user isolation)
+#### `trades` — Trading Journal (Session 16; Session 18 design, Session 19 planned user isolation)
 ```sql
 -- Parent trade record: one row per trade entry
 ┌─────────────────────┬─────────────────────────────────────────────────┐
 │ Column              │ Purpose                                         │
 ├─────────────────────┼─────────────────────────────────────────────────┤
 │ id                  │ UUID primary key                                │
-│ user_id             │ Owner identifier (from PRAXIALPHA_USER_ID env)  │
+│ user_id             │ PLANNED (Session 19): owner identifier (from PRAXIALPHA_USER_ID env) │
 │ ticker              │ "AAPL", "TSLA" — the traded symbol              │
 │ direction           │ ENUM: 'long' / 'short'                         │
 │ asset_type          │ ENUM: 'shares' / 'options'                     │
