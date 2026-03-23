@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 21 — Journal UI Roadmap Reorder |
 | **Branch** | `docs/journal-ui-roadmap` |
-| **Status** | Implementing — updating roadmap docs to insert Journal UI session (22) and reorder subsequent sessions |
-| **Last checkpoint** | Step 2 — editing documentation files |
+| **Status** | PR #21 opened — awaiting review |
+| **Last checkpoint** | Step 8 — PR created |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
