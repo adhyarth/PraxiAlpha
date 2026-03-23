@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 17 — Post-Close "What-If" Design |
 | **Branch** | `docs/post-close-what-if-design` |
-| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). Ready to commit, push, and create PR. |
-| **Last checkpoint** | Step 8 — all documentation complete, ready for PR |
+| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). PR #17 opened, review fixes in progress. |
+| **Last checkpoint** | Step 9 — PR review fixes |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

@@ -510,9 +510,13 @@ More endpoints will be added as we build analysis, trading, and other modules.
 | `DELETE` | `/api/v1/journal/{trade_id}` | Delete a trade |
 | `POST` | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit fill |
 | `POST` | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| `GET` | `/api/v1/journal/report` | Generate PDF report with charts (Session 17) |
-| `GET` | `/api/v1/journal/{trade_id}/snapshots` | List post-close "what-if" snapshots (Planned) |
-| `GET` | `/api/v1/journal/{trade_id}/what-if` | Summary: best/worst hypothetical PnL vs actual exit (Planned) |
+| `GET` | `/api/v1/journal/report` | Generate PDF report with charts (Session 18) |
+
+#### Planned: Post-Close What-If Endpoints (Session 19)
+| Method | Path | What It Does |
+|--------|------|-------------|
+| `GET` | `/api/v1/journal/{trade_id}/snapshots` | List post-close "what-if" snapshots |
+| `GET` | `/api/v1/journal/{trade_id}/what-if` | Summary: best/worst hypothetical PnL vs actual exit |
 
 ---
 

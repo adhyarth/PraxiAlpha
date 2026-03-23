@@ -11,7 +11,7 @@
 - **Post-close "what-if" tracking design** — `trade_snapshots` table schema (7 columns: UUID PK, trade_id FK, snapshot_date, close_price, hypothetical_pnl, hypothetical_pnl_pct, created_at) with UNIQUE constraint on `(trade_id, snapshot_date)`
 - **Snapshot schedule by timeframe** — daily trades: every trading day for 30 calendar days; weekly trades: weekly for 16 calendar weeks; monthly trades: monthly for 18 calendar months
 - **Celery task plan** — periodic task to auto-generate snapshots for closed trades, fetching prices from `daily_ohlcv`/aggregates, computing direction-aware hypothetical PnL
-- **2 planned API endpoints** — `GET /journal/{trade_id}/snapshots` (list snapshots) and `GET /journal/{trade_id}/what-if` (best/worst hypothetical PnL summary)
+- **2 planned API endpoints** — `GET /api/v1/journal/{trade_id}/snapshots` (list snapshots) and `GET /api/v1/journal/{trade_id}/what-if` (best/worst hypothetical PnL summary)
 - **What-if implementation session** added to roadmap (Session 19: model, service, Celery task, API, migration, tests)
 - **Trading Journal backend** — full CRUD implementation for trade journaling with 3 tables (`trades`, `trade_exits`, `trade_legs`), service layer with computed fields (status, PnL, R-multiple), and 7 API endpoints (`/api/v1/journal/`)
 - **Trading Journal models** — `Trade`, `TradeExit`, `TradeLeg` ORM models with 5 ENUMs (`TradeDirection`, `AssetType`, `TradeType`, `Timeframe`, `LegType`), UUID PKs, JSONB tags, cascade relationships
@@ -21,7 +21,7 @@
 - **Trading Journal schema design** — 3 tables (`trades`, `trade_exits`, `trade_legs`) with 31 columns total, supporting open/partial/closed trades, partial exits (scale-out), multi-leg options, timeframe tracking, JSONB tags, and free-form comments
 - **Trading Journal PDF report plan** — per-trade annotated candlestick charts (matching trade timeframe), entry/exit markers, stop/TP lines, summary statistics, timeframe-based lookback (daily=1yr, weekly=2yr, monthly=5yr, quarterly=10yr)
 - **Trading Journal API endpoints planned** — 8 endpoints for CRUD, partial exits, option legs, and PDF report generation (`/api/v1/journal/`)
-- **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 17 (PDF Report) inserted before Watchlist sessions
+- **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 18 (PDF Report) inserted before Watchlist sessions
 
 ### Changed
 - **`DESIGN_DOC.md` v1.3** — added `trade_snapshots` to schema diagram, data volume estimates, and Phase 2 roadmap
