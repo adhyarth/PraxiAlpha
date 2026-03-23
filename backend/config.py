@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # ---- User Isolation (Trading Journal) ----
     praxialpha_user_id: str = "default"  # Set per-user in .env for trade privacy
 
+    # ---- Data Pipeline ----
+    ohlcv_max_gap_days: int = 60  # Max days to auto-fill; beyond this, warn and cap
+
     @property
     def async_database_url(self) -> str:
         """Build async database URL if not explicitly set."""

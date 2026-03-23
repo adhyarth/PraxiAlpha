@@ -10,15 +10,128 @@ import logging
 from datetime import date, timedelta
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from backend.config import get_settings
 from backend.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
 # Batch size for DB upserts (1000 × 8 cols = 8K params, well under PG ~32K limit)
 DB_BATCH_SIZE = 1000
+
+
+# ---------------------------------------------------------------------------
+# Helpers (extracted for testability)
+# ---------------------------------------------------------------------------
+
+
+def _candidate_dates(last_known: date, today: date) -> list[date]:
+    """
+    Return weekday dates from ``last_known + 1`` through ``today`` inclusive.
+
+    Weekends are skipped as a cheap heuristic — holidays are harmless
+    because the EODHD bulk endpoint simply returns an empty frame for
+    non-trading days.
+    """
+    return [
+        last_known + timedelta(days=d)
+        for d in range(1, (today - last_known).days + 1)
+        if (last_known + timedelta(days=d)).weekday() < 5  # Mon-Fri
+    ]
+
+
+async def _fetch_and_upsert_date(
+    fetcher,  # type: ignore[no-untyped-def]
+    target_date: date,
+    ticker_to_id: dict[str, int],
+    async_session_factory,  # type: ignore[no-untyped-def]
+) -> dict:
+    """
+    Fetch bulk EOD for *one* date, upsert records, and update ``latest_date``.
+
+    Returns a dict with ``upserted`` and ``skipped`` counts.
+    """
+    from backend.models.ohlcv import DailyOHLCV
+    from backend.models.stock import Stock
+
+    bulk_df = await fetcher.fetch_bulk_eod(exchange="US", date_str=target_date.isoformat())
+
+    if bulk_df.empty:
+        logger.info(f"  {target_date}: no data (holiday/weekend)")
+        return {"upserted": 0, "skipped": 0}
+
+    # Build OHLCV records, matching against known tickers
+    records: list[dict] = []
+    skipped = 0
+    for _, row in bulk_df.iterrows():
+        ticker = str(row.get("code", "")).strip()
+        stock_id = ticker_to_id.get(ticker)
+        if not stock_id:
+            skipped += 1
+            continue
+
+        try:
+            record_date = pd.to_datetime(row.get("date")).date()
+            records.append(
+                {
+                    "stock_id": stock_id,
+                    "date": record_date,
+                    "open": float(row.get("open", 0)),
+                    "high": float(row.get("high", 0)),
+                    "low": float(row.get("low", 0)),
+                    "close": float(row.get("close", 0)),
+                    "adjusted_close": float(row.get("adjusted_close", row.get("close", 0))),
+                    "volume": int(row.get("volume", 0)),
+                }
+            )
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Skipping {ticker}: bad data — {e}")
+            skipped += 1
+
+    # Upsert in batches
+    if records:
+        async with async_session_factory() as session:
+            for batch_start in range(0, len(records), DB_BATCH_SIZE):
+                batch = records[batch_start : batch_start + DB_BATCH_SIZE]
+                stmt = pg_insert(DailyOHLCV).values(batch)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["stock_id", "date"],
+                    set_={
+                        "open": stmt.excluded.open,
+                        "high": stmt.excluded.high,
+                        "low": stmt.excluded.low,
+                        "close": stmt.excluded.close,
+                        "adjusted_close": stmt.excluded.adjusted_close,
+                        "volume": stmt.excluded.volume,
+                    },
+                )
+                await session.execute(stmt)
+            await session.commit()
+
+        # Bulk-update latest_date for affected stocks.
+        # Use target_date (the date we requested) rather than a date parsed
+        # from the response, to guard against provider data anomalies.
+        affected_ids = list({r["stock_id"] for r in records})
+        async with async_session_factory() as session:
+            await session.execute(
+                update(Stock)
+                .where(
+                    Stock.id.in_(affected_ids),
+                    (Stock.latest_date.is_(None)) | (Stock.latest_date < target_date),
+                )
+                .values(latest_date=target_date)
+            )
+            await session.commit()
+
+    logger.info(f"  {target_date}: {len(records)} upserted, {skipped} skipped")
+    return {"upserted": len(records), "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# Celery task
+# ---------------------------------------------------------------------------
 
 
 @celery_app.task(
@@ -29,108 +142,121 @@ DB_BATCH_SIZE = 1000
 )
 def daily_ohlcv_update(self):
     """
-    Daily task: Fetch today's OHLCV data for all active stocks.
+    Daily task: Fetch OHLCV data for **all missing dates** since the last
+    successful update.
 
     Runs at 6 PM ET daily via Celery Beat.
-    Uses EODHD bulk endpoint for efficiency — a single API call
-    returns all tickers' EOD data for a given date.
 
-    Updates each stock's latest_date metadata
-    so future runs know where to pick up.
+    **Gap-fill logic:**
+    1. Query ``MAX(latest_date)`` across all active stocks.
+    2. Build a list of weekday candidate dates from that anchor to today.
+    3. For each candidate date, call the EODHD bulk endpoint (1 API call
+       per date) and upsert the results.
+    4. If the gap exceeds ``OHLCV_MAX_GAP_DAYS`` (default 60), the task
+       caps the fill window and logs a warning.
+
+    On a normal day (worker running daily) this is **1 API call** — the
+    same cost as the old single-day implementation.  If the worker was
+    down for 5 days, it self-heals with ~3-4 calls (weekdays only).
     """
-    logger.info("🔄 Starting daily OHLCV update...")
+    logger.info("🔄 Starting daily OHLCV update (gap-fill)...")
 
     async def _run():
         from backend.database import async_session_factory
-        from backend.models.ohlcv import DailyOHLCV
         from backend.models.stock import Stock
         from backend.services.data_pipeline.eodhd_fetcher import EODHDFetcher
 
+        settings = get_settings()
+        max_gap = settings.ohlcv_max_gap_days
         fetcher = EODHDFetcher()
+
         try:
-            # Fetch bulk EOD for today (EODHD returns latest trading day)
-            bulk_df = await fetcher.fetch_bulk_eod(exchange="US")
+            # ---- 1. Determine the anchor date ----
+            async with async_session_factory() as session:
+                row = await session.execute(
+                    select(func.max(Stock.latest_date)).where(Stock.is_active.is_(True))
+                )
+                last_known = row.scalar()
 
-            if bulk_df.empty:
-                logger.warning("⚠️ Bulk EOD returned no data (market closed?)")
-                return {"upserted": 0, "skipped": 0}
+            today = date.today()
 
-            logger.info(f"Bulk EOD: {len(bulk_df)} tickers returned")
+            if last_known is None:
+                # No data at all — target the most recent weekday
+                logger.warning(
+                    "⚠️ No latest_date found for any stock. "
+                    "Falling back to single-day fetch. "
+                    "Run the initial backfill script to populate history."
+                )
+                # Ensure we target the most recent weekday on or before "today"
+                effective_today = today
+                while effective_today.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+                    effective_today -= timedelta(days=1)
+                # Set last_known to the day before the effective trading day so that
+                # the subsequent gap/candidate-date logic yields exactly one date.
+                last_known = effective_today - timedelta(days=1)
+                today = effective_today
 
-            # Build a ticker → stock_id lookup from DB
+            gap = (today - last_known).days
+            if gap <= 0:
+                logger.info("✅ Already up to date — nothing to fetch")
+                return {"upserted": 0, "dates_filled": 0, "dates_skipped": 0}
+
+            if gap > max_gap:
+                logger.warning(
+                    f"⚠️ Gap of {gap} days exceeds OHLCV_MAX_GAP_DAYS ({max_gap}). "
+                    f"Capping to last {max_gap} days. "
+                    f"Run the backfill script for the remainder."
+                )
+                last_known = today - timedelta(days=max_gap)
+
+            # ---- 2. Build candidate dates (weekdays only) ----
+            candidates = _candidate_dates(last_known, today)
+
+            if not candidates:
+                logger.info("✅ No weekday gaps to fill — already up to date")
+                return {"upserted": 0, "dates_filled": 0, "dates_skipped": 0}
+
+            logger.info(
+                f"Filling {len(candidates)} candidate date(s): {candidates[0]} → {candidates[-1]}"
+            )
+
+            # ---- 3. Ticker → stock_id lookup (once) ----
             async with async_session_factory() as session:
                 result = await session.execute(
                     select(Stock.id, Stock.ticker).where(Stock.is_active.is_(True))
                 )
-                ticker_to_id = {row.ticker: row.id for row in result}
+                ticker_to_id = {r.ticker: r.id for r in result}
 
-            # Build OHLCV records, matching against known tickers
-            records = []
-            skipped = 0
-            for _, row in bulk_df.iterrows():
-                ticker = str(row.get("code", "")).strip()
-                stock_id = ticker_to_id.get(ticker)
-                if not stock_id:
-                    skipped += 1
-                    continue
+            # ---- 4. Fetch & upsert each date ----
+            total_upserted = 0
+            dates_filled = 0
+            dates_skipped = 0
 
+            for target_date in candidates:
                 try:
-                    record_date = pd.to_datetime(row.get("date")).date()
-                    records.append(
-                        {
-                            "stock_id": stock_id,
-                            "date": record_date,
-                            "open": float(row.get("open", 0)),
-                            "high": float(row.get("high", 0)),
-                            "low": float(row.get("low", 0)),
-                            "close": float(row.get("close", 0)),
-                            "adjusted_close": float(row.get("adjusted_close", row.get("close", 0))),
-                            "volume": int(row.get("volume", 0)),
-                        }
+                    day_result = await _fetch_and_upsert_date(
+                        fetcher, target_date, ticker_to_id, async_session_factory
                     )
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Skipping {ticker}: bad data — {e}")
-                    skipped += 1
+                    total_upserted += day_result["upserted"]
+                    if day_result["upserted"] > 0:
+                        dates_filled += 1
+                    else:
+                        dates_skipped += 1
+                except Exception as e:
+                    logger.warning(f"  {target_date}: fetch failed — {e}")
+                    dates_skipped += 1
 
-            # Upsert in batches
-            if records:
-                async with async_session_factory() as session:
-                    for batch_start in range(0, len(records), DB_BATCH_SIZE):
-                        batch = records[batch_start : batch_start + DB_BATCH_SIZE]
-                        stmt = pg_insert(DailyOHLCV).values(batch)
-                        stmt = stmt.on_conflict_do_update(
-                            index_elements=["stock_id", "date"],
-                            set_={
-                                "open": stmt.excluded.open,
-                                "high": stmt.excluded.high,
-                                "low": stmt.excluded.low,
-                                "close": stmt.excluded.close,
-                                "adjusted_close": stmt.excluded.adjusted_close,
-                                "volume": stmt.excluded.volume,
-                            },
-                        )
-                        await session.execute(stmt)
-                    await session.commit()
-
-                # Bulk-update latest_date for all affected stocks in one statement
-                if records:
-                    from sqlalchemy import update
-
-                    record_date = records[0]["date"]
-                    affected_ids = list({r["stock_id"] for r in records})
-                    async with async_session_factory() as session:
-                        await session.execute(
-                            update(Stock)
-                            .where(
-                                Stock.id.in_(affected_ids),
-                                (Stock.latest_date.is_(None)) | (Stock.latest_date < record_date),
-                            )
-                            .values(latest_date=record_date)
-                        )
-                        await session.commit()
-
-            logger.info(f"✅ Daily OHLCV update: {len(records)} upserted, {skipped} skipped")
-            return {"upserted": len(records), "skipped": skipped}
+            logger.info(
+                f"✅ Daily OHLCV gap-fill complete: "
+                f"{total_upserted} records upserted across "
+                f"{dates_filled} trading day(s), "
+                f"{dates_skipped} date(s) skipped"
+            )
+            return {
+                "upserted": total_upserted,
+                "dates_filled": dates_filled,
+                "dates_skipped": dates_skipped,
+            }
 
         finally:
             await fetcher.close()
