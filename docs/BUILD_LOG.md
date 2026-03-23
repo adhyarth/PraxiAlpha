@@ -1763,3 +1763,54 @@ This preserves the optimization (no legs loaded for list view) while fixing the 
 
 **Test count: 422 (0 new — assertions added to 3 existing tests)**
 **CI: ruff ✅ | format ✅ | mypy ✅ | pytest 422/422 ✅**
+
+### Session 25 — 2026-03-23: Smart OHLCV Gap-Fill (Phase 2)
+
+**Goal:** Make the daily OHLCV Celery task self-healing — automatically detect and fill all missing trading days since the last successful fetch, instead of only fetching the current day.
+
+**Branch:** `feat/smart-ohlcv-gap-fill`
+
+#### What Was Done
+
+1. **Rewrote `daily_ohlcv_update` task** (`backend/tasks/data_tasks.py`)
+   - Queries `MAX(latest_date)` across all active stocks as the anchor
+   - Builds a list of weekday candidate dates from anchor+1 to today
+   - Calls EODHD `fetch_bulk_eod(date_str=...)` for each missing date (1 API call per date)
+   - Caps auto-fill at `OHLCV_MAX_GAP_DAYS` (default 60) to prevent runaway fetches
+   - Falls back to single-day fetch when no history exists (needs initial backfill)
+   - Per-date error handling: failed dates are skipped and logged, rest continue
+
+2. **Extracted helpers for testability**
+   - `_candidate_dates(last_known, today)` — generates weekday-only date lists
+   - `_fetch_and_upsert_date(fetcher, date, ticker_map, session_factory)` — single-date bulk fetch + upsert
+
+3. **Added `ohlcv_max_gap_days` config** (`backend/config.py`)
+   - Default: 60 days. Configurable via env var `OHLCV_MAX_GAP_DAYS`.
+
+4. **12 new tests** (`backend/tests/test_data_pipeline.py`)
+   - `_candidate_dates`: no gap, single weekday, weekend skip, multi-day, full week, Saturday anchor
+   - `_fetch_and_upsert_date`: empty bulk (holiday), known/unknown ticker matching
+   - Integration: up-to-date (no fetch), cap exceeded, 5-day outage fill, holiday in gap
+
+#### Key Design Decisions
+
+- **Bulk endpoint per date** (not per-ticker): EODHD's `/eod-bulk-last-day/US?date=YYYY-MM-DD` returns all tickers for one date in a single API call. Filling a 5-day gap = 3-4 API calls. Per-ticker approach would be 23K × 5 = 115K calls.
+- **Weekday-only candidates**: Skipping Saturday/Sunday avoids 2 wasted API calls per week. Market holidays return empty — harmless and handled gracefully.
+- **60-day cap**: Prevents accidental multi-year fetch if a stale DB is connected. Logs a clear warning recommending the manual backfill script.
+- **Extracted helpers**: `_candidate_dates` and `_fetch_and_upsert_date` are pure-ish functions testable without Celery or a real database.
+
+#### Lessons Learned
+
+- The EODHD bulk endpoint accepts a `date` parameter, which was already implemented in `fetch_bulk_eod()` but never used by the daily task. No API client changes needed.
+- `Stock.latest_date` was already being maintained — it was the perfect anchor for gap detection with zero schema changes.
+
+#### Files Changed
+
+- `backend/config.py` — added `ohlcv_max_gap_days: int = 60`
+- `backend/tasks/data_tasks.py` — rewrote `daily_ohlcv_update`, extracted `_candidate_dates`, `_fetch_and_upsert_date`
+- `backend/tests/test_data_pipeline.py` — 12 new tests (3 test classes)
+- `docs/CHANGELOG.md` — Added + Changed entries
+- `WORKFLOW.md` — updated last session, next session
+- `docs/PROGRESS.md` — updated component status, test count, session history, crash recovery block
+
+#### Test Count: 434 (12 new)
