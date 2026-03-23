@@ -1501,3 +1501,12 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 - `docs/CHANGELOG.md` — new session reorder entries under [Unreleased]
 
 #### Test Count: 331 (0 new — docs-only session)
+
+#### PR Review Fixes (PR #21 — 4 comments from copilot-pull-request-reviewer)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Consolidated duplicate `### Added` headings in CHANGELOG.md** — merged Session 21's new Added bullet into the existing `### Added` section instead of creating a second one; also merged Session 21 Changed entries into the existing `### Changed` section | Keep a Changelog format requires a single `### Added`/`### Changed` section per `[Unreleased]` block. Duplicate headings make the file unparseable by changelog tooling. | Changelog parsers (and humans) would see two `### Added` sections and either ignore the second or produce malformed output. |
+| 2 | **Added "Build watchlist management backend" to Phase 2 checklist in DESIGN_DOC.md** — the Phase 2 checklist listed watchlist UI but not the backend, while PROGRESS.md explicitly plans a Watchlist Backend session (24) | Phase 2 deliverables must be consistent across all docs. Missing the backend item implies the UI session creates everything from scratch, which contradicts the roadmap's two-session split. | Inconsistency between DESIGN_DOC.md and PROGRESS.md could confuse a future session about whether a backend-only session is needed or if the UI session should also build the backend. |
+| 3 | **BUILD_LOG "Files Changed" count acknowledged** — the Session 21 entry says "4 files" but the PR also modifies BUILD_LOG.md itself (5 files total). Cannot edit the existing BUILD_LOG entry in-place per workflow rules (OOM risk). Convention going forward: BUILD_LOG file counts will note "(excludes this BUILD_LOG entry)" or include it in the count. | Self-referential accuracy — cross-referencing the PR diff against the BUILD_LOG should match. | Minor documentation inconsistency. No functional impact. |
+| 4 | **Fixed `PROGRESS.md` path reference in CHANGELOG.md** — changed `PROGRESS.md` to `docs/PROGRESS.md` to match the actual repo path used everywhere else | Consistent file path references prevent confusion when navigating the repo from different contexts (root vs. docs/). | Readers clicking or searching for the file by the referenced path would not find it at the root level. |
