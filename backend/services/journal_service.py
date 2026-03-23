@@ -285,6 +285,7 @@ async def list_trades(
     end_date: date | None = None,
     limit: int = 50,
     offset: int = 0,
+    include_children: bool = False,
 ) -> list[dict[str, Any]]:
     """
     List trades with optional filters.
@@ -322,7 +323,7 @@ async def list_trades(
     trades = list(result.scalars().all())
 
     # Compute metrics and serialize
-    serialized = [serialize_trade(t, include_children=False) for t in trades]
+    serialized = [serialize_trade(t, include_children=include_children) for t in trades]
 
     # Post-filter by computed status (if requested)
     if status:

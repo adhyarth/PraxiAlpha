@@ -7,8 +7,8 @@ Generates PDF reports for the trading journal:
   stop-loss/take-profit lines)
 - Export to PDF with trade summary table + embedded charts
 
-Dependencies: fpdf2 (PDF generation), kaleido (Plotly → static image).
-Both are optional — guarded by importlib checks so CI can run without them.
+Dependencies: fpdf2 (PDF generation) and kaleido (Plotly → static image)
+are required for the PDF report functionality.
 """
 
 from __future__ import annotations

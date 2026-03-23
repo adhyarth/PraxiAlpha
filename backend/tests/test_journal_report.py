@@ -194,11 +194,13 @@ class TestGetChartEndDate:
 # ============================================================
 
 
-plotly = pytest.importorskip("plotly", reason="plotly not installed")
-
-
 class TestBuildTradeChart:
     """Tests for build_trade_chart — chart generation with plotly."""
+
+    @pytest.fixture(autouse=True)
+    def _require_plotly(self):
+        """Skip chart tests if plotly is not installed."""
+        pytest.importorskip("plotly", reason="plotly not installed")
 
     def test_returns_bytes_with_mocked_kaleido(self):
         """Chart builder should return PNG bytes when kaleido is available."""
@@ -414,6 +416,11 @@ class TestGenerateReportPdf:
 # ============================================================
 
 
+fastapi_available = importlib.util.find_spec("fastapi") is not None
+
+
+@pytest.mark.skipif(not fpdf2_available, reason="fpdf2 not installed")
+@pytest.mark.skipif(not fastapi_available, reason="fastapi not installed")
 class TestReportApiEndpoint:
     """Tests for GET /api/v1/journal/report."""
 
@@ -426,7 +433,6 @@ class TestReportApiEndpoint:
 
         return TestClient(app)
 
-    @pytest.mark.skipif(not fpdf2_available, reason="fpdf2 not installed")
     @patch("backend.api.routes.journal.journal_service")
     def test_report_no_trades(self, mock_svc, client):
         """Empty report should return a valid PDF."""
@@ -440,7 +446,6 @@ class TestReportApiEndpoint:
         assert response.headers["content-type"] == "application/pdf"
         assert response.content[:5] == b"%PDF-"
 
-    @pytest.mark.skipif(not fpdf2_available, reason="fpdf2 not installed")
     @patch("backend.api.routes.journal.journal_service")
     def test_report_with_trades_no_charts(self, mock_svc, client):
         """Report with trades (charts disabled) should return a PDF."""
@@ -461,7 +466,6 @@ class TestReportApiEndpoint:
             "content-disposition", ""
         )
 
-    @pytest.mark.skipif(not fpdf2_available, reason="fpdf2 not installed")
     @patch("backend.api.routes.journal.journal_service")
     def test_report_filename_start_only(self, mock_svc, client):
         """Filename should include only start_date when end_date is not provided."""
@@ -474,7 +478,6 @@ class TestReportApiEndpoint:
         assert response.status_code == 200
         assert "journal_report_2026-01-01.pdf" in response.headers.get("content-disposition", "")
 
-    @pytest.mark.skipif(not fpdf2_available, reason="fpdf2 not installed")
     @patch("backend.api.routes.journal.journal_service")
     def test_report_filename_no_dates(self, mock_svc, client):
         """Filename should be plain when no dates provided."""
@@ -487,7 +490,6 @@ class TestReportApiEndpoint:
         assert response.status_code == 200
         assert "journal_report.pdf" in response.headers.get("content-disposition", "")
 
-    @pytest.mark.skipif(not fpdf2_available, reason="fpdf2 not installed")
     @patch("backend.api.routes.journal.journal_service")
     def test_report_passes_filters(self, mock_svc, client):
         """Verify that query params are forwarded to list_trades."""

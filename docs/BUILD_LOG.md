@@ -1516,7 +1516,7 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 ## Session 22 — Trading Journal PDF Report (2026-03-23)
 
 **Branch:** `feat/journal-pdf-report`
-**PR:** #TBD
+**PR:** #22
 
 ### Goal
 Implement the Trading Journal PDF report: a service that queries closed trades by date range, generates annotated Plotly candlestick charts (entry/exit markers, stop-loss/take-profit lines), and exports everything to a downloadable PDF. Expose via API endpoint `GET /api/v1/journal/report`.
@@ -1528,7 +1528,7 @@ Implement the Trading Journal PDF report: a service that queries closed trades b
    - `generate_report_pdf()` — fpdf2-based PDF with title page, aggregate summary (total PnL, win rate, profit factor, avg winner/loser), and per-trade pages with details table + embedded chart.
    - Helper functions: `format_pnl()`, `format_pct()`, `get_lookback_start()`, `get_chart_end_date()`.
    - Timeframe-aware lookback (daily: 1yr, weekly: 2yr, monthly: 5yr, quarterly: 10yr).
-   - All external deps (plotly, fpdf2, kaleido) guarded by importlib checks for CI compatibility.
+   - Plotly and kaleido guarded by importlib checks for CI compatibility (fpdf2 is a direct dependency).
 
 2. **Added `GET /api/v1/journal/report` endpoint** in `backend/api/routes/journal.py`:
    - Query params: `start_date`, `end_date`, `status`, `ticker`, `include_charts` (default: true).

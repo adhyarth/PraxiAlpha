@@ -173,11 +173,25 @@ async def generate_journal_report(
         end_date=end_date,
         limit=200,
         offset=0,
+        include_children=True,
     )
 
     chart_images: dict[str, bytes] = {}
 
     if include_charts:
+        # Prefetch stock_ids for all tickers to avoid N+1 queries
+        from sqlalchemy import text as sa_text  # noqa: PLC0415
+
+        tickers = {t["ticker"] for t in trades if t.get("ticker")}
+        ticker_to_stock_id: dict[str, int] = {}
+        if tickers:
+            result = await db.execute(
+                sa_text("SELECT ticker, id FROM stocks WHERE ticker = ANY(:tickers)"),
+                {"tickers": list(tickers)},
+            )
+            for row in result:
+                ticker_to_stock_id[row[0]] = row[1]
+
         candle_svc = CandleService(db)
         for trade in trades:
             try:
@@ -185,18 +199,9 @@ async def generate_journal_report(
                 chart_start = get_lookback_start(trade)
                 chart_end = get_chart_end_date(trade)
 
-                # Resolve stock_id from ticker — use the stocks table
-                from sqlalchemy import text as sa_text  # noqa: PLC0415
-
-                row = (
-                    await db.execute(
-                        sa_text("SELECT id FROM stocks WHERE ticker = :t LIMIT 1"),
-                        {"t": trade["ticker"]},
-                    )
-                ).fetchone()
-                if row is None:
+                stock_id = ticker_to_stock_id.get(trade["ticker"])
+                if stock_id is None:
                     continue
-                stock_id = row[0]
 
                 candles = await candle_svc.get_candles(
                     stock_id=stock_id,
