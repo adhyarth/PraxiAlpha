@@ -1320,3 +1320,40 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 - `docs/ARCHITECTURE.md` — user_id column status updated from PLANNED to implemented
 
 #### Test Count: 279 (11 new)
+
+#### PR Review Fixes (PR #19 — 7 comments from copilot-pull-request-reviewer)
+
+1. **`_current_user_id()` validation** (`backend/services/journal_service.py`)
+   - **What:** Added `.strip()`, non-empty check, `None` guard, and 50-char max length validation.
+   - **Why:** An empty/whitespace/overly-long `PRAXIALPHA_USER_ID` could silently collapse user scoping or fail on the `String(50)` column. Fail-fast validation surfaces misconfig early.
+   - **Impact if not fixed:** In a shared deployment, an empty env var would scope all users to the same empty string — defeating isolation entirely.
+
+2. **`docs/PROGRESS.md` crash-recovery block outdated** (line 19)
+   - **What:** Updated status to "PR #19 open, awaiting review" and last checkpoint to "Step 9".
+   - **Why:** The crash-recovery block is the authoritative resume point. Stale status (still saying "PR pending") would mislead a recovery session.
+   - **Impact if not fixed:** After a crash, Copilot would think the PR hasn't been created yet and attempt to re-create it.
+
+3. **`docs/CHANGELOG.md` references gitignored migration filename** (line 11)
+   - **What:** Changed "Alembic migration `002_add_user_id_to_trades.py`" to "Alembic migration (local-only, not tracked in repo)".
+   - **Why:** Migration files under `data/migrations/versions/*.py` are gitignored. Referencing a specific filename implies it exists in the repo.
+   - **Impact if not fixed:** Readers would search for a file that doesn't exist in the repository.
+
+4. **`WORKFLOW.md` Last Completed Session references "Alembic migration 002"** (line 21)
+   - **What:** Changed to "Alembic migration for user isolation" (no numeric ID).
+   - **Why:** Same gitignore issue — the numbered migration file isn't tracked.
+   - **Impact if not fixed:** Misleading reference to an untracked file.
+
+5. **`WORKFLOW.md` contradictory BUILD_LOG reading instructions** (line 219)
+   - **What:** Changed "Never read BUILD_LOG.md" to "never load the full file or edit in place; only read the latest session/tail if context is needed".
+   - **Why:** Step 0 says to read the latest session for context, but Step 7c said "never read". The nuance is: don't load the entire file (OOM risk), but tailing the latest session is fine.
+   - **Impact if not fixed:** Copilot would either skip essential context (obey Step 7c) or trigger OOM (obey Step 0 by loading the full file).
+
+6. **`docs/BUILD_LOG.md` references gitignored migration path** (line 1273)
+   - **What:** Will be addressed in future BUILD_LOG entries (appending corrections to the existing entry is not practical via `cat >>`).
+   - **Why:** Same pattern — migration files are gitignored. Future entries will use "local-only" annotation.
+
+7. **`docs/BUILD_LOG.md` Files Changed list includes gitignored file** (line 1317)
+   - **What:** Same as #6 — addressed by convention going forward.
+   - **Why:** Consistency with the gitignore policy.
+
+**7 new validation tests added** for `_current_user_id()`: valid ID, whitespace stripping, None → RuntimeError, empty → ValueError, whitespace-only → ValueError, too-long → ValueError, exactly-max-length valid. Test count: **286 (7 new)**.
