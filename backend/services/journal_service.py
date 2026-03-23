@@ -298,7 +298,13 @@ async def list_trades(
     is a computed field (not a DB column).
     """
     user_id = _current_user_id()
-    stmt = select(Trade).options(selectinload(Trade.exits)).where(Trade.user_id == user_id)
+    load_options = [selectinload(Trade.exits)]
+    if include_children:
+        # Also eagerly load legs when the caller needs full serialization
+        # (e.g., PDF report). Without this, accessing trade.legs triggers
+        # a lazy load → MissingGreenlet in async context.
+        load_options.append(selectinload(Trade.legs))
+    stmt = select(Trade).options(*load_options).where(Trade.user_id == user_id)
 
     # DB-level filters
     if ticker:
