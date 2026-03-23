@@ -12,11 +12,20 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.deps import get_db
 from backend.services import journal_service, trade_snapshot_service
+from backend.services.candle_service import CandleService
+from backend.services.candle_service import Timeframe as CandleTimeframe
+from backend.services.journal_report_service import (
+    build_trade_chart,
+    generate_report_pdf,
+    get_chart_end_date,
+    get_lookback_start,
+)
 
 router = APIRouter(prefix="/journal", tags=["Trading Journal"])
 
@@ -134,6 +143,105 @@ async def create_trade(
         comments=body.comments,
     )
     return trade
+
+
+# ---------------------------------------------------------------------------
+# PDF Report Endpoint (must be before /{trade_id} to avoid path collision)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/report")
+async def generate_journal_report(
+    start_date: date | None = Query(default=None, description="Report start date"),
+    end_date: date | None = Query(default=None, description="Report end date"),
+    status: str | None = Query(default=None, pattern="^(open|partial|closed)$"),
+    ticker: str | None = Query(default=None),
+    include_charts: bool = Query(default=True, description="Embed candlestick charts"),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a PDF report of journal trades.
+
+    Filters trades by date range / status / ticker, builds annotated
+    candlestick charts per trade, and returns a downloadable PDF.
+    """
+    trades = await journal_service.list_trades(
+        db,
+        ticker=ticker,
+        status=status,
+        start_date=start_date,
+        end_date=end_date,
+        limit=200,
+        offset=0,
+    )
+
+    chart_images: dict[str, bytes] = {}
+
+    if include_charts:
+        candle_svc = CandleService(db)
+        for trade in trades:
+            try:
+                tf = CandleTimeframe(trade["timeframe"])
+                chart_start = get_lookback_start(trade)
+                chart_end = get_chart_end_date(trade)
+
+                # Resolve stock_id from ticker — use the stocks table
+                from sqlalchemy import text as sa_text  # noqa: PLC0415
+
+                row = (
+                    await db.execute(
+                        sa_text("SELECT id FROM stocks WHERE ticker = :t LIMIT 1"),
+                        {"t": trade["ticker"]},
+                    )
+                ).fetchone()
+                if row is None:
+                    continue
+                stock_id = row[0]
+
+                candles = await candle_svc.get_candles(
+                    stock_id=stock_id,
+                    timeframe=tf,
+                    start=chart_start,
+                    end=chart_end,
+                    limit=1000,
+                )
+                img = build_trade_chart(candles, trade)
+                if img:
+                    chart_images[trade["id"]] = img
+            except Exception:
+                # Chart generation is best-effort — don't fail the report
+                import logging  # noqa: PLC0415
+
+                logging.getLogger(__name__).warning(
+                    "Chart generation failed for trade %s",
+                    trade.get("id"),
+                    exc_info=True,
+                )
+
+    pdf_bytes = generate_report_pdf(
+        trades,
+        chart_images,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    filename = "journal_report"
+    if start_date:
+        filename += f"_{start_date.isoformat()}"
+    if end_date:
+        filename += f"_to_{end_date.isoformat()}"
+    filename += ".pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Single-Trade CRUD
+# ---------------------------------------------------------------------------
 
 
 @router.get("/{trade_id}")

@@ -1510,3 +1510,68 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 2 | **Added "Build watchlist management backend" to Phase 2 checklist in DESIGN_DOC.md** — the Phase 2 checklist listed watchlist UI but not the backend, while PROGRESS.md explicitly plans a Watchlist Backend session (24) | Phase 2 deliverables must be consistent across all docs. Missing the backend item implies the UI session creates everything from scratch, which contradicts the roadmap's two-session split. | Inconsistency between DESIGN_DOC.md and PROGRESS.md could confuse a future session about whether a backend-only session is needed or if the UI session should also build the backend. |
 | 3 | **BUILD_LOG "Files Changed" count acknowledged** — the Session 21 entry says "4 files" but the PR also modifies BUILD_LOG.md itself (5 files total). Cannot edit the existing BUILD_LOG entry in-place per workflow rules (OOM risk). Convention going forward: BUILD_LOG file counts will note "(excludes this BUILD_LOG entry)" or include it in the count. | Self-referential accuracy — cross-referencing the PR diff against the BUILD_LOG should match. | Minor documentation inconsistency. No functional impact. |
 | 4 | **Fixed `PROGRESS.md` path reference in CHANGELOG.md** — changed `PROGRESS.md` to `docs/PROGRESS.md` to match the actual repo path used everywhere else | Consistent file path references prevent confusion when navigating the repo from different contexts (root vs. docs/). | Readers clicking or searching for the file by the referenced path would not find it at the root level. |
+
+---
+
+## Session 22 — Trading Journal PDF Report (2026-03-23)
+
+**Branch:** `feat/journal-pdf-report`
+**PR:** #TBD
+
+### Goal
+Implement the Trading Journal PDF report: a service that queries closed trades by date range, generates annotated Plotly candlestick charts (entry/exit markers, stop-loss/take-profit lines), and exports everything to a downloadable PDF. Expose via API endpoint `GET /api/v1/journal/report`.
+
+### What Was Done
+
+1. **Created `backend/services/journal_report_service.py`** — Report generation service with:
+   - `build_trade_chart()` — Plotly candlestick chart annotated with green triangle-up (entry), red triangle-down (exits), dashed SL/TP lines. Exports to PNG via kaleido.
+   - `generate_report_pdf()` — fpdf2-based PDF with title page, aggregate summary (total PnL, win rate, profit factor, avg winner/loser), and per-trade pages with details table + embedded chart.
+   - Helper functions: `format_pnl()`, `format_pct()`, `get_lookback_start()`, `get_chart_end_date()`.
+   - Timeframe-aware lookback (daily: 1yr, weekly: 2yr, monthly: 5yr, quarterly: 10yr).
+   - All external deps (plotly, fpdf2, kaleido) guarded by importlib checks for CI compatibility.
+
+2. **Added `GET /api/v1/journal/report` endpoint** in `backend/api/routes/journal.py`:
+   - Query params: `start_date`, `end_date`, `status`, `ticker`, `include_charts` (default: true).
+   - Resolves stock_id from ticker, fetches candles via CandleService, generates charts per trade.
+   - Returns PDF as `application/pdf` with Content-Disposition filename.
+   - Route placed before `/{trade_id}` to avoid FastAPI path collision.
+   - Chart generation is best-effort — failures are logged but don't break the report.
+
+3. **Created `backend/tests/test_journal_report.py`** — 36 tests across 7 test classes:
+   - `TestFormatPnl` (5 tests) — positive, negative, zero, None, large values
+   - `TestFormatPct` (4 tests) — positive, negative, zero, None
+   - `TestGetLookbackStart` (6 tests) — daily/weekly/monthly/quarterly, string dates, default timeframe
+   - `TestGetChartEndDate` (3 tests) — closed with exits, open no exits, string exit dates
+   - `TestBuildTradeChart` (6 tests) — mocked kaleido, empty candles, no SL/TP, short trades, kaleido failure, multiple exits
+   - `TestGenerateReportPdf` (7 tests) — empty trades, single trade, chart embedding, multiple trades, date range title, optional fields, aggregate stats
+   - `TestReportApiEndpoint` (5 tests) — empty report, trades with filters, filename variations, filter forwarding
+
+4. **Added `fpdf2` and `kaleido` to `pyproject.toml`** — `fpdf2>=2.8,<3` and `kaleido==0.2.1` in core dependencies.
+
+### Bugs Fixed During Development
+- **fpdf2 returns `bytearray`**, not `bytes` — Starlette's `Response` can't encode a bytearray. Fix: wrap `pdf.output()` with `bytes()`.
+- **Unicode characters in PDF** — fpdf2's Helvetica font doesn't support em-dash (`—`) or infinity symbol (`∞`). Fix: replaced with ASCII equivalents (`-`, `Inf`).
+- **`format_pnl` negative values** — f-string `f"${-500:,.2f}"` produces `$-500.00` not `-$500.00`. Fix: explicit `f"-${abs(value):,.2f}"` branch.
+- **FastAPI route collision** — `GET /report` was after `GET /{trade_id}`, so `/report` matched as `trade_id="report"`. Fix: moved `/report` route before `/{trade_id}`.
+- **mypy type errors** — `fig.to_image()` returns `Any`, `entry - timedelta` returns `Any` when entry is untyped. Fix: explicit type annotations on return values.
+- **ruff import sorting** — new imports needed re-sorting after additions.
+
+### Lessons Learned
+- fpdf2's core fonts (Helvetica, Courier, Times) only support latin-1 characters. For Unicode, you'd need `pdf.add_font()` with a TTF file. For this project, ASCII substitutes work fine.
+- FastAPI route ordering matters: fixed-path routes (like `/report`) must be declared before parameterized routes (like `/{trade_id}`) or they'll never match.
+- Plotly chart export via kaleido works well but is a heavy dep. The importlib guard pattern lets CI skip chart tests gracefully.
+
+### Files Changed (5 files, excludes this BUILD_LOG entry)
+- `backend/services/journal_report_service.py` — **new** — report service (chart builder + PDF generator)
+- `backend/api/routes/journal.py` — added imports, `GET /report` endpoint (before `/{trade_id}`)
+- `backend/tests/test_journal_report.py` — **new** — 36 tests
+- `pyproject.toml` — added `fpdf2>=2.8,<3` and `kaleido==0.2.1`
+- `docs/PROGRESS.md` — crash recovery, component status, Phase 2 checklist, session history, roadmap
+
+### Docs Updated
+- `DESIGN_DOC.md` — Phase 2 checklist: marked PDF report generator as done
+- `docs/PROGRESS.md` — crash recovery, component status (367 tests, report endpoint), Phase 2 checklist, session history, roadmap Session 22 → done
+- `docs/CHANGELOG.md` — Session 22 entries under [Unreleased]
+- `WORKFLOW.md` — (to be updated post-merge)
+
+### Test Count: 367 (36 new)

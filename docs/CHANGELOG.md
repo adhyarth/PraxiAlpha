@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Added
+- **Trading Journal PDF Report** — `journal_report_service.py` with annotated candlestick chart generation (Plotly + kaleido) and PDF export (fpdf2). Charts show entry/exit markers, stop-loss/take-profit lines, trade context.
+- **Report API endpoint** — `GET /api/v1/journal/report` with date range, status, ticker, and `include_charts` filters. Returns downloadable PDF with trade summaries, aggregate stats (win rate, profit factor, avg winner/loser), and embedded charts.
+- **36 new report tests** (367 total) — helper functions (format_pnl, format_pct, lookback, chart end date), chart builder (6 scenarios), PDF generation (7 scenarios), API endpoint (5 scenarios).
+- **fpdf2 + kaleido dependencies** — added to `pyproject.toml` for PDF generation and Plotly static image export.
 - **Trading Journal Streamlit UI session** added to roadmap (Session 23) — trade list, entry form, detail view, PDF download, what-if display. After Session 23, the full journal is usable from the Streamlit dashboard.
 - **Post-close "what-if" implementation** — `TradeSnapshot` model, snapshot service (create, list, what-if summary), Celery periodic task (`generate_snapshots`), 2 new API endpoints (`GET /snapshots`, `GET /what-if`), Alembic migration 003 (local-only)
 - **Direction-aware hypothetical PnL** — `compute_hypothetical_pnl()` helper using Decimal arithmetic, supports long and short trades
