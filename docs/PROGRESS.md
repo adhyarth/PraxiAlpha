@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-22 (Session 17)
+> **Last updated:** 2026-03-22 (Session 18)
 
 ---
 
@@ -13,9 +13,9 @@
 
 | | |
 |-|-|
-| **Session** | 17 — Post-Close "What-If" Design |
-| **Branch** | `docs/post-close-what-if-design` |
-| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). PR #17 opened, review fixes in progress. |
+| **Session** | 18 — User Isolation Design |
+| **Branch** | `docs/user-isolation-design` |
+| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). PR #18 open, review fixes in progress. |
 | **Last checkpoint** | Step 9 — PR review fixes |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
@@ -37,7 +37,7 @@
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
-| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, 53 tests. Post-close "what-if" tracking designed (trade_snapshots table — implementation pending). |
+| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, 53 tests. Post-close "what-if" tracking designed (trade_snapshots table — implementation pending). User isolation designed (user_id column, PRAXIALPHA_USER_ID env var — implementation pending). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (268 tests) |
 | **Tests** | ✅ 268 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal |
@@ -65,6 +65,8 @@
 - [x] Stock search functionality — Session 13
 - [x] Trading Journal — backend (model, service, API, migration, tests) — Session 16
 - [x] Trading Journal — post-close "what-if" design (trade_snapshots schema, Celery task plan, API endpoints) — Session 17
+- [x] Trading Journal — user isolation design (user_id column, PRAXIALPHA_USER_ID env var, query filtering) — Session 18
+- [ ] Trading Journal — user isolation implementation (model, config, service, migration, tests)
 - [ ] Trading Journal — post-close "what-if" implementation (model, service, Celery task, API, tests)
 - [ ] Trading Journal — PDF report generator (annotated charts, PDF export)
 - [ ] Watchlist management backend
@@ -97,6 +99,7 @@
 | 15 | 2026-03-20 | Trading Journal roadmap: schema design (trades, exits, legs), PDF report plan, session reorder (Journal before Watchlist), docs updates | PR #15 |
 | 16 | 2026-03-22 | Trading Journal backend: 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total) | PR #16 |
 | 17 | 2026-03-22 | Post-close "what-if" design: trade_snapshots table schema, Celery task plan, API endpoints, max tracking durations by timeframe. Docs-only session. | PR #17 |
+| 18 | 2026-03-22 | User isolation design: lightweight user_id column + PRAXIALPHA_USER_ID env var for per-user trade privacy. Evaluated 3 options (full auth, env-var user_id, separate DB), chose Option B. Docs-only session. | PR #18 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 

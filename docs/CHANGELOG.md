@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Added
+- **User isolation design (Option B)** — lightweight per-user trade privacy via `user_id` column on `trades` table + `PRAXIALPHA_USER_ID` environment variable. Each user's `.env` sets a unique ID; all journal queries filter by this value so users only see their own trades. No UI changes required.
+- **`PRAXIALPHA_USER_ID` env var** — new config setting (defaults to `"default"`) that identifies the current user for journal row ownership
+- **User isolation decision rationale** — evaluated 3 options: (A) full JWT/OAuth auth (too heavy), (B) env-var user_id column (chosen — lightweight, upgradeable), (C) separate DB per user (not scalable). Documented in DESIGN_DOC.md §11.
+- **User isolation implementation plan** — 7 files to change: `.env.example`, `config.py`, `backend/models/journal.py` model, `journal_service.py`, Alembic migration, tests. Child tables (`trade_exits`, `trade_legs`, `trade_snapshots`) inherit isolation via `trade_id` FK — no separate `user_id` column needed.
 - **Post-close "what-if" tracking design** — `trade_snapshots` table schema (7 columns: UUID PK, trade_id FK, snapshot_date, close_price, hypothetical_pnl, hypothetical_pnl_pct, created_at) with UNIQUE constraint on `(trade_id, snapshot_date)`
 - **Snapshot schedule by timeframe** — daily trades: every trading day for 30 calendar days; weekly trades: weekly for 16 calendar weeks; monthly trades: monthly for 18 calendar months
 - **Celery task plan** — periodic task to auto-generate snapshots for closed trades, fetching prices from `daily_ohlcv`/aggregates, computing direction-aware hypothetical PnL
@@ -21,9 +25,12 @@
 - **Trading Journal schema design** — 3 tables (`trades`, `trade_exits`, `trade_legs`) with 31 columns total, supporting open/partial/closed trades, partial exits (scale-out), multi-leg options, timeframe tracking, JSONB tags, and free-form comments
 - **Trading Journal PDF report plan** — per-trade annotated candlestick charts (matching trade timeframe), entry/exit markers, stop/TP lines, summary statistics, timeframe-based lookback (daily=1yr, weekly=2yr, monthly=5yr, quarterly=10yr)
 - **Trading Journal API endpoints planned** — 8 endpoints for CRUD, partial exits, option legs, and PDF report generation (`/api/v1/journal/`)
-- **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 18 (PDF Report) inserted before Watchlist sessions
+- **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 20 (PDF Report) inserted before Watchlist sessions
 
 ### Changed
+- **`DESIGN_DOC.md` v1.4** — added user isolation design (§11), `user_id` column in schema diagram, decision rationale (3 options evaluated)
+- **`docs/ARCHITECTURE.md`** — added `user_id` column to `trades` table schema, documented env-var-based isolation design decision
+- **Session roadmap renumbered** — Session 18 = User Isolation Design (new), Session 19 = User Isolation Implementation (new), Session 20 = PDF Report (was 18), Sessions 21+ shifted accordingly
 - **`DESIGN_DOC.md` v1.3** — added `trade_snapshots` to schema diagram, data volume estimates, and Phase 2 roadmap
 - **`docs/ARCHITECTURE.md`** — added full `trade_snapshots` table schema with design decisions, added 2 planned snapshot API endpoints
 - **Session roadmap renumbered** — Session 17 = What-If Design (new), Session 18 = PDF Report (was 17), Session 19 = What-If Implementation (new), Sessions 20–23 shifted accordingly
