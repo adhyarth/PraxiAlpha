@@ -110,17 +110,18 @@ async def _fetch_and_upsert_date(
                 await session.execute(stmt)
             await session.commit()
 
-        # Bulk-update latest_date for affected stocks
-        record_date = records[0]["date"]
+        # Bulk-update latest_date for affected stocks.
+        # Use target_date (the date we requested) rather than a date parsed
+        # from the response, to guard against provider data anomalies.
         affected_ids = list({r["stock_id"] for r in records})
         async with async_session_factory() as session:
             await session.execute(
                 update(Stock)
                 .where(
                     Stock.id.in_(affected_ids),
-                    (Stock.latest_date.is_(None)) | (Stock.latest_date < record_date),
+                    (Stock.latest_date.is_(None)) | (Stock.latest_date < target_date),
                 )
-                .values(latest_date=record_date)
+                .values(latest_date=target_date)
             )
             await session.commit()
 
@@ -180,13 +181,20 @@ def daily_ohlcv_update(self):
             today = date.today()
 
             if last_known is None:
-                # No data at all — fall back to single latest-day fetch
+                # No data at all — target the most recent weekday
                 logger.warning(
                     "⚠️ No latest_date found for any stock. "
                     "Falling back to single-day fetch. "
                     "Run the initial backfill script to populate history."
                 )
-                last_known = today - timedelta(days=1)
+                # Ensure we target the most recent weekday on or before "today"
+                effective_today = today
+                while effective_today.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+                    effective_today -= timedelta(days=1)
+                # Set last_known to the day before the effective trading day so that
+                # the subsequent gap/candidate-date logic yields exactly one date.
+                last_known = effective_today - timedelta(days=1)
+                today = effective_today
 
             gap = (today - last_known).days
             if gap <= 0:

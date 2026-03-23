@@ -6,7 +6,7 @@ Tests for EODHD fetcher, FRED fetcher, data validator, and OHLCV gap-fill logic.
 
 import importlib.util
 from datetime import date, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 import pytest
@@ -354,14 +354,6 @@ class TestFetchAndUpsertDate:
         ticker_to_id = {"AAPL": 1, "MSFT": 2}  # ZZZZ not in DB
 
         # Patch the model imports inside _fetch_and_upsert_date
-        with (
-            patch("backend.tasks.data_tasks.DailyOHLCV", create=True),
-            patch("backend.tasks.data_tasks.Stock", create=True),
-        ):
-            # We need the actual function to import models inside itself,
-            # so let's just test the return value shape
-            pass
-
         # Simpler approach: just verify the function can be called and
         # returns the right counts by mocking at a higher level
         result = await _fetch_and_upsert_date(
@@ -379,22 +371,12 @@ class TestFetchAndUpsertDate:
 class TestDailyOhlcvUpdateGapFill:
     """Integration-style tests for the gap-fill task logic."""
 
-    @patch("backend.tasks.data_tasks.refresh_candle_aggregates")
-    @patch("backend.tasks.data_tasks._fetch_and_upsert_date")
-    @patch("backend.tasks.data_tasks.get_settings")
-    def test_already_up_to_date(self, mock_settings, mock_fetch_upsert, mock_refresh):
-        """When last_known == today, no fetches should happen."""
-        mock_settings.return_value.ohlcv_max_gap_days = 60
-        mock_settings.return_value.eodhd_api_key = "test-key"
-
+    def test_already_up_to_date(self):
+        """When last_known == today, there should be no candidate dates."""
         today = date.today()
 
-        # We'll test the _run() coroutine logic directly by
-        # checking that _fetch_and_upsert_date is never called
-        # when there's no gap
         candidates = _candidate_dates(today, today)
         assert candidates == []
-        mock_fetch_upsert.assert_not_called()
 
     def test_gap_capped_at_max(self):
         """Gap > max_gap_days should be capped."""

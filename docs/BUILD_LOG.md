@@ -1814,3 +1814,17 @@ This preserves the optimization (no legs loaded for list view) while fixing the 
 - `docs/PROGRESS.md` — updated component status, test count, session history, crash recovery block
 
 #### Test Count: 434 (12 new)
+
+---
+
+#### PR Review Fixes (Post-Review)
+
+Addressed all 6 Copilot review comments on PR #27:
+
+1. **`last_known is None` edge case** — When no history exists and `today` is a weekend, the task now walks back to the most recent weekday before building candidates. Prevents empty candidate list on weekend runs.
+2. **`latest_date` update safety** — Changed from `records[0]["date"]` (parsed from provider response) to `target_date` (the date we explicitly requested). Guards against provider data anomalies.
+3. **`test_already_up_to_date` simplification** — Removed unnecessary `@patch` decorators that never exercised the task. Test now directly asserts `_candidate_dates(today, today) == []`.
+4. **Dead `with (patch(...)): pass` block removed** — Cleaned up the unused patching context manager in `test_upserts_known_tickers_skips_unknown`.
+5. **WORKFLOW.md session numbering** — Fixed inconsistency: Next Session updated from "24 — Watchlist Backend" to "26 — Watchlist Backend" (Session 25 is now complete).
+6. **Celery import guard** — Already addressed in prior commit; no additional changes needed.
+7. **Removed unused `patch` import** — Lint fix after removing patches from tests.

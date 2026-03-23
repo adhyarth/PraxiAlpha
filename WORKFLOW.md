@@ -26,12 +26,12 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 24 — Watchlist Backend |
+| **Session** | 26 — Watchlist Backend |
 | **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
 | **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
 
-> **After Session 24:** Session 25 builds the Streamlit Watchlist UI — create/rename/delete watchlists,
+> **After Session 26:** Session 27 builds the Streamlit Watchlist UI — create/rename/delete watchlists,
 > add/remove tickers, sparkline/change columns.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
