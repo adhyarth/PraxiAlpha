@@ -20,6 +20,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+# Optional dependencies — not installed in CI test environment
+_has_celery = importlib.util.find_spec("celery") is not None
+_has_fastapi = importlib.util.find_spec("fastapi") is not None
+
 # ============================================================
 # Model Tests
 # ============================================================
@@ -493,6 +497,7 @@ class TestMaxTrackingDurations:
 # ============================================================
 
 
+@pytest.mark.skipif(not _has_celery, reason="celery not installed")
 class TestGenerateSnapshotsTask:
     """Tests for the generate_snapshots Celery task."""
 
@@ -515,6 +520,7 @@ class TestGenerateSnapshotsTask:
 # ============================================================
 
 
+@pytest.mark.skipif(not _has_fastapi, reason="fastapi not installed")
 class TestSnapshotAPIRoutes:
     """Tests for snapshot API endpoint registration."""
 
