@@ -132,7 +132,8 @@ def delete_trade(trade_id: str) -> bool:
 
     try:
         resp = httpx.delete(_journal_url(f"/{trade_id}"), timeout=10)
-        return resp.status_code == 204
+        result: bool = resp.status_code == 204
+        return result
     except (httpx.ConnectError, httpx.TimeoutException):
         logger.warning("Backend unavailable for delete_trade")
     except httpx.RequestError as exc:
