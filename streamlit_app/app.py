@@ -29,12 +29,12 @@ with st.sidebar:
     st.header("Navigation")
     st.markdown("""
     - 📊 [Dashboard](/Dashboard)
-    - 📈 [Charts](/Charts) ✨ *New*
+    - 📈 [Charts](/Charts) ✨
+    - 📝 [Journal](/Journal) ✨ *New*
     - 📋 Reports *(Phase 3)*
     - 🔍 Screener *(Phase 3)*
     - 🧪 Backtesting *(Phase 4)*
     - 🎓 Education *(Phase 5)*
-    - 📝 Journal *(Phase 7)*
     - 📉 Performance *(Phase 7)*
     - ⚡ Trading *(Phase 7)*
     - 🛡️ Risk *(Phase 7)*
