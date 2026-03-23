@@ -46,6 +46,10 @@
 - **Journal trade detail component** — `streamlit_app/components/journal_trade_detail.py` — renders trade info card, exits table, legs table, what-if summary, and snapshot history.
 - **55 new UI tests** (422 total) — formatting helpers (12), API client (19), URL construction (3), rendering with mocked st (12), page helpers (9).
 
+### Fixed
+- **`journal_service.create_trade` — `MissingGreenlet` crash** — assigning `trade.exits = []` after `db.flush()` triggered a SQLAlchemy lazy-load in async context, causing a 500 Internal Server Error on every new trade creation. Fixed by replacing `db.refresh()` + manual relationship assignment with a `select()` + `selectinload()` re-fetch (same pattern used by `get_trade()`).
+- **3 unit tests updated** — `test_create_trade_returns_serialized`, `test_create_trade_uppercases_ticker`, `test_create_trade_sets_user_id` now mock `db.execute` for the re-fetch query instead of the removed `db.refresh` call.
+
 ### Changed
 - **`streamlit_app/pages/journal.py`** — replaced Phase 7 placeholder with full journal UI (list, detail, new trade views with session_state routing)
 - **`streamlit_app/app.py`** — updated sidebar navigation: Journal link now active (was Phase 7 placeholder), moved from bottom to after Charts
