@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-23 (Bugfix — MissingGreenlet in journal create_trade)
+> **Last updated:** 2026-03-23 (Bugfix — MissingGreenlet in journal create_trade + report endpoint)
 
 ---
 

@@ -48,6 +48,7 @@
 
 ### Fixed
 - **`journal_service.create_trade` — `MissingGreenlet` crash** — assigning `trade.exits = []` after `db.flush()` triggered a SQLAlchemy lazy-load in async context, causing a 500 Internal Server Error on every new trade creation. Fixed by replacing `db.refresh()` + manual relationship assignment with a `select()` + `selectinload()` re-fetch (same pattern used by `get_trade()`).
+- **`journal_service.list_trades` — `MissingGreenlet` crash on PDF report** — when `include_children=True` (used by the report endpoint), `serialize_trade()` accessed `trade.legs` which was not eagerly loaded, triggering a lazy-load in async context. Fixed by conditionally adding `selectinload(Trade.legs)` when `include_children=True`.
 - **3 unit tests updated** — `test_create_trade_returns_serialized`, `test_create_trade_uppercases_ticker`, `test_create_trade_sets_user_id` now mock `db.execute` for the re-fetch query instead of the removed `db.refresh` call.
 
 ### Changed
