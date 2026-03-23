@@ -1587,3 +1587,86 @@ Implement the Trading Journal PDF report: a service that queries closed trades b
 | 5 | **Fixed module docstring** — removed "optional, guarded by importlib checks", now says fpdf2 and kaleido are "required for the PDF report functionality" | Docstring should match actual behavior |
 | 6 | **Added `include_children=True` to `list_trades` call** — report needs exits array for chart markers and PDF trade details; added `include_children` parameter to `list_trades` function | Without exits, charts showed no exit markers and PDF had empty exit lists |
 | 7 | **Prefetched stock_ids with batch query** — replaced N+1 per-trade `SELECT id FROM stocks` with single `WHERE ticker = ANY(:tickers)` and ticker→id map | N+1 query pattern would slow report generation for 200 trades |
+
+---
+
+## Session 23 — Trading Journal Streamlit UI (2026-03-23)
+
+**Branch:** `feat/journal-streamlit-ui`
+**PR:** #24
+
+### Goal
+Build the full Streamlit frontend for the trading journal: trade list with filters, new trade entry form, trade detail view (exits, option legs, what-if snapshots), edit/delete actions, and PDF report download. Wire all existing journal API endpoints (7 CRUD + 2 snapshot + 1 report) to the Streamlit UI.
+
+### What Was Done
+
+1. **Created `streamlit_app/components/journal_api.py`** — HTTP client module wrapping all 10 journal API endpoints:
+   - `list_trades()` — with ticker, status, direction, timeframe, tags, date range filters
+   - `get_trade()`, `create_trade()`, `update_trade()`, `delete_trade()`
+   - `add_exit()`, `add_leg()`
+   - `list_snapshots()`, `get_whatif_summary()`
+   - `download_report()` — returns `(bytes, filename)` tuple, extracts filename from Content-Disposition header
+   - All functions use httpx with proper exception handling (ConnectError, TimeoutException, RequestError)
+
+2. **Created `streamlit_app/components/journal_trade_form.py`** — Four reusable form components:
+   - `render_trade_form()` — new trade entry (ticker, direction, asset type, trade type, entry date/price, quantity, timeframe, SL/TP, tags, comments)
+   - `render_edit_form()` — edit mutable fields (SL, TP, timeframe, tags, comments)
+   - `render_exit_form()` — add partial/full exit (validates remaining quantity)
+   - `render_leg_form()` — add option leg (type, strike, expiry, contracts, premium)
+
+3. **Created `streamlit_app/components/journal_trade_detail.py`** — Trade detail rendering:
+   - `render_trade_info()` — header with direction icon, status badge, 4-column metrics (PnL, R-multiple, entry price, avg exit), details grid (dates, quantities, SL/TP, tags)
+   - `render_exits_table()`, `render_legs_table()` — dataframe tables
+   - `render_whatif_summary()` — actual vs best/worst hypothetical PnL, latest snapshot
+   - `render_snapshot_table()` — full snapshot history
+   - Formatting helpers: `_fmt_pnl`, `_fmt_pct`, `_fmt_price`, `_fmt_r`
+
+4. **Replaced `streamlit_app/pages/journal.py`** — Full journal page with three views:
+   - **List view** — trade rows with ticker, status badge, entry price, PnL (color-coded), tags, "View" button. Sidebar filters (ticker, status, direction, timeframe, tags, date range).
+   - **Detail view** — trade info card + 5 tabs (Exits, Option Legs, What-If, Edit, Actions/Delete). Each tab wires to the corresponding API client + form component.
+   - **New trade view** — entry form that creates via API and navigates to detail on success.
+   - Session state routing (`journal_view`: list/detail/new, `journal_selected_trade_id`)
+   - PDF report download in sidebar with filter-aware generation
+
+5. **Updated `streamlit_app/app.py`** — sidebar nav: Journal link now active with link to `/Journal`, moved up from Phase 7 placeholder position.
+
+6. **Created `backend/tests/test_journal_ui.py`** — 55 tests across 12 test classes:
+   - `TestDetailFormatters` (12 tests) — PnL, pct, price, R-multiple formatting
+   - `TestJournalApi` (19 tests) — all API client functions with mocked httpx (success, failure, network errors)
+   - `TestJournalApiUrls` (3 tests) — URL construction
+   - `TestRenderTradeInfo` (2 tests) — header and metrics rendering with mocked st
+   - `TestRenderExitsTable` (3 tests) — exits, empty, None
+   - `TestRenderLegsTable` (2 tests) — legs, empty
+   - `TestRenderWhatifSummary` (3 tests) — None, no snapshots, with snapshots
+   - `TestRenderSnapshotTable` (3 tests) — None, empty, with data
+   - `TestPagePnlHelpers` (7 tests) — page-level formatting helpers
+   - `TestStatusBadges` (2 tests) — status badge mapping
+
+### Bugs Fixed During Development
+- **httpx exception mocking** — generic `Exception("connection refused")` in tests didn't match the specific `httpx.ConnectError` / `httpx.TimeoutException` catches. Fix: use `httpx.ConnectError` / `httpx.TimeoutException` as side_effect.
+- **`st.columns(4)` mock unpacking** — `MagicMock.return_value` returns a single mock, not a list. Fix: `side_effect` returning a list of 4 context-manager mocks per call.
+- **Nested `if` (ruff SIM102)** — `if confirm: if st.button(...)` flagged. Fix: combined into `if confirm and st.button(...)`.
+- **Unused `datetime` import** — `from datetime import date, datetime` but only `date` used. Fix: removed `datetime`.
+- **mypy `delta_color` type** — Streamlit's `st.metric` expects a Literal type. Fix: added `# type: ignore[arg-type]` with explicit str annotation.
+
+### Key Design Decisions
+- **Session state routing** — Uses `st.session_state.journal_view` (list/detail/new) to manage which view is rendered. This avoids Streamlit's multipage app complexity and keeps all journal logic in one file.
+- **Separate API client module** — All httpx calls are isolated in `journal_api.py`. This decouples the UI from the HTTP layer and makes testing straightforward (mock httpx, not Streamlit).
+- **Tabs for detail view** — Exits, Option Legs, What-If, Edit, and Actions are in separate tabs. This keeps the detail view organized without overwhelming the user.
+- **PDF download in sidebar** — The report download is always accessible from the sidebar, using the current filter state. This follows Streamlit convention of controls in sidebar, content in main area.
+- **Form components as functions** — Each form returns a payload dict on submit or None. The calling page handles the API call and navigation. This separation makes forms reusable and testable.
+
+### Lessons Learned
+- Mocking `st.columns()` requires returning a list of context-manager mocks with `__enter__`/`__exit__`. Since `render_trade_info` calls `st.columns(4)` twice, the mock needs `side_effect` (not `return_value`) to return different lists per call.
+- httpx exception types (`ConnectError`, `TimeoutException`) don't inherit from a common base that `Exception` catches in the same way as the specific catches in the code. Tests must use the exact exception types.
+- Streamlit's `st.metric` `delta_color` parameter uses a `Literal` type that mypy enforces strictly. The workaround is `# type: ignore[arg-type]` since the string value is correct at runtime.
+
+### Files Changed (6 files, excludes this BUILD_LOG entry)
+- `streamlit_app/components/journal_api.py` — **new** — HTTP client for all journal API endpoints
+- `streamlit_app/components/journal_trade_form.py` — **new** — trade entry, edit, exit, and leg forms
+- `streamlit_app/components/journal_trade_detail.py` — **new** — trade info card, exits/legs/snapshot tables, what-if summary
+- `streamlit_app/pages/journal.py` — **replaced** — full journal page (list, detail, new trade views)
+- `streamlit_app/app.py` — updated sidebar nav (Journal link active)
+- `backend/tests/test_journal_ui.py` — **new** — 55 tests
+
+### Test Count: 422 (55 new)
