@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | Post-merge cleanup — PR #25 merged |
-| **Branch** | `main` |
-| **Status** | PR #25 merged, post-merge cleanup complete |
-| **Last checkpoint** | Branch deleted, docs updated, ready for Session 24 (Watchlist Backend) |
+| **Session** | 25 — Smart OHLCV Gap-Fill |
+| **Branch** | `feat/smart-ohlcv-gap-fill` |
+| **Status** | Code complete, CI passed (434 tests), docs pending |
+| **Last checkpoint** | Code committed, running CI. Next: docs, push, PR. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
