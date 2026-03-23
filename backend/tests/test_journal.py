@@ -385,8 +385,7 @@ class TestCreateTrade:
     """Tests for journal_service.create_trade."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_create_trade_returns_serialized(self, mock_uid):
+    async def test_create_trade_returns_serialized(self):
         """create_trade should return a serialized dict."""
         mock_db = AsyncMock()
         mock_db.add = MagicMock()  # add() is sync, not async
@@ -428,8 +427,7 @@ class TestCreateTrade:
         mock_db.flush.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_create_trade_uppercases_ticker(self, mock_uid):
+    async def test_create_trade_uppercases_ticker(self):
         """Ticker should be stored in uppercase."""
         mock_db = AsyncMock()
         mock_db.add = MagicMock()  # add() is sync, not async
@@ -465,8 +463,7 @@ class TestGetTrade:
     """Tests for journal_service.get_trade."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_get_trade_found(self, mock_uid):
+    async def test_get_trade_found(self):
         """Should return serialized trade when found."""
         trade = _make_trade()
         mock_result = MagicMock()
@@ -483,8 +480,7 @@ class TestGetTrade:
         assert result["status"] == "open"
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_get_trade_not_found(self, mock_uid):
+    async def test_get_trade_not_found(self):
         """Should return None when trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -507,8 +503,7 @@ class TestListTrades:
     """Tests for journal_service.list_trades."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_list_trades_empty(self, mock_uid):
+    async def test_list_trades_empty(self):
         """Should return empty list when no trades."""
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []
@@ -522,8 +517,7 @@ class TestListTrades:
         assert result == []
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_list_trades_returns_serialized(self, mock_uid):
+    async def test_list_trades_returns_serialized(self):
         """Should return list of serialized trades."""
         trade1 = _make_trade(ticker="AAPL")
         trade2 = _make_trade(ticker="MSFT")
@@ -540,8 +534,7 @@ class TestListTrades:
         assert len(result) == 2
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_list_trades_filters_by_status(self, mock_uid):
+    async def test_list_trades_filters_by_status(self):
         """Status filter is applied in Python after fetch."""
         open_trade = _make_trade(ticker="AAPL")
         closed_exit = _make_exit(exit_price=Decimal("160.0000"), quantity=Decimal("100.0000"))
@@ -575,8 +568,7 @@ class TestDeleteTrade:
     """Tests for journal_service.delete_trade."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_delete_trade_found(self, mock_uid):
+    async def test_delete_trade_found(self):
         mock_result = MagicMock()
         mock_result.rowcount = 1
 
@@ -589,8 +581,7 @@ class TestDeleteTrade:
         assert result is True
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_delete_trade_not_found(self, mock_uid):
+    async def test_delete_trade_not_found(self):
         mock_result = MagicMock()
         mock_result.rowcount = 0
 
@@ -612,8 +603,7 @@ class TestAddExit:
     """Tests for journal_service.add_exit."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_add_exit_exceeds_quantity_raises(self, mock_uid):
+    async def test_add_exit_exceeds_quantity_raises(self):
         """Should raise ValueError when exit qty > remaining."""
         trade = _make_trade(total_quantity=Decimal("100.0000"), exits=[])
 
@@ -636,8 +626,7 @@ class TestAddExit:
             )
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_add_exit_not_found_returns_none(self, mock_uid):
+    async def test_add_exit_not_found_returns_none(self):
         """Should return None if trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -666,8 +655,7 @@ class TestAddLeg:
     """Tests for journal_service.add_leg."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_add_leg_not_found_returns_none(self, mock_uid):
+    async def test_add_leg_not_found_returns_none(self):
         """Should return None if trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -698,8 +686,7 @@ class TestUpdateTrade:
     """Tests for journal_service.update_trade."""
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_update_trade_not_found(self, mock_uid):
+    async def test_update_trade_not_found(self):
         """Should return None if trade doesn't exist."""
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
@@ -713,8 +700,7 @@ class TestUpdateTrade:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("backend.services.journal_service._current_user_id", return_value="default")
-    async def test_update_trade_with_no_changes(self, mock_uid):
+    async def test_update_trade_with_no_changes(self):
         """Empty update should still return the trade."""
         trade = _make_trade()
         mock_result = MagicMock()
