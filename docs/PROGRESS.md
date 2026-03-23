@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-23 (Session 26 — Skip Options What-If)
+> **Last updated:** 2026-03-23 (Session 27 — Celery Task Bug Fixes)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 26 — Skip Options What-If |
-| **Branch** | `fix/skip-options-what-if` |
-| **Status** | PR #28 opened, awaiting review. |
-| **Last checkpoint** | All code + docs committed and pushed. |
+| **Session** | 27 — Celery Task Bug Fixes |
+| **Branch** | `fix/celery-task-bugs` |
+| **Status** | CI passed, docs in progress. |
+| **Last checkpoint** | Code pushed to remote. Updating docs. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -33,7 +33,7 @@
 | **Backfill** | ✅ Done | `scripts/backfill_full.py` — 23,714 tickers backfilled (1990–2026), 58.2M OHLCV records, 18.4K splits, 634K dividends |
 | **Daily Tasks** | ✅ Working | Celery Beat — daily OHLCV with **smart gap-fill** (auto-detects and fills all missing days) → candle aggregate refresh, daily macro (7-day incremental), daily calendar |
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/`, `/api/v1/journal/`, `/api/v1/journal/report` |
-| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (6 PM ET), daily macro (6:30 PM ET), daily economic calendar (7 AM ET) |
+| **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (7 PM ET) → candle aggregate refresh (chained), daily macro (7:10 PM ET), daily trade snapshots (7:20 PM ET), daily economic calendar (7 AM ET) |
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
@@ -109,6 +109,7 @@
 | — | 2026-03-23 | Bugfix: MissingGreenlet in `create_trade` (selectinload re-fetch) and `list_trades` (conditional legs eager-load for PDF report). 3 tests updated with re-fetch assertions. | PR #25 |
 | 25 | 2026-03-23 | Smart OHLCV gap-fill: rewrote `daily_ohlcv_update` with gap-detection loop, extracted helpers, added `ohlcv_max_gap_days` config, 12 new tests (434 total). | PR #27 |
 | 26 | 2026-03-23 | Skip options what-if: excluded options trades from snapshot generation and what-if summary (no live options pricing data), Streamlit UI reason message, 3 new tests (437 total). | PR #28 |
+| 27 | 2026-03-23 | Celery task bug fixes: engine.dispose() in all async tasks, timestamp cast fix in candle aggregate refresh, worker queue routing fix (`-Q celery,data_pipeline`), beat schedule staggered to 7 PM ET window. | PR #29 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
@@ -132,7 +133,9 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **22** | **Trading Journal — PDF Report** | ✅ Done — Report service (annotated Plotly charts, PDF export via fpdf2), API endpoint `GET /api/v1/journal/report` with date/status/ticker filters, 36 new tests (367 total). Added fpdf2 + kaleido deps. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (report endpoint), `backend/tests/test_journal_report.py` | Session 16 ✅ |
 | **23** | **Trading Journal — Streamlit UI** | ✅ Done — Journal page: trade list table (status, PnL, tags, filters), trade entry form (ticker, direction, qty, entry price, stop/TP), trade detail view (exits, legs, snapshots, what-if summary), PDF report download button, 55 new tests (422 total). | `streamlit_app/pages/journal.py`, `streamlit_app/components/journal_trade_form.py`, `streamlit_app/components/journal_trade_detail.py`, `streamlit_app/components/journal_api.py`, `streamlit_app/app.py` (nav update) | Session 22 ✅ |
 | **25** | **Smart OHLCV Gap-Fill** | ✅ Done — Rewrote `daily_ohlcv_update` with gap-detection loop, extracted helpers, added `ohlcv_max_gap_days` config, 12 new tests (434 total). | `backend/tasks/data_tasks.py`, `backend/config.py`, `backend/tests/test_data_pipeline.py` | Session 8 ✅ |
-| **26** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
-| **27** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 26 |
-| **28** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 27 |
-| **29** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 28 |
+| **26** | **Skip Options What-If** | ✅ Done — excluded options trades from snapshot generation, Streamlit UI reason message, 3 new tests (437 total). | `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `streamlit_app/components/journal_trade_detail.py`, `backend/tests/test_trade_snapshots.py` | Session 20 ✅ |
+| **27** | **Celery Task Bug Fixes** | ✅ Done — engine.dispose() in all async tasks, timestamp cast fix, worker queue routing fix, beat schedule staggered to 7 PM ET. | `backend/tasks/data_tasks.py`, `backend/tasks/trade_snapshot_task.py`, `backend/tasks/celery_app.py`, `docker-compose.yml` | Session 8 ✅ |
+| **28** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
+| **29** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 28 |
+| **30** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 29 |
+| **31** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 30 |

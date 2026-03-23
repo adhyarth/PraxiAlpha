@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Engine pool disposal in Celery tasks** — all async Celery tasks (`daily_ohlcv_update`, `daily_macro_update`, `backfill_stock`, `backfill_all_stocks`, `daily_economic_calendar_sync`, `generate_snapshots`) now call `await engine.dispose()` before creating sessions, preventing "Future attached to a different loop" errors on repeated task executions in the same worker process.
+- **Timestamp cast in candle aggregate refresh** — `refresh_continuous_aggregate()` call now casts `(now() - interval)::date` instead of raw `now() - interval`, fixing TimescaleDB type mismatch errors.
+- **Celery worker queue routing** — added `-Q celery,data_pipeline` to the worker command in `docker-compose.yml` so that tasks routed to the `data_pipeline` queue are actually consumed (previously only the default `celery` queue was listened to).
+
+### Changed
+- **Celery beat schedule staggered to 7 PM ET** — `daily_ohlcv_update` moved from 6:00 PM → 7:00 PM ET, `daily_macro_update` from 6:30 PM → 7:10 PM ET, `daily_trade_snapshots` from 7:00 PM → 7:20 PM ET. Provides more settlement time and staggers tasks to avoid resource contention. `refresh_candle_aggregates` is chained after OHLCV (no separate schedule entry).
+
 ### Added
 - **Smart OHLCV gap-fill** — `daily_ohlcv_update` Celery task now auto-detects missing dates since the last successful fetch and fills all gaps using one EODHD bulk API call per missing trading day. On a normal day this is still 1 API call; after a 5-day outage it self-heals with ~3-4 calls (weekdays only).
 - **`_candidate_dates()` helper** — generates weekday-only date lists for gap-fill, extracted for testability.
