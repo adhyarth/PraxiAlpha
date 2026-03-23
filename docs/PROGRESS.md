@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-23 (Session 25 — Smart OHLCV Gap-Fill)
+> **Last updated:** 2026-03-23 (Session 26 — Skip Options What-If)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 25 — Smart OHLCV Gap-Fill |
-| **Branch** | `feat/smart-ohlcv-gap-fill` |
-| **Status** | PR #27 open, review fixes pushed, CI green. Ready to merge. |
-| **Last checkpoint** | Addressed all 6 Copilot review comments. Awaiting final merge. |
+| **Session** | 26 — Skip Options What-If |
+| **Branch** | `fix/skip-options-what-if` |
+| **Status** | Code complete, CI green (437 tests). Docs pending. |
+| **Last checkpoint** | All code committed. 3 new tests. Proceeding to docs + PR. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -37,10 +37,10 @@
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
-| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented. |
+| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (434 tests) |
-| **Tests** | ✅ 434 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (437 tests) |
+| **Tests** | ✅ 437 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---
@@ -108,6 +108,7 @@
 | 23 | 2026-03-23 | Trading Journal Streamlit UI: journal page (trade list with filters/PnL, entry form, detail view with exits/legs/what-if/edit/delete), PDF report download, API client module, 3 reusable components, 55 new tests (422 total). | PR #24 |
 | — | 2026-03-23 | Bugfix: MissingGreenlet in `create_trade` (selectinload re-fetch) and `list_trades` (conditional legs eager-load for PDF report). 3 tests updated with re-fetch assertions. | PR #25 |
 | 25 | 2026-03-23 | Smart OHLCV gap-fill: rewrote `daily_ohlcv_update` with gap-detection loop, extracted helpers, added `ohlcv_max_gap_days` config, 12 new tests (434 total). | PR #27 |
+| 26 | 2026-03-23 | Skip options what-if: excluded options trades from snapshot generation and what-if summary (no live options pricing data), Streamlit UI reason message, 3 new tests (437 total). | PR #28 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
