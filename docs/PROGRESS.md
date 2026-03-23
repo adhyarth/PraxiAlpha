@@ -9,14 +9,14 @@
 
 ---
 
-## 🔴 Current Session Status (crash recovery checkpoint)
+## � Current Session Status (crash recovery checkpoint)
 
 | | |
 |-|-|
-| **Session** | 19 — User Isolation Implementation |
-| **Branch** | `feat/user-isolation` |
-| **Status** | Code complete, CI passed (279 tests), docs updated. PR #19 open, awaiting review. |
-| **Last checkpoint** | Step 9 — PR #19 open, awaiting review feedback / follow-ups |
+| **Session** | No active session |
+| **Branch** | `main` |
+| **Status** | Session 19 merged (PR #19). Ready for Session 20. |
+| **Last checkpoint** | Step 10 — post-merge cleanup complete |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -39,8 +39,8 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, 64 tests. User isolation implemented (user_id column, PRAXIALPHA_USER_ID env var, all queries scoped). Post-close "what-if" tracking designed (trade_snapshots table — implementation pending). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (279 tests) |
-| **Tests** | ✅ 279 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (286 tests) |
+| **Tests** | ✅ 286 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---

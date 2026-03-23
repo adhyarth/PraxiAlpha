@@ -19,6 +19,7 @@ celery_app = Celery(
     backend=settings.effective_celery_result_backend,
     include=[
         "backend.tasks.data_tasks",
+        "backend.tasks.trade_snapshot_task",
     ],
 )
 
@@ -55,6 +56,12 @@ celery_app.conf.beat_schedule = {
     "daily-economic-calendar-sync": {
         "task": "backend.tasks.data_tasks.daily_economic_calendar_sync",
         "schedule": crontab(hour=7, minute=0),  # 7:00 AM ET
+        "options": {"queue": "data_pipeline"},
+    },
+    # Daily trade snapshot generation — runs at 7 PM ET (after OHLCV update)
+    "daily-trade-snapshots": {
+        "task": "backend.tasks.trade_snapshot_task.generate_snapshots",
+        "schedule": crontab(hour=19, minute=0),  # 7:00 PM ET
         "options": {"queue": "data_pipeline"},
     },
 }
