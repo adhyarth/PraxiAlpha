@@ -1177,3 +1177,63 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 3 | **Fixed PROGRESS.md crash recovery block** — changed status from "Ready to commit, push, and create PR" to "PR #17 opened, review fixes in progress" and checkpoint from "Step 8" to "Step 9" | The PR was already open, but the crash recovery block still said it was pre-PR. A crash recovery session would incorrectly try to create a new PR instead of continuing the review cycle. | Crash recovery would attempt duplicate PR creation or skip the review fix step entirely. |
 | 4 | **Added `/api/v1` prefix to planned endpoints in CHANGELOG.md** — changed `GET /journal/{trade_id}/snapshots` to `GET /api/v1/journal/{trade_id}/snapshots` (and same for `/what-if`) | Every other endpoint in the changelog and API docs uses the full `/api/v1/...` path. Omitting the prefix is inconsistent. | Developers copy-pasting endpoint paths from the changelog would get 404s. Inconsistency between docs creates doubt about which is correct. |
 | 5 | **Fixed stale session number in CHANGELOG.md** — changed "Session 17 (PDF Report)" to "Session 18 (PDF Report)" in the roadmap entry | The roadmap renumbering changed PDF Report from Session 17 to 18, but this CHANGELOG entry still referenced the old number. | Conflicting session numbers in the same [Unreleased] section — one entry says Session 17 = What-If Design, another says Session 17 = PDF Report. |
+
+---
+
+### Session 18 — 2026-03-22: User Isolation Design (Phase 2)
+
+**Goal:** Design lightweight per-user trade privacy for the Trading Journal, so that when sharing the PraxiAlpha repo with trusted users (friends/family), each user only sees their own trades. Docs-only session (no code changes).
+
+**Branch:** `docs/user-isolation-design`
+
+#### What Was Done
+
+1. **Evaluated 3 options for user privacy:**
+
+| Option | Description | Verdict |
+|--------|------------|---------|
+| **A. Full Auth (JWT/OAuth)** | User table, login UI, token management, RBAC | ❌ Overkill for 2-5 trusted local users |
+| **B. Env-Var `user_id` column** | Add `user_id` to `trades`, set from `PRAXIALPHA_USER_ID` in `.env`, filter all queries | ✅ Chosen — lightweight, no UI change, upgradeable |
+| **C. Separate DB per user** | Each user gets their own PostgreSQL database | ❌ Duplicates ~33 GB shared data, maintenance nightmare |
+
+2. **Designed Option B implementation plan:**
+   - New `PRAXIALPHA_USER_ID` env var (defaults to `"default"`)
+   - `config.py` gains `user_id: str = "default"` setting
+   - `trades` model gains `user_id: Mapped[str]` column (indexed, NOT NULL, default `'default'`)
+   - `journal_service.py` — all CRUD queries filter by `user_id`; create operations auto-set `user_id`
+   - API layer — no changes needed (service handles filtering transparently)
+   - Alembic migration — adds column with default (backfills existing rows), creates index
+   - Child tables (`trade_exits`, `trade_legs`, `trade_snapshots`) inherit isolation via `trade_id` FK — no separate `user_id` needed
+
+3. **Documented security boundaries:**
+   - Not authentication — privacy-by-convention for trusted users
+   - Upgradeable: when full auth arrives (Phase 8+), `user_id` becomes FK to `users` table with zero schema migration
+   - Acceptable trade-off: a user who changes their env var *can* see others' data (trusted context)
+
+4. **Updated all documentation:**
+   - `DESIGN_DOC.md` v1.4 — user isolation design in §11 (Security), `user_id` in schema diagram, decision rationale, implementation plan, tables affected analysis
+   - `docs/ARCHITECTURE.md` — `user_id` column in trades table schema, design decision note
+   - `WORKFLOW.md` — Last Completed = Session 18, Next = Session 19 (User Isolation Implementation), renumbered PDF Report to Session 20
+   - `docs/PROGRESS.md` — crash recovery block, component status (user isolation designed), Phase 2 checklist (+user isolation design ✅, +implementation ☐), Session 18 in history
+   - `docs/CHANGELOG.md` — 4 Added + 3 Changed entries under [Unreleased]
+
+#### Key Design Decisions
+- **`user_id` on `trades` only** — child tables (`trade_exits`, `trade_legs`, `trade_snapshots`) are always accessed via `trade_id` FK, which already scopes them to a user's trade. Adding `user_id` to children would be redundant denormalization.
+- **Env var over config file** — `.env` is already the pattern for all configuration (API keys, DB creds). Adding one more env var is zero-friction.
+- **Default `"default"` over empty string** — an empty default could cause subtle SQL bugs (`WHERE user_id = ''`). A meaningful default ensures single-user setups work without any configuration.
+- **String type, not UUID** — no `users` table yet, so there's nothing to FK to. A simple string identifier (`alice`, `bob`) is human-readable and trivially upgradeable later.
+
+#### Lessons Learned
+- Design-first sessions (Sessions 15, 17, 18) consistently catch requirements that would surface as bugs during implementation — in this case, the question of whether child tables need their own `user_id` column.
+- The simplest solution that works for the current use case is usually the right one. Full auth would take a full session to implement and add login UI complexity that nobody needs for 2-3 trusted users.
+- Documenting "options considered and rejected" is just as valuable as documenting the chosen approach — future sessions won't re-evaluate the same trade-offs.
+
+#### Files Changed
+- `DESIGN_DOC.md` — v1.4: user isolation design (§11), `user_id` in schema diagram
+- `WORKFLOW.md` — last completed session (18), next session (19), renumbered sessions
+- `docs/ARCHITECTURE.md` — `user_id` column in trades table, design decision
+- `docs/PROGRESS.md` — crash recovery, component status, Phase 2 checklist, session history
+- `docs/CHANGELOG.md` — 4 Added + 3 Changed entries
+- `docs/BUILD_LOG.md` — this entry
+
+#### Test Count: 268 (unchanged — documentation-only session)
