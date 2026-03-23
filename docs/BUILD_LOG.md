@@ -1249,3 +1249,74 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 | 5 | **Fixed contradictory `user_id` scope in DESIGN_DOC.md** — "Chosen: Option B" paragraph incorrectly listed `trade_exits` and `trade_snapshots` as getting `user_id`, contradicting the "Tables Affected" section | The summary said `user_id` goes on child tables, but the detailed table said they inherit via FK. Must be consistent. | Session 19 implementation would be confused about whether to add `user_id` to 4 tables or 1. |
 | 6 | **Updated PR description file count** — changed "Files Changed (4 files)" to "Files Changed (6 files)" with BUILD_LOG.md and correct list | PR description didn't account for BUILD_LOG.md and listed only 4 files when 6 were actually changed. | PR reviewers would see a mismatch between the description and the actual diff, reducing trust in the PR documentation. |
 | 7 | **Updated PROGRESS.md crash recovery status** — changed "PR pending" to "PR #18 open, review fixes in progress" and checkpoint to "Step 9" | PR was already open at #18 but the crash recovery block still said it was pre-PR. | Crash recovery session would try to create a duplicate PR instead of continuing the review cycle. |
+
+### Session 19 — 2026-03-22: User Isolation Implementation (Phase 2)
+
+**Goal:** Implement the user isolation design from Session 18 — add `user_id` column to the `trades` table, update config, filter all journal service queries by user, create Alembic migration, write isolation tests. Also overhaul WORKFLOW.md Step 7 to prevent crash-related doc loss.
+
+**Branch:** `feat/user-isolation`
+
+#### What Was Done
+
+1. **`backend/config.py`** — added `praxialpha_user_id: str = "default"` setting (reads from `PRAXIALPHA_USER_ID` env var)
+
+2. **`backend/models/journal.py`** — added `user_id: Mapped[str]` column to `Trade` model:
+   - `String(50)`, `nullable=False`, `index=True`, `server_default=text("'default'")`
+   - Positioned right after `id` column for readability
+
+3. **`backend/services/journal_service.py`** — 5 changes:
+   - Added `_current_user_id()` helper that reads from settings
+   - `create_trade` — auto-sets `user_id` from `_current_user_id()`
+   - `get_trade`, `list_trades`, `update_trade`, `delete_trade`, `add_exit`, `add_leg` — all filter by `Trade.user_id == user_id`
+   - `serialize_trade` — includes `user_id` in output dict
+
+4. **`data/migrations/versions/002_add_user_id_to_trades.py`** — Alembic migration:
+   - Adds `user_id` VARCHAR(50) column with `server_default='default'` (backfills existing rows)
+   - Creates index `ix_trades_user_id`
+   - Downgrade drops index + column
+
+5. **`.env.example`** — added `PRAXIALPHA_USER_ID=default` with documentation comment
+
+6. **`backend/tests/test_journal.py`** — 11 new isolation tests in `TestUserIsolation` class:
+   - `test_create_trade_sets_user_id` — verifies user_id is set from `_current_user_id`
+   - `test_get_trade_filters_by_user_id` — alice sees her trade
+   - `test_get_trade_returns_none_for_other_user` — bob can't see alice's trade
+   - `test_list_trades_filters_by_user_id` — only user's trades returned
+   - `test_delete_trade_scoped_to_user` — can't delete other user's trade
+   - `test_delete_trade_own_trade_succeeds` — can delete own trade
+   - `test_add_exit_returns_none_for_other_user` — can't add exit to other's trade
+   - `test_add_leg_returns_none_for_other_user` — can't add leg to other's trade
+   - `test_update_trade_returns_none_for_other_user` — can't update other's trade
+   - `test_serialize_trade_includes_user_id` — serialized output has user_id
+   - `test_default_user_id_in_mock` — mock defaults to "default"
+   - Also cleaned up existing CRUD tests: removed unnecessary `@patch` decorators (settings defaults to "default" which matches mock)
+
+7. **WORKFLOW.md Step 7 overhaul** — rewrote the documentation step:
+   - Split into 7a (pre-docs checkpoint), 7b (small docs first), 7c (BUILD_LOG via `cat >>`)
+   - Small docs (CHANGELOG, WORKFLOW, PROGRESS) committed + pushed BEFORE BUILD_LOG
+   - BUILD_LOG is ONLY appended via `cat >>` — never read or edited with file tools
+   - New pitfall #18: docs step crashes lose all doc updates if not committed incrementally
+   - Updated crash recovery section with `cat >>` instructions
+
+#### Key Design Decisions
+- **`_current_user_id()` helper** — single point of access for user_id. Easy to mock in tests, easy to replace with auth-based user lookup later.
+- **No API layer changes needed** — service handles filtering transparently. API routes don't know about user_id.
+- **Existing tests work without patching** — `_current_user_id()` returns `"default"` via settings defaults, which matches the mock trade's `user_id="default"`. Only isolation-specific tests need `@patch`.
+- **`cat >>` for BUILD_LOG** — avoids reading the 1200+ line file into Copilot memory, which repeatedly caused OOM crashes.
+
+#### Lessons Learned
+- The previous session's crash happened during BUILD_LOG.md editing (Step 7). All code was committed but docs weren't, causing the recovery session to waste time re-reading files it didn't need to.
+- The fix: commit + push small docs BEFORE touching BUILD_LOG. If BUILD_LOG crashes, you lose only that one entry. All other docs are safe on the remote.
+- Using `cat >>` to append to BUILD_LOG is a permanent fix — it never reads the file, so there's zero OOM risk regardless of file size.
+
+#### Files Changed (8 files)
+- `backend/config.py` — added `praxialpha_user_id` setting
+- `backend/models/journal.py` — added `user_id` column to Trade
+- `backend/services/journal_service.py` — user_id filtering on all CRUD, `_current_user_id()` helper
+- `backend/tests/test_journal.py` — 11 new isolation tests, cleaned up existing test patches
+- `data/migrations/versions/002_add_user_id_to_trades.py` — new migration
+- `.env.example` — added PRAXIALPHA_USER_ID
+- `WORKFLOW.md` — Step 7 overhaul, new pitfalls, updated crash recovery
+- `docs/ARCHITECTURE.md` — user_id column status updated from PLANNED to implemented
+
+#### Test Count: 279 (11 new)
