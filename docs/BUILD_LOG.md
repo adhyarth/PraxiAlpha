@@ -1575,3 +1575,15 @@ Implement the Trading Journal PDF report: a service that queries closed trades b
 - `WORKFLOW.md` — (to be updated post-merge)
 
 ### Test Count: 367 (36 new)
+
+#### PR Review Fixes (PR #22 — 7 comments from copilot-pull-request-reviewer)
+
+| # | What Was Changed | Why |
+|---|-----------------|-----|
+| 1 | **Moved `pytest.importorskip('plotly')` from module level to class fixture** — module-level skip was skipping the entire test file (including PDF and helper tests that don't need plotly) | Non-plotly tests should still run in lightweight CI without plotly |
+| 2 | **Added FastAPI availability guard on API endpoint tests** — class-level `skipif` for both fpdf2 and fastapi | API tests would fail at import if fastapi is absent |
+| 3 | **Fixed BUILD_LOG PR number `#TBD` → `#22`** | Accurate session history |
+| 4 | **Fixed BUILD_LOG importlib claim** — changed "all external deps guarded" to "Plotly and kaleido guarded (fpdf2 is a direct dependency)" | fpdf2 import is unconditional in `generate_report_pdf()` |
+| 5 | **Fixed module docstring** — removed "optional, guarded by importlib checks", now says fpdf2 and kaleido are "required for the PDF report functionality" | Docstring should match actual behavior |
+| 6 | **Added `include_children=True` to `list_trades` call** — report needs exits array for chart markers and PDF trade details; added `include_children` parameter to `list_trades` function | Without exits, charts showed no exit markers and PDF had empty exit lists |
+| 7 | **Prefetched stock_ids with batch query** — replaced N+1 per-trade `SELECT id FROM stocks` with single `WHERE ticker = ANY(:tickers)` and ticker→id map | N+1 query pattern would slow report generation for 200 trades |
