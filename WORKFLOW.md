@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-22 (Session 17 — Post-Close What-If Design)
+> **Last updated:** 2026-03-22 (Session 18 — User Isolation Design)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 17 — Post-Close "What-If" Design |
+| **Session** | 18 — User Isolation Design |
 | **Date** | 2026-03-22 |
-| **PR** | #17 |
-| **What was done** | Docs-only session: designed post-close "what-if" tracking feature (trade_snapshots table, Celery task, API endpoints). Updated DESIGN_DOC, ARCHITECTURE, PROGRESS, BUILD_LOG, CHANGELOG. |
+| **PR** | #18 |
+| **What was done** | Docs-only session: designed lightweight user isolation (Option B — `user_id` column + `PRAXIALPHA_USER_ID` env var) for Trading Journal privacy when sharing repo with trusted users. Updated DESIGN_DOC, ARCHITECTURE, PROGRESS, CHANGELOG. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,10 +26,10 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 18 — Trading Journal PDF Report |
-| **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
-| **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` |
-| **Depends on** | Session 16 (Trading Journal Backend) |
+| **Session** | 19 — User Isolation Implementation |
+| **Scope** | Add `user_id` column to `trades` model, update `config.py` + `.env.example`, filter all journal service queries by `user_id`, Alembic migration, update tests for isolation behavior. |
+| **Key files** | `backend/config.py`, `backend/models/journal.py`, `backend/services/journal_service.py`, `.env.example`, `data/migrations/versions/...`, `backend/tests/test_journal_*.py` |
+| **Depends on** | Session 18 (User Isolation Design) |
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
@@ -342,7 +342,7 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | DELETE | `/api/v1/journal/{trade_id}` | Delete a trade |
 | POST | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit |
 | POST | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| GET | `/api/v1/journal/report` | Generate PDF report (Session 18 — planned) |
+| GET | `/api/v1/journal/report` | Generate PDF report (Session 20 — planned) |
 
 #### Post-Close What-If Snapshots (Planned)
 
