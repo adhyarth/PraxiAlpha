@@ -226,13 +226,14 @@ class TestSerializeSnapshot:
 
 def _make_mock_trade(**overrides):
     """Create a mock Trade with sensible defaults for snapshot tests."""
-    from backend.models.journal import Timeframe, TradeDirection
+    from backend.models.journal import AssetType, Timeframe, TradeDirection
 
     defaults = {
         "id": uuid.uuid4(),
         "user_id": "default",
         "ticker": "AAPL",
         "direction": TradeDirection.LONG,
+        "asset_type": AssetType.SHARES,
         "entry_price": Decimal("150.00"),
         "total_quantity": Decimal("100"),
         "timeframe": Timeframe.DAILY,
@@ -382,6 +383,33 @@ class TestGetWhatifSummary:
         assert result["total_snapshots"] == 0
         assert result["best_hypothetical"] is None
         assert result["worst_hypothetical"] is None
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_returns_reason_for_options_trade(self, mock_uid):
+        """Closed options trades return a summary with reason instead of snapshots."""
+        from backend.models.journal import AssetType
+        from backend.services.trade_snapshot_service import get_whatif_summary
+
+        exits = [_make_mock_exit(date(2026, 3, 15), 5.00, 100)]
+        trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            asset_type=AssetType.OPTIONS,
+        )
+
+        mock_db = AsyncMock()
+        trade_result = MagicMock()
+        trade_result.scalar_one_or_none.return_value = trade
+        mock_db.execute.return_value = trade_result
+
+        result = await get_whatif_summary(mock_db, trade.id)
+        assert result is not None
+        assert result["total_snapshots"] == 0
+        assert result["best_hypothetical"] is None
+        assert result["worst_hypothetical"] is None
+        assert "reason" in result
+        assert "options" in result["reason"].lower()
 
     @pytest.mark.asyncio
     @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
@@ -596,6 +624,70 @@ class TestCreateSnapshot:
 
 class TestGetClosedTradesNeedingSnapshots:
     """Tests for get_closed_trades_needing_snapshots."""
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_skips_options_trades(self, mock_uid):
+        """Options trades should be excluded — no live options pricing data."""
+        from backend.models.journal import AssetType, Timeframe, TradeDirection
+        from backend.services.trade_snapshot_service import (
+            get_closed_trades_needing_snapshots,
+        )
+
+        exits = [_make_mock_exit(date(2026, 3, 15), 5.00, 10)]
+        trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.DAILY,
+            direction=TradeDirection.LONG,
+            asset_type=AssetType.OPTIONS,
+        )
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [trade]
+        mock_db.execute.return_value = mock_result
+
+        result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 3, 20))
+        assert result == []
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_includes_equity_but_skips_options(self, mock_uid):
+        """When both equity and options trades are closed, only equity is returned."""
+        from backend.models.journal import AssetType, Timeframe, TradeDirection
+        from backend.services.trade_snapshot_service import (
+            get_closed_trades_needing_snapshots,
+        )
+
+        exits = [_make_mock_exit(date(2026, 3, 15), 160.0, 100)]
+        equity_trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.DAILY,
+            direction=TradeDirection.LONG,
+            asset_type=AssetType.SHARES,
+        )
+        option_trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.DAILY,
+            direction=TradeDirection.LONG,
+            asset_type=AssetType.OPTIONS,
+        )
+
+        mock_db = AsyncMock()
+        # First call: list trades (both)
+        trades_result = MagicMock()
+        trades_result.scalars.return_value.all.return_value = [equity_trade, option_trade]
+        # Second call: batch check existing snapshots (none found)
+        existing_result = MagicMock()
+        existing_result.all.return_value = []
+        mock_db.execute.side_effect = [trades_result, existing_result]
+
+        result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 3, 20))
+        assert len(result) == 1
+        assert result[0]["trade_id"] == equity_trade.id
 
     @pytest.mark.asyncio
     @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")

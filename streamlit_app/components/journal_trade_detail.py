@@ -202,6 +202,10 @@ def render_whatif_summary(summary: dict[str, Any] | None) -> None:
         return
 
     total_snapshots = summary.get("total_snapshots", 0)
+    reason = summary.get("reason")
+    if reason:
+        st.info(reason)
+        return
     if total_snapshots == 0:
         st.caption(
             "No post-close snapshots yet. Snapshots are collected automatically after a trade closes."
