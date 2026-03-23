@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 22 — Trading Journal PDF Report |
-| **Branch** | `feat/journal-pdf-report` |
-| **Status** | PR #22 created. Waiting for review. |
-| **Last checkpoint** | Step 8 — PR created, waiting for review |
+| **Session** | _(none active)_ |
+| **Branch** | `main` |
+| **Status** | Session 22 merged. Ready to start Session 23. |
+| **Last checkpoint** | — |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
