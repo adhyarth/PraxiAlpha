@@ -659,9 +659,9 @@ class TestGetClosedTradesNeedingSnapshots:
         # First call: list trades
         trades_result = MagicMock()
         trades_result.scalars.return_value.all.return_value = [trade]
-        # Second call: check existing snapshot (none)
+        # Second call: batch check existing snapshots (none found)
         existing_result = MagicMock()
-        existing_result.scalar_one_or_none.return_value = None
+        existing_result.all.return_value = []
         mock_db.execute.side_effect = [trades_result, existing_result]
 
         result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 3, 20))
@@ -687,10 +687,147 @@ class TestGetClosedTradesNeedingSnapshots:
         mock_db = AsyncMock()
         trades_result = MagicMock()
         trades_result.scalars.return_value.all.return_value = [trade]
-        # Existing snapshot found
+        # Batch check: existing snapshot found for this trade
         existing_result = MagicMock()
-        existing_result.scalar_one_or_none.return_value = uuid.uuid4()
+        existing_result.all.return_value = [(trade.id,)]
         mock_db.execute.side_effect = [trades_result, existing_result]
 
         result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 3, 20))
         assert result == []
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_weekly_trade_skipped_on_non_cadence_day(self, mock_uid):
+        """A weekly trade should only get snapshots every 7 days after exit."""
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import (
+            get_closed_trades_needing_snapshots,
+        )
+
+        exits = [_make_mock_exit(date(2026, 3, 15), 160.0, 100)]
+        trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.WEEKLY,
+        )
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [trade]
+        mock_db.execute.return_value = mock_result
+
+        # 3 days after exit — not a multiple of 7, should be skipped
+        result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 3, 18))
+        assert result == []
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_weekly_trade_eligible_on_cadence_day(self, mock_uid):
+        """A weekly trade should get a snapshot exactly 7 days after exit."""
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import (
+            get_closed_trades_needing_snapshots,
+        )
+
+        exits = [_make_mock_exit(date(2026, 3, 15), 160.0, 100)]
+        trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.WEEKLY,
+        )
+
+        mock_db = AsyncMock()
+        trades_result = MagicMock()
+        trades_result.scalars.return_value.all.return_value = [trade]
+        existing_result = MagicMock()
+        existing_result.all.return_value = []
+        mock_db.execute.side_effect = [trades_result, existing_result]
+
+        # 7 days after exit — cadence aligned
+        result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 3, 22))
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_monthly_trade_skipped_on_non_cadence_day(self, mock_uid):
+        """A monthly trade should only get snapshots every 30 days after exit."""
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import (
+            get_closed_trades_needing_snapshots,
+        )
+
+        exits = [_make_mock_exit(date(2026, 1, 1), 160.0, 100)]
+        trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.MONTHLY,
+        )
+
+        mock_db = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [trade]
+        mock_db.execute.return_value = mock_result
+
+        # 15 days after exit — not a multiple of 30
+        result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 1, 16))
+        assert result == []
+
+    @pytest.mark.asyncio
+    @patch("backend.services.trade_snapshot_service._current_user_id", return_value="alice")
+    async def test_monthly_trade_eligible_on_cadence_day(self, mock_uid):
+        """A monthly trade should get a snapshot exactly 30 days after exit."""
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import (
+            get_closed_trades_needing_snapshots,
+        )
+
+        exits = [_make_mock_exit(date(2026, 1, 1), 160.0, 100)]
+        trade = _make_mock_trade(
+            user_id="alice",
+            exits=exits,
+            timeframe=Timeframe.MONTHLY,
+        )
+
+        mock_db = AsyncMock()
+        trades_result = MagicMock()
+        trades_result.scalars.return_value.all.return_value = [trade]
+        existing_result = MagicMock()
+        existing_result.all.return_value = []
+        mock_db.execute.side_effect = [trades_result, existing_result]
+
+        # 30 days after exit — cadence aligned
+        result = await get_closed_trades_needing_snapshots(mock_db, date(2026, 1, 31))
+        assert len(result) == 1
+
+
+# ============================================================
+# Snapshot Cadence Constants Tests
+# ============================================================
+
+
+class TestSnapshotCadence:
+    """Tests for SNAPSHOT_CADENCE_DAYS constants."""
+
+    def test_daily_cadence(self):
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import SNAPSHOT_CADENCE_DAYS
+
+        assert SNAPSHOT_CADENCE_DAYS[Timeframe.DAILY] == 1
+
+    def test_weekly_cadence(self):
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import SNAPSHOT_CADENCE_DAYS
+
+        assert SNAPSHOT_CADENCE_DAYS[Timeframe.WEEKLY] == 7
+
+    def test_monthly_cadence(self):
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import SNAPSHOT_CADENCE_DAYS
+
+        assert SNAPSHOT_CADENCE_DAYS[Timeframe.MONTHLY] == 30
+
+    def test_quarterly_cadence(self):
+        from backend.models.journal import Timeframe
+        from backend.services.trade_snapshot_service import SNAPSHOT_CADENCE_DAYS
+
+        assert SNAPSHOT_CADENCE_DAYS[Timeframe.QUARTERLY] == 30

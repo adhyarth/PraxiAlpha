@@ -40,6 +40,16 @@ MAX_TRACKING_DAYS = {
     Timeframe.QUARTERLY: 540,  # same as monthly
 }
 
+# ---------------------------------------------------------------------------
+# Snapshot cadence by timeframe (calendar days between snapshots)
+# ---------------------------------------------------------------------------
+SNAPSHOT_CADENCE_DAYS = {
+    Timeframe.DAILY: 1,  # every trading day
+    Timeframe.WEEKLY: 7,  # weekly
+    Timeframe.MONTHLY: 30,  # monthly (approx)
+    Timeframe.QUARTERLY: 30,  # monthly (same as monthly)
+}
+
 
 # ---------------------------------------------------------------------------
 # PnL computation helpers
@@ -212,7 +222,8 @@ async def get_closed_trades_needing_snapshots(
     A trade needs a snapshot if:
     1. It is closed (all quantity exited)
     2. It hasn't exceeded its max tracking duration
-    3. It doesn't already have a snapshot for this date
+    3. The reference_date aligns with the trade's snapshot cadence
+    4. It doesn't already have a snapshot for this date
 
     Returns a list of dicts with trade info needed to create snapshots.
     """
@@ -226,7 +237,9 @@ async def get_closed_trades_needing_snapshots(
     result = await db.execute(stmt)
     trades = result.scalars().all()
 
-    eligible = []
+    # Filter to closed trades within tracking window + cadence check
+    candidates = []
+    candidate_ids = []
     for trade in trades:
         metrics = compute_trade_metrics(trade)
         if metrics["status"] != "closed":
@@ -239,14 +252,29 @@ async def get_closed_trades_needing_snapshots(
         if reference_date > cutoff_date:
             continue
 
-        # Check if snapshot already exists for this date
-        existing = await db.execute(
-            select(TradeSnapshot.id).where(
-                TradeSnapshot.trade_id == trade.id,
-                TradeSnapshot.snapshot_date == reference_date,
-            )
-        )
-        if existing.scalar_one_or_none() is not None:
+        # Check timeframe-aware cadence
+        cadence = SNAPSHOT_CADENCE_DAYS.get(trade.timeframe, 1)
+        days_since_exit = (reference_date - last_exit_date).days
+        if cadence > 1 and days_since_exit % cadence != 0:
+            continue
+
+        candidates.append(trade)
+        candidate_ids.append(trade.id)
+
+    if not candidate_ids:
+        return []
+
+    # Batch check: fetch all existing snapshot trade_ids for this date in one query
+    existing_stmt = select(TradeSnapshot.trade_id).where(
+        TradeSnapshot.trade_id.in_(candidate_ids),
+        TradeSnapshot.snapshot_date == reference_date,
+    )
+    existing_result = await db.execute(existing_stmt)
+    already_snapshotted = {row[0] for row in existing_result.all()}
+
+    eligible = []
+    for trade in candidates:
+        if trade.id in already_snapshotted:
             continue
 
         eligible.append(

@@ -16,11 +16,14 @@ Snapshot frequency by timeframe:
 
 import asyncio
 import logging
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from backend.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+
+ET = ZoneInfo("US/Eastern")
 
 
 @celery_app.task(
@@ -34,17 +37,23 @@ def generate_snapshots(self, snapshot_date_str: str | None = None):
     Generate post-close snapshots for all eligible trades.
 
     Args:
-        snapshot_date_str: ISO date string (YYYY-MM-DD). Defaults to today.
+        snapshot_date_str: ISO date string (YYYY-MM-DD). Defaults to today
+                           in US/Eastern timezone.
     """
     logger.info("📸 Starting trade snapshot generation...")
 
-    snapshot_dt = date.fromisoformat(snapshot_date_str) if snapshot_date_str else date.today()
+    # Use US/Eastern "today" to avoid UTC midnight date-shift issues
+    snapshot_dt = (
+        date.fromisoformat(snapshot_date_str) if snapshot_date_str else datetime.now(ET).date()
+    )
 
     async def _run():
         from sqlalchemy import select
+        from sqlalchemy.exc import IntegrityError
 
         from backend.database import async_session_factory
         from backend.models.ohlcv import DailyOHLCV
+        from backend.models.stock import Stock
         from backend.services.trade_snapshot_service import (
             compute_hypothetical_pnl,
             create_snapshot,
@@ -62,10 +71,14 @@ def generate_snapshots(self, snapshot_date_str: str | None = None):
             # 2. Gather unique tickers to batch-fetch prices
             tickers = {t["ticker"] for t in eligible}
 
-            # 3. Fetch closing prices from daily_ohlcv
-            stmt = select(DailyOHLCV.ticker, DailyOHLCV.close).where(
-                DailyOHLCV.ticker.in_(tickers),
-                DailyOHLCV.date == snapshot_dt,
+            # 3. Fetch closing prices — join Stock to resolve ticker → stock_id
+            stmt = (
+                select(Stock.ticker, DailyOHLCV.close)
+                .join(DailyOHLCV, Stock.id == DailyOHLCV.stock_id)
+                .where(
+                    Stock.ticker.in_(tickers),
+                    DailyOHLCV.date == snapshot_dt,
+                )
             )
             result = await db.execute(stmt)
             price_map = {row.ticker: float(row.close) for row in result.all()}
@@ -102,14 +115,20 @@ def generate_snapshots(self, snapshot_date_str: str | None = None):
                         hypothetical_pnl=pnl,
                         hypothetical_pnl_pct=pnl_pct,
                     )
+                    await db.commit()
                     created += 1
+                except IntegrityError:
+                    await db.rollback()
+                    logger.warning(
+                        f"Duplicate snapshot for trade {trade_info['trade_id']} on {snapshot_dt}"
+                    )
+                    skipped += 1
                 except Exception:
+                    await db.rollback()
                     logger.exception(
                         f"Failed to create snapshot for trade {trade_info['trade_id']} ({ticker})"
                     )
                     errors += 1
-
-            await db.commit()
 
             logger.info(
                 f"📸 Snapshot generation complete: "
@@ -117,4 +136,8 @@ def generate_snapshots(self, snapshot_date_str: str | None = None):
             )
             return {"created": created, "skipped": skipped, "errors": errors}
 
-    return asyncio.run(_run())
+    try:
+        return asyncio.run(_run())
+    except Exception as exc:
+        logger.exception("Trade snapshot generation failed, retrying...")
+        raise self.retry(exc=exc) from exc
