@@ -1872,3 +1872,9 @@ Addressed all 6 Copilot review comments on PR #27:
 - `docs/PROGRESS.md` — updated component status, test count, session history, crash recovery block
 
 #### Test Count: 437 (3 new)
+
+#### PR Review Fixes (PR #28 — 1 comment from copilot-pull-request-reviewer)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Consolidated duplicate `### Added` / `### Fixed` / `### Changed` headings** in `docs/CHANGELOG.md` `[Unreleased]` section — merged all bullets into single heading per category. Moved items that were under wrong headings (e.g. "Added" items listed under "Changed") to their correct sections. Folded `### Fixed (PR #15 review)`, `### Fixed (PR #16 review — Round 1)`, `### Fixed (PR #16 review — Round 2)` into the single `### Fixed` block with PR attribution in parentheses. | The `[Unreleased]` section had accumulated multiple duplicate headings across sessions (multiple `### Added`, `### Changed`, `### Fixed` blocks). This violates the [Keep a Changelog](https://keepachangelog.com/) format the project documents, which requires exactly one heading per category per release. | Changelog becomes increasingly unreadable as sessions accumulate. Automated tooling (e.g. `standard-version`, `release-please`) would break on duplicate headings. |
