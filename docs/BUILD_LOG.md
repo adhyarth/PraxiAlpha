@@ -1237,3 +1237,15 @@ Rewrote `WORKFLOW.md` to use a checkpoint-based session flow designed for crash 
 - `docs/BUILD_LOG.md` — this entry
 
 #### Test Count: 268 (unchanged — documentation-only session)
+
+#### PR Review Fixes (PR #18 — 7 comments from Copilot code review)
+
+| # | What Was Changed | Why | Impact If Not Fixed |
+|---|-----------------|-----|---------------------|
+| 1 | **Fixed stale "Session 18 (PDF Report)" in CHANGELOG.md** — changed to "Session 20 (PDF Report)" | Roadmap renumbering moved PDF Report from Session 18 to 20, but this older entry still referenced Session 18. | Conflicting session numbers in the same [Unreleased] section — one entry says Session 18 = User Isolation, another says Session 18 = PDF Report. |
+| 2 | **Used full path `backend/models/journal.py`** in CHANGELOG implementation plan | The shorthand `journal.py` is ambiguous — there's also `journal_service.py` and potentially other files. Full path matches codebase convention used elsewhere in docs. | Developers following the implementation plan could modify the wrong file or be confused about which `journal.py` is meant. |
+| 3 | **Labeled `user_id` as "PLANNED (Session 19)"** in ARCHITECTURE.md trades table | The column was shown in the schema as if it already existed, but Session 18 is design-only. Implementation is Session 19. | Readers would believe the `user_id` column is already in the database and try to query it, getting SQL errors. |
+| 4 | **Removed duplicate rows in DESIGN_DOC.md schema diagram** — `watchlists.name` and `alerts.condition` each appeared twice | Copy/paste error from adding `user_id` to the trades column — the watchlists and alerts columns got duplicated rows. | Diagram would show 7-column watchlists and 5-column alerts tables instead of the correct 5 and 4. Misleading schema reference. |
+| 5 | **Fixed contradictory `user_id` scope in DESIGN_DOC.md** — "Chosen: Option B" paragraph incorrectly listed `trade_exits` and `trade_snapshots` as getting `user_id`, contradicting the "Tables Affected" section | The summary said `user_id` goes on child tables, but the detailed table said they inherit via FK. Must be consistent. | Session 19 implementation would be confused about whether to add `user_id` to 4 tables or 1. |
+| 6 | **Updated PR description file count** — changed "Files Changed (4 files)" to "Files Changed (6 files)" with BUILD_LOG.md and correct list | PR description didn't account for BUILD_LOG.md and listed only 4 files when 6 were actually changed. | PR reviewers would see a mismatch between the description and the actual diff, reducing trust in the PR documentation. |
+| 7 | **Updated PROGRESS.md crash recovery status** — changed "PR pending" to "PR #18 open, review fixes in progress" and checkpoint to "Step 9" | PR was already open at #18 but the crash recovery block still said it was pre-PR. | Crash recovery session would try to create a duplicate PR instead of continuing the review cycle. |
