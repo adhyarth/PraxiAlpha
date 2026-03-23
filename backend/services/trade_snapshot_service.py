@@ -280,7 +280,8 @@ async def _get_user_trade(db: AsyncSession, trade_id: uuid.UUID) -> Trade | None
         .where(Trade.id == trade_id, Trade.user_id == _current_user_id())
     )
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    trade: Trade | None = result.scalar_one_or_none()
+    return trade
 
 
 def _serialize_snapshot(snapshot: TradeSnapshot) -> dict[str, Any]:
