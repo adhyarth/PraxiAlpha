@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Added
+- **User isolation implementation** — `user_id` column on `trades` table, `PRAXIALPHA_USER_ID` env var in `config.py`, all journal service queries filtered by `user_id`, Alembic migration `002_add_user_id_to_trades.py`
+- **11 new isolation tests** (279 total) — create sets user_id, get/list/update/delete/add_exit/add_leg scoped to user, cross-user access returns None, serialization includes user_id
+- **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
 - **User isolation design (Option B)** — lightweight per-user trade privacy via `user_id` column on `trades` table + `PRAXIALPHA_USER_ID` environment variable. Each user's `.env` sets a unique ID; all journal queries filter by this value so users only see their own trades. No UI changes required.
 - **`PRAXIALPHA_USER_ID` env var** — new config setting (defaults to `"default"`) that identifies the current user for journal row ownership
 - **User isolation decision rationale** — evaluated 3 options: (A) full JWT/OAuth auth (too heavy), (B) env-var user_id column (chosen — lightweight, upgradeable), (C) separate DB per user (not scalable). Documented in DESIGN_DOC.md §11.
@@ -28,6 +31,11 @@
 - **Trading Journal sessions added to roadmap** — Session 16 (Backend), Session 20 (PDF Report) inserted before Watchlist sessions
 
 ### Changed
+- **`backend/config.py`** — added `praxialpha_user_id: str = "default"` setting
+- **`backend/models/journal.py`** — added `user_id: Mapped[str]` column to `Trade` (indexed, NOT NULL, server_default `'default'`)
+- **`backend/services/journal_service.py`** — all CRUD functions now filter by `_current_user_id()`, `create_trade` auto-sets `user_id`, `serialize_trade` includes `user_id` in output
+- **`.env.example`** — added `PRAXIALPHA_USER_ID=default` with documentation
+- **`WORKFLOW.md`** — Step 7 rewritten: ordered doc updates (7a→7b→7c), `cat >>` for BUILD_LOG, new pitfalls, updated crash recovery
 - **`DESIGN_DOC.md` v1.4** — added user isolation design (§11), `user_id` column in schema diagram, decision rationale (3 options evaluated)
 - **`docs/ARCHITECTURE.md`** — added `user_id` column to `trades` table schema, documented env-var-based isolation design decision
 - **Session roadmap renumbered** — Session 18 = User Isolation Design (new), Session 19 = User Isolation Implementation (new), Session 20 = PDF Report (was 18), Sessions 21+ shifted accordingly

@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-22 (Session 18)
+> **Last updated:** 2026-03-22 (Session 19)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 18 — User Isolation Design |
-| **Branch** | `docs/user-isolation-design` |
-| **Status** | ✅ All docs updated (DESIGN_DOC, ARCHITECTURE, WORKFLOW, PROGRESS, CHANGELOG, BUILD_LOG). PR #18 open, review fixes in progress. |
-| **Last checkpoint** | Step 9 — PR review fixes |
+| **Session** | 19 — User Isolation Implementation |
+| **Branch** | `feat/user-isolation` |
+| **Status** | Code complete, CI passed (279 tests), docs in progress. PR pending. |
+| **Last checkpoint** | Step 7b — updating small docs (CHANGELOG, WORKFLOW, PROGRESS) |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -37,10 +37,10 @@
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
 | **Charting** | ✅ Working | Plotly candlestick charts with volume subplot and indicator overlays (SMA, EMA, RSI, MACD, Bollinger) |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
-| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, 53 tests. Post-close "what-if" tracking designed (trade_snapshots table — implementation pending). User isolation designed (user_id column, PRAXIALPHA_USER_ID env var — implementation pending). |
+| **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, 64 tests. User isolation implemented (user_id column, PRAXIALPHA_USER_ID env var, all queries scoped). Post-close "what-if" tracking designed (trade_snapshots table — implementation pending). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (268 tests) |
-| **Tests** | ✅ 268 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (279 tests) |
+| **Tests** | ✅ 279 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---
@@ -66,7 +66,7 @@
 - [x] Trading Journal — backend (model, service, API, migration, tests) — Session 16
 - [x] Trading Journal — post-close "what-if" design (trade_snapshots schema, Celery task plan, API endpoints) — Session 17
 - [x] Trading Journal — user isolation design (user_id column, PRAXIALPHA_USER_ID env var, query filtering) — Session 18
-- [ ] Trading Journal — user isolation implementation (model, config, service, migration, tests)
+- [x] Trading Journal — user isolation implementation (model, config, service, migration, tests) — Session 19
 - [ ] Trading Journal — post-close "what-if" implementation (model, service, Celery task, API, tests)
 - [ ] Trading Journal — PDF report generator (annotated charts, PDF export)
 - [ ] Watchlist management backend
@@ -100,6 +100,7 @@
 | 16 | 2026-03-22 | Trading Journal backend: 3 models (Trade, TradeExit, TradeLeg), CRUD service with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total) | PR #16 |
 | 17 | 2026-03-22 | Post-close "what-if" design: trade_snapshots table schema, Celery task plan, API endpoints, max tracking durations by timeframe. Docs-only session. | PR #17 |
 | 18 | 2026-03-22 | User isolation design: lightweight user_id column + PRAXIALPHA_USER_ID env var for per-user trade privacy. Evaluated 3 options (full auth, env-var user_id, separate DB), chose Option B. Docs-only session. | PR #18 |
+| 19 | 2026-03-22 | User isolation implementation: user_id column on trades, config setting, all journal queries scoped, Alembic migration 002, 11 new tests (279 total). WORKFLOW.md Step 7 overhaul. | PR #19 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
@@ -116,9 +117,11 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **15** | **Trading Journal Roadmap** | ✅ Done — docs-only session to plan and document the Trading Journal feature (schema, sessions, roadmap updates). | `docs/PROGRESS.md`, `WORKFLOW.md`, `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `docs/BUILD_LOG.md`, `docs/CHANGELOG.md` | — |
 | **16** | **Trading Journal — Backend** | ✅ Done — 3 models, CRUD service with computed fields, 7 API endpoints, Alembic migration support, 53 new tests (268 total). | `backend/models/journal.py`, `backend/services/journal_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal.py`, `data/migrations/env.py` | Session 15 ✅ |
 | **17** | **Post-Close "What-If" Design** | ✅ Done — docs-only session: designed `trade_snapshots` table, Celery task, snapshot schedule (daily/weekly/monthly by timeframe), API endpoints (`/snapshots`, `/what-if`). | `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/BUILD_LOG.md`, `docs/CHANGELOG.md` | Session 16 ✅ |
-| **18** | **Trading Journal — PDF Report** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` | Session 16 |
-| **19** | **Post-Close "What-If" — Implementation** | TradeSnapshot model, snapshot service (PnL calc), Celery periodic task, 2 API endpoints (`/snapshots`, `/what-if`), Alembic migration, tests. | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration | Session 17 |
-| **20** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
-| **21** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 20 |
-| **22** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 21 |
-| **23** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 22 |
+| **18** | **User Isolation Design** | ✅ Done — docs-only session: designed user_id column + PRAXIALPHA_USER_ID env var, evaluated 3 options, chose Option B. | `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/CHANGELOG.md` | Session 16 ✅ |
+| **19** | **User Isolation Implementation** | ✅ Done — user_id column on trades, config setting, journal queries scoped, Alembic migration 002, 11 new tests (279 total). WORKFLOW.md Step 7 overhaul. | `backend/config.py`, `backend/models/journal.py`, `backend/services/journal_service.py`, `.env.example`, migration, tests | Session 18 ✅ |
+| **20** | **Post-Close "What-If" — Implementation** | TradeSnapshot model, snapshot service (PnL calc), Celery periodic task, 2 API endpoints (`/snapshots`, `/what-if`), Alembic migration, tests. | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration | Session 17, 19 |
+| **21** | **Trading Journal — PDF Report** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` | Session 16 |
+| **22** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
+| **23** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 22 |
+| **24** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 23 |
+| **25** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 24 |

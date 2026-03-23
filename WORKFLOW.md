@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-22 (Session 18 — User Isolation Design)
+> **Last updated:** 2026-03-22 (Session 19 — User Isolation Implementation)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 18 — User Isolation Design |
+| **Session** | 19 — User Isolation Implementation |
 | **Date** | 2026-03-22 |
-| **PR** | #18 |
-| **What was done** | Docs-only session: designed lightweight user isolation (Option B — `user_id` column + `PRAXIALPHA_USER_ID` env var) for Trading Journal privacy when sharing repo with trusted users. Updated DESIGN_DOC, ARCHITECTURE, PROGRESS, CHANGELOG. |
+| **PR** | #19 |
+| **What was done** | Implemented user isolation: `user_id` column on `trades`, `PRAXIALPHA_USER_ID` env var, all journal queries scoped, Alembic migration 002, 11 new tests (279 total). Also overhauled WORKFLOW.md Step 7 (ordered doc updates, `cat >>` for BUILD_LOG). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,10 +26,10 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 19 — User Isolation Implementation |
-| **Scope** | Add `user_id` column to `trades` model, update `config.py` + `.env.example`, filter all journal service queries by `user_id`, Alembic migration, update tests for isolation behavior. |
-| **Key files** | `backend/config.py`, `backend/models/journal.py`, `backend/services/journal_service.py`, `.env.example`, `data/migrations/versions/...`, `backend/tests/test_journal_*.py` |
-| **Depends on** | Session 18 (User Isolation Design) |
+| **Session** | 20 — Post-Close "What-If" Implementation |
+| **Scope** | TradeSnapshot model, snapshot service (PnL calc), Celery periodic task, 2 API endpoints (`/snapshots`, `/what-if`), Alembic migration, tests. |
+| **Key files** | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration |
+| **Depends on** | Session 17 (What-If Design), Session 19 (User Isolation) |
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
