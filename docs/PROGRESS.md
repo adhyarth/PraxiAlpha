@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-23 (Session 20 merged)
+> **Last updated:** 2026-03-23 (Session 21 — Journal UI Roadmap Reorder)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | No active session |
-| **Branch** | `main` |
-| **Status** | Session 20 merged (PR #20). Ready for Session 21. |
-| **Last checkpoint** | Step 10 — post-merge cleanup complete |
+| **Session** | 21 — Journal UI Roadmap Reorder |
+| **Branch** | `docs/journal-ui-roadmap` |
+| **Status** | Implementing — updating roadmap docs to insert Journal UI session (22) and reorder subsequent sessions |
+| **Last checkpoint** | Step 2 — editing documentation files |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -69,6 +69,7 @@
 - [x] Trading Journal — user isolation implementation (model, config, service, migration, tests) — Session 19
 - [x] Trading Journal — post-close "what-if" implementation (model, service, Celery task, API, tests) — Session 20
 - [ ] Trading Journal — PDF report generator (annotated charts, PDF export)
+- [ ] Trading Journal — Streamlit UI (trade list, entry form, detail view, PDF download, what-if display)
 - [ ] Watchlist management backend
 - [ ] Watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)
@@ -121,8 +122,10 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **18** | **User Isolation Design** | ✅ Done — docs-only session: designed user_id column + PRAXIALPHA_USER_ID env var, evaluated 3 options, chose Option B. | `DESIGN_DOC.md`, `docs/ARCHITECTURE.md`, `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/CHANGELOG.md` | Session 16 ✅ |
 | **19** | **User Isolation Implementation** | ✅ Done — user_id column on trades, config setting, journal queries scoped, Alembic migration 002, 11 new tests (279 total). WORKFLOW.md Step 7 overhaul. | `backend/config.py`, `backend/models/journal.py`, `backend/services/journal_service.py`, `.env.example`, migration, tests | Session 18 ✅ |
 | **20** | **Post-Close "What-If" — Implementation** | ✅ Done — TradeSnapshot model, snapshot service, Celery periodic task, 2 API endpoints, Alembic migration, 45 snapshot tests (331 total). PR review fixes: OHLCV query join, per-trade rollback, Celery retry, US/Eastern TZ, snapshot cadence, batch existence check. | `backend/models/trade_snapshot.py`, `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `backend/api/routes/journal.py`, `backend/tests/test_trade_snapshots.py`, Alembic migration | Session 17, 19 ✅ |
-| **21** | **Trading Journal — PDF Report** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` | Session 16 |
-| **22** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
-| **23** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 22 |
-| **24** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 23 |
-| **25** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 24 |
+| **21** | **Journal UI Roadmap Reorder** | Docs-only session: insert Trading Journal Streamlit UI as new session (23), reorder Watchlist and Dashboard Polish sessions, update all roadmap docs. | `DESIGN_DOC.md`, `WORKFLOW.md`, `docs/PROGRESS.md`, `docs/CHANGELOG.md`, `docs/BUILD_LOG.md` | — |
+| **22** | **Trading Journal — PDF Report** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py` (add report endpoint), `backend/tests/test_journal_report.py` | Session 16 |
+| **23** | **Trading Journal — Streamlit UI** | Journal page: trade list table (status, PnL, tags, filters), trade entry form (ticker, direction, qty, entry price, stop/TP), trade detail view (exits, legs, snapshots, what-if summary), PDF report download button. Wires up all journal API endpoints to the Streamlit frontend. | `streamlit_app/pages/journal.py`, `streamlit_app/components/journal_trade_form.py`, `streamlit_app/components/journal_trade_detail.py`, `streamlit_app/app.py` (nav update) | Session 22 |
+| **24** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
+| **25** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 24 |
+| **26** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 25 |
+| **27** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 26 |

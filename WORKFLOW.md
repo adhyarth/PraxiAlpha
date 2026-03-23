@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-22 (Session 20 — Post-Close "What-If" Implementation)
+> **Last updated:** 2026-03-23 (Session 21 — Journal UI Roadmap Reorder)
 
 ---
 
@@ -26,10 +26,14 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 21 — Trading Journal PDF Report |
+| **Session** | 22 — Trading Journal PDF Report |
 | **Scope** | Report service: query trades by date range, generate annotated Plotly charts (entry/exit markers, stop/TP lines), export to PDF with trade details + embedded charts. API endpoint `GET /api/v1/journal/report`. Tests. |
 | **Key files** | `backend/services/journal_report_service.py`, `backend/api/routes/journal.py`, `backend/tests/test_journal_report.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
+
+> **After Session 22:** Session 23 builds the Streamlit Journal UI — trade list,
+> entry form, detail view, PDF download, what-if display. Once Session 23 is merged,
+> you can use the full journal from the Streamlit dashboard.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
@@ -403,9 +407,9 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 | DELETE | `/api/v1/journal/{trade_id}` | Delete a trade |
 | POST | `/api/v1/journal/{trade_id}/exits` | Add a partial/full exit |
 | POST | `/api/v1/journal/{trade_id}/legs` | Add an option leg |
-| GET | `/api/v1/journal/report` | Generate PDF report (Session 20 — planned) |
+| GET | `/api/v1/journal/report` | Generate PDF report (Session 22 — planned) |
 
-#### Post-Close What-If Snapshots (Planned)
+#### Post-Close What-If Snapshots (Session 20)
 
 | Method | Path | Description |
 |--------|------|-------------|
