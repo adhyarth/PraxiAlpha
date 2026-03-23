@@ -162,9 +162,17 @@ def daily_ohlcv_update(self):
     logger.info("🔄 Starting daily OHLCV update (gap-fill)...")
 
     async def _run():
-        from backend.database import async_session_factory
+        from backend.database import async_session_factory, engine
         from backend.models.stock import Stock
         from backend.services.data_pipeline.eodhd_fetcher import EODHDFetcher
+
+        # Dispose stale connection pool from any previous event loop so that
+        # connections are re-created under the *current* loop created by
+        # asyncio.run().  Without this, pooled connections carry Futures
+        # bound to the old (now-closed) loop → "Future attached to a
+        # different loop" errors on subsequent task executions in the same
+        # worker process.
+        await engine.dispose()
 
         settings = get_settings()
         max_gap = settings.ohlcv_max_gap_days
@@ -288,10 +296,12 @@ def daily_macro_update(self):
     logger.info("🔄 Starting daily macro update...")
 
     async def _run():
-        from backend.database import async_session_factory
+        from backend.database import async_session_factory, engine
         from backend.models.macro import FRED_SERIES, MacroData
         from backend.services.data_pipeline.data_validator import DataValidator
         from backend.services.data_pipeline.fred_fetcher import FREDFetcher
+
+        await engine.dispose()
 
         fetcher = FREDFetcher()
         try:
@@ -377,12 +387,14 @@ def backfill_stock(ticker: str, start_date: str = "1990-01-01"):
     logger.info(f"🔄 Backfilling {ticker} from {start_date}...")
 
     async def _run():
-        from backend.database import async_session_factory
+        from backend.database import async_session_factory, engine
         from backend.models.stock import Stock
         from backend.services.data_pipeline.eodhd_fetcher import EODHDFetcher
 
         # Import from the full backfill script for shared logic
         from scripts.backfill_full import backfill_single_stock
+
+        await engine.dispose()
 
         fetcher = EODHDFetcher()
         try:
@@ -426,9 +438,11 @@ def backfill_all_stocks():
     logger.info("🔄 Starting full US market backfill...")
 
     async def _get_tickers():
-        from backend.database import async_session_factory
+        from backend.database import async_session_factory, engine
         from backend.models.stock import Stock
         from scripts.backfill_full import ALLOWED_ASSET_TYPES, filter_backfill_tickers
+
+        await engine.dispose()
 
         async with async_session_factory() as session:
             query = select(Stock).where(Stock.is_active.is_(True)).order_by(Stock.ticker)
@@ -479,10 +493,12 @@ def daily_economic_calendar_sync():
     logger.info("🔄 Starting economic calendar sync...")
 
     async def _sync():
-        from backend.database import async_session_factory
+        from backend.database import async_session_factory, engine
         from backend.services.data_pipeline.economic_calendar_service import (
             EconomicCalendarService,
         )
+
+        await engine.dispose()
 
         async with async_session_factory() as session:
             svc = EconomicCalendarService(session)
@@ -529,7 +545,7 @@ def refresh_candle_aggregates():
                 try:
                     await conn.execute(
                         f"CALL refresh_continuous_aggregate('{view}', "
-                        f"now() - '{lookback}'::interval, now()::date);"
+                        f"(now() - '{lookback}'::interval)::date, now()::date);"
                     )
                     # Use max(bucket) as a cheap freshness signal instead of count(*)
                     latest = await conn.fetchval(f"SELECT max(bucket) FROM {view}")

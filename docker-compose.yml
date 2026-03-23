@@ -78,7 +78,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A backend.tasks.celery_app worker --loglevel=info --concurrency=4
+    command: celery -A backend.tasks.celery_app worker --loglevel=info --concurrency=4 -Q celery,data_pipeline
 
   # ---- Celery Beat (Scheduler) ----
   celery-beat:
