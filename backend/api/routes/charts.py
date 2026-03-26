@@ -51,7 +51,10 @@ async def get_candles(
     quarterly), adjustment is not applied regardless of this flag.
 
     The response includes ``adjusted`` (boolean) indicating whether
-    adjustment was actually applied to the returned OHLCV values.
+    split/dividend adjustment was requested **and** applicable for the
+    given timeframe (i.e. daily).  Note: individual candles with
+    ``close == 0`` are returned unadjusted regardless; this flag
+    reflects the overall intent, not a per-candle guarantee.
 
     Examples:
         GET /api/v1/charts/AAPL/candles?timeframe=daily&limit=252
@@ -78,9 +81,10 @@ async def get_candles(
         adjusted=adjusted,
     )
 
-    # Compute whether adjustment was actually applied.
-    # Currently, only daily candles are adjusted; higher-level aggregates
-    # (weekly, monthly, quarterly) are served as raw OHLC values.
+    # Compute whether adjustment was requested and applicable for this
+    # timeframe.  Individual candles with close==0 are returned unadjusted
+    # by the service, but this flag reflects the overall intent — i.e.
+    # "daily candles were adjusted" vs "non-daily candles are raw".
     adjusted_applied = bool(adjusted and timeframe == Timeframe.DAILY)
 
     return {

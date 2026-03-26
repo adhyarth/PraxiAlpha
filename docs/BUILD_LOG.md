@@ -1942,7 +1942,7 @@ Addressed all 6 Copilot review comments on PR #27:
 
 1. **Split-adjusted candle service** (`backend/services/candle_service.py`)
    - Added `adjusted: bool = True` parameter to `get_candles()`
-   - When `adjusted=True`, derives the adjustment factor per candle as `adjusted_close / close` and applies it to all OHLC prices (`open`, `high`, `low` are scaled by the factor; `close` becomes `adjusted_close`). Volume is inversely scaled (`volume / factor`) to reflect the higher pre-split share count.
+   - When `adjusted=True` (daily candles only), derives the adjustment factor per candle as `adjusted_close / close` and applies it to all OHLC prices (`open`, `high`, `low` are scaled by the factor; `close` becomes `adjusted_close`). Volume is inversely scaled only for split-like events (factor deviates >5% from 1.0); dividend-only adjustments leave volume unchanged.
    - When `adjusted=False`, returns raw historical prices unchanged (useful for auditing or seeing original traded prices).
    - Safe handling of edge cases: `close == 0` skips adjustment (no division by zero); `adjusted_close == close` (no split) results in factor = 1.0 (identity).
 
@@ -1971,7 +1971,7 @@ Addressed all 6 Copilot review comments on PR #27:
 
 - **Query-time adjustment, not stored data modification** — the raw `daily_ohlcv` data is never modified. The `adjusted_close` column (provided by EODHD) already contains the cumulative split+dividend adjustment. We derive the factor at read time. This preserves data integrity and enables toggling between views.
 - **Factor = adjusted_close / close** — this is the standard approach used by data providers. For a 10:1 split, pre-split candles have `adjusted_close = close / 10`, giving factor = 0.1. Post-split candles have `adjusted_close == close`, giving factor = 1.0. The factor varies per candle because it's cumulative — it accounts for ALL future splits/dividends from that date forward.
-- **Volume inverse scaling** — pre-split volume is divided by the factor (i.e., multiplied by the split ratio). A stock that traded 50M shares pre-split at $800 is equivalent to 500M shares at $80 post-split. This keeps volume charts proportional.
+- **Volume inverse scaling (splits only)** — pre-split volume is divided by the factor (i.e., multiplied by the split ratio) only when the factor deviates >5% from 1.0 (indicating a split). Dividend-only adjustments (small factors like 0.98) leave volume unchanged since dividends don't change share count. This keeps volume charts proportional for splits while avoiding spurious volume distortion around ex-dividend dates.
 - **Default adjusted=True** — matches TradingView, Yahoo Finance, Bloomberg, and every other charting platform. Users rarely want raw prices for charting. The toggle exists for power users who want to verify the raw data.
 - **No indicator code changes needed** — since the adjustment happens in the service layer before data reaches the chart builder, all indicators (SMA, EMA, RSI, MACD, Bollinger) automatically compute on adjusted prices. The indicators were already correct algorithmically — they were just receiving wrong (discontinuous) input data.
 
