@@ -17,7 +17,7 @@
 |-|-|
 | **Session** | 28 — Split-Adjusted Charts |
 | **Date** | 2026-03-25 |
-| **PR** | #30 (Split-Adjusted Charts) |
+| **PR** | #31 (Split-Adjusted Charts) |
 | **What was done** | Fixed stock split discontinuity in charts: candle service now applies `adjusted_close / close` ratio to all OHLCV prices and volume at query time, producing smooth continuous charts. Added `adjusted` API parameter, Streamlit sidebar toggle, 7 new tests (444 total). |
 
 ### Current Phase

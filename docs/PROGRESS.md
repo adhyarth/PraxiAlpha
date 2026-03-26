@@ -111,7 +111,7 @@
 | 25 | 2026-03-23 | Smart OHLCV gap-fill: rewrote `daily_ohlcv_update` with gap-detection loop, extracted helpers, added `ohlcv_max_gap_days` config, 12 new tests (434 total). | PR #27 |
 | 26 | 2026-03-23 | Skip options what-if: excluded options trades from snapshot generation and what-if summary (no live options pricing data), Streamlit UI reason message, 3 new tests (437 total). | PR #28 |
 | 27 | 2026-03-23 | Celery task bug fixes: engine.dispose() in all async tasks, timestamp cast fix in candle aggregate refresh, worker queue routing fix (`-Q celery,data_pipeline`), beat schedule staggered to 7 PM ET window. | PR #29 |
-| 28 | 2026-03-25 | Split-adjusted chart prices: candle service applies `adjusted_close / close` ratio to OHLCV at query time, `adjusted` API param, Streamlit sidebar toggle, 7 new tests (444 total). | PR #30 |
+| 28 | 2026-03-25 | Split-adjusted chart prices: candle service applies `adjusted_close / close` ratio to OHLCV at query time, `adjusted` API param, Streamlit sidebar toggle, 7 new tests (444 total). | PR #31 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
