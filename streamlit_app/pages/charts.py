@@ -31,14 +31,14 @@ def _parse_periods(text: str) -> list[int]:
     return periods
 
 
-def _fetch_candles(tk: str, tf: str, lim: int) -> dict[str, Any] | None:
+def _fetch_candles(tk: str, tf: str, lim: int, adj: bool = True) -> dict[str, Any] | None:
     """Fetch candle data from the FastAPI backend."""
     try:
         import httpx
 
         base_url = os.getenv("BACKEND_BASE_URL", "http://localhost:8000").rstrip("/")
         url = f"{base_url}/api/v1/charts/{tk}/candles"
-        params: dict[str, str | int] = {"timeframe": tf, "limit": lim}
+        params: dict[str, str | int] = {"timeframe": tf, "limit": lim, "adjusted": str(adj).lower()}
 
         response = httpx.get(url, params=params, timeout=10)
         if response.status_code == 200:
@@ -94,6 +94,17 @@ with st.sidebar:
     )
 
     show_volume = st.checkbox("Show Volume", value=True)
+
+    split_adjusted = st.checkbox(
+        "Split-Adjusted Prices",
+        value=True,
+        help=(
+            "When enabled, historical prices are adjusted for stock splits "
+            "and dividends, producing a smooth continuous chart (like "
+            "TradingView). Disable to see raw historical prices as originally "
+            "recorded."
+        ),
+    )
 
     st.divider()
     st.subheader("Indicators")
@@ -165,17 +176,19 @@ if not ticker:
     st.info("Enter a ticker symbol in the sidebar to get started.")
 else:
     with st.spinner(f"Loading {ticker} {timeframe} data..."):
-        data = _fetch_candles(ticker, timeframe, limit)
+        data = _fetch_candles(ticker, timeframe, limit, adj=split_adjusted)
 
     if data and data.get("candles"):
         # Info bar
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.metric("Ticker", data["ticker"])
         with col2:
             st.metric("Timeframe", data["timeframe"].capitalize())
         with col3:
             st.metric("Candles", f"{data['count']:,}")
+        with col4:
+            st.metric("Adjusted", "Yes ✅" if data.get("adjusted", True) else "No (raw)")
 
         # Build chart
         df = candles_to_dataframe(data["candles"])

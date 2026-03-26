@@ -6,6 +6,15 @@ daily, weekly, monthly, and quarterly.
 
 Daily data comes from the `daily_ohlcv` hypertable.
 Weekly/monthly/quarterly come from TimescaleDB continuous aggregates.
+
+Split adjustment
+----------------
+When ``adjusted=True`` (the default), all OHLC prices are retroactively
+adjusted for stock splits and dividends using the ratio
+``adjustment_factor = adjusted_close / close``.  This produces a smooth,
+continuous price series — the same behavior as TradingView, Yahoo Finance,
+and Bloomberg.  The raw data in the database is never modified; adjustment
+is applied at query time in Python.
 """
 
 import logging
@@ -64,6 +73,7 @@ class CandleService:
         start: date | None = None,
         end: date | None = None,
         limit: int = 500,
+        adjusted: bool = True,
     ) -> list[dict[str, Any]]:
         """
         Fetch OHLCV candles for a stock in the specified timeframe.
@@ -74,6 +84,11 @@ class CandleService:
             start: Start date filter (inclusive)
             end: End date filter (inclusive)
             limit: Maximum number of candles to return (most recent N)
+            adjusted: If True (default), apply split/dividend adjustment to
+                OHLC prices and volume using the adjustment factor derived
+                from ``adjusted_close / close``.  This eliminates price
+                discontinuities at split boundaries and produces correct
+                moving-average / indicator values.
 
         Returns:
             List of candle dicts, ordered by date ascending (oldest → newest).
@@ -119,15 +134,35 @@ class CandleService:
 
         candles = []
         for row in rows:
-            candle: dict[str, Any] = {
-                "date": row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date),
-                "open": float(row.open),
-                "high": float(row.high),
-                "low": float(row.low),
-                "close": float(row.close),
-                "adjusted_close": float(row.adjusted_close),
-                "volume": int(row.volume),
-            }
+            raw_close = float(row.close)
+            adj_close = float(row.adjusted_close)
+
+            if adjusted and raw_close != 0:
+                # Derive the cumulative adjustment factor from the provider.
+                # adjusted_close already accounts for all historical splits
+                # and dividends.  Dividing by raw close gives the factor we
+                # need to apply to the other OHLC fields and (inversely) to
+                # volume so the entire bar is self-consistent.
+                factor = adj_close / raw_close
+                candle: dict[str, Any] = {
+                    "date": row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date),
+                    "open": round(float(row.open) * factor, 4),
+                    "high": round(float(row.high) * factor, 4),
+                    "low": round(float(row.low) * factor, 4),
+                    "close": round(adj_close, 4),
+                    "adjusted_close": round(adj_close, 4),
+                    "volume": int(row.volume / factor) if factor != 0 else int(row.volume),
+                }
+            else:
+                candle = {
+                    "date": row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date),
+                    "open": float(row.open),
+                    "high": float(row.high),
+                    "low": float(row.low),
+                    "close": raw_close,
+                    "adjusted_close": adj_close,
+                    "volume": int(row.volume),
+                }
             if timeframe != Timeframe.DAILY:
                 candle["trading_days"] = int(row.trading_days)
             candles.append(candle)

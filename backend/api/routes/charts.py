@@ -27,6 +27,14 @@ async def get_candles(
     start: date | None = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end: date | None = Query(default=None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(default=500, ge=1, le=5000, description="Max candles to return"),
+    adjusted: bool = Query(
+        default=True,
+        description=(
+            "If true (default), return split- and dividend-adjusted OHLCV prices. "
+            "Produces a smooth, continuous chart like TradingView. "
+            "If false, return raw historical prices as originally recorded."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -35,10 +43,14 @@ async def get_candles(
     Returns candles in ascending date order (oldest first), suitable for
     charting libraries like Plotly or Lightweight Charts.
 
+    By default, prices are **split-adjusted** so the chart is continuous
+    (no jumps at split boundaries).  Pass ``adjusted=false`` to get raw
+    historical prices.
+
     Examples:
         GET /api/v1/charts/AAPL/candles?timeframe=daily&limit=252
         GET /api/v1/charts/AAPL/candles?timeframe=weekly&start=2024-01-01
-        GET /api/v1/charts/AAPL/candles?timeframe=monthly&start=2020-01-01&end=2025-12-31
+        GET /api/v1/charts/AAPL/candles?adjusted=false&limit=500
         GET /api/v1/charts/AAPL/candles?timeframe=quarterly&limit=40
     """
     # Resolve ticker → stock_id
@@ -57,12 +69,14 @@ async def get_candles(
         start=start,
         end=end,
         limit=limit,
+        adjusted=adjusted,
     )
 
     return {
         "ticker": stock_row.ticker,
         "name": stock_row.name,
         "timeframe": timeframe.value,
+        "adjusted": adjusted,
         "count": len(candles),
         "candles": candles,
     }
