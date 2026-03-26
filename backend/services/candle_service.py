@@ -9,12 +9,18 @@ Weekly/monthly/quarterly come from TimescaleDB continuous aggregates.
 
 Split adjustment
 ----------------
-When ``adjusted=True`` (the default), all OHLC prices are retroactively
-adjusted for stock splits and dividends using the ratio
+When ``adjusted=True`` (the default) for **daily** candles
+(``timeframe == Timeframe.DAILY``), OHLC prices are retroactively adjusted
+for stock splits and dividends using the ratio
 ``adjustment_factor = adjusted_close / close``.  This produces a smooth,
 continuous price series — the same behavior as TradingView, Yahoo Finance,
-and Bloomberg.  The raw data in the database is never modified; adjustment
-is applied at query time in Python.
+and Bloomberg.  The raw data in the database is never modified; daily
+adjustment is applied at query time in Python.
+
+For non-daily timeframes (weekly, monthly, quarterly), the current
+implementation does not apply additional Python-side adjustment and the
+``adjusted`` flag is effectively ignored; candles for those aggregates are
+returned as stored in the underlying continuous aggregate views.
 """
 
 import logging
@@ -153,6 +159,18 @@ class CandleService:
                 # need to apply to the other OHLC fields and (inversely) to
                 # volume so the entire bar is self-consistent.
                 factor = adj_close / raw_close
+
+                # Volume should only be inversely scaled when the factor
+                # represents a stock split (significant deviation from 1.0).
+                # Dividend-only adjustments produce small factors (e.g. 0.98)
+                # that would incorrectly inflate/deflate volume since
+                # dividends don't change share count.  We use a 5% threshold
+                # to distinguish splits from dividends.
+                is_split = abs(factor - 1.0) > 0.05
+                adj_volume = (
+                    int(round(row.volume / factor)) if is_split and factor != 0 else int(row.volume)
+                )
+
                 candle: dict[str, Any] = {
                     "date": row.date.isoformat()
                     if hasattr(row.date, "isoformat")
@@ -162,7 +180,7 @@ class CandleService:
                     "low": round(float(row.low) * factor, 4),
                     "close": round(adj_close, 4),
                     "adjusted_close": round(adj_close, 4),
-                    "volume": int(round(row.volume / factor)) if factor != 0 else int(row.volume),
+                    "volume": adj_volume,
                 }
             else:
                 candle = {

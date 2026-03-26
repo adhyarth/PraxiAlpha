@@ -98,13 +98,17 @@ with st.sidebar:
     split_adjusted = st.checkbox(
         "Split-Adjusted Prices",
         value=True,
+        disabled=(timeframe != "daily"),
         help=(
             "When enabled, historical prices are adjusted for stock splits "
             "and dividends, producing a smooth continuous chart (like "
             "TradingView). Disable to see raw historical prices as originally "
-            "recorded."
+            "recorded. **Only applies to daily candles** — weekly/monthly/"
+            "quarterly aggregates are returned as-is."
         ),
     )
+    if timeframe != "daily":
+        st.caption("ℹ️ Adjustment is only available for daily candles.")
 
     st.divider()
     st.subheader("Indicators")
@@ -188,7 +192,8 @@ else:
         with col3:
             st.metric("Candles", f"{data['count']:,}")
         with col4:
-            st.metric("Adjusted", "Yes ✅" if data.get("adjusted", True) else "No (raw)")
+            adj_applied = data.get("adjusted", False)
+            st.metric("Adjusted", "Yes ✅" if adj_applied else "No (raw)")
 
         # Build chart
         df = candles_to_dataframe(data["candles"])

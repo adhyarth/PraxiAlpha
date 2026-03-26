@@ -532,7 +532,11 @@ class TestSplitAdjustment:
 
     @pytest.mark.asyncio
     async def test_dividend_adjustment(self, service, mock_session):
-        """Dividend-only adjustments (small factor < 1) should also be applied."""
+        """Dividend-only adjustments (small factor < 1) should adjust OHLC but NOT volume.
+
+        Dividends don't change share count, so volume should remain unadjusted.
+        Only splits (factor deviating >5% from 1.0) trigger volume scaling.
+        """
         # Post-dividend: close=100, adj_close=98 (factor=0.98 due to dividend)
         rows = [
             _make_mock_row(
@@ -557,6 +561,8 @@ class TestSplitAdjustment:
         assert c["high"] == round(101.0 * factor, 4)
         assert c["low"] == round(98.0 * factor, 4)
         assert c["close"] == round(98.0, 4)
+        # Volume should NOT be scaled for dividend-only adjustments
+        assert c["volume"] == 10_000_000
 
     @pytest.mark.asyncio
     async def test_weekly_skips_adjustment(self, service, mock_session):

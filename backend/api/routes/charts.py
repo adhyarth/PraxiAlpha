@@ -30,9 +30,11 @@ async def get_candles(
     adjusted: bool = Query(
         default=True,
         description=(
-            "If true (default), return split- and dividend-adjusted OHLCV prices. "
-            "Produces a smooth, continuous chart like TradingView. "
-            "If false, return raw historical prices as originally recorded."
+            "If true (default), return split- and dividend-adjusted OHLCV prices "
+            "for daily candles. Produces a smooth, continuous chart like TradingView. "
+            "If false, return raw historical prices as originally recorded. "
+            "For non-daily timeframes (weekly, monthly, quarterly), adjustment is "
+            "not applied regardless of this flag."
         ),
     ),
     db: AsyncSession = Depends(get_db),
@@ -43,9 +45,13 @@ async def get_candles(
     Returns candles in ascending date order (oldest first), suitable for
     charting libraries like Plotly or Lightweight Charts.
 
-    By default, prices are **split-adjusted** so the chart is continuous
-    (no jumps at split boundaries).  Pass ``adjusted=false`` to get raw
-    historical prices.
+    By default, prices are **split-adjusted** for daily candles so the chart
+    is continuous (no jumps at split boundaries).  Pass ``adjusted=false`` to
+    get raw historical prices.  For non-daily timeframes (weekly, monthly,
+    quarterly), adjustment is not applied regardless of this flag.
+
+    The response includes ``adjusted_applied`` (boolean) indicating whether
+    adjustment was actually applied to the returned OHLCV values.
 
     Examples:
         GET /api/v1/charts/AAPL/candles?timeframe=daily&limit=252
@@ -72,11 +78,16 @@ async def get_candles(
         adjusted=adjusted,
     )
 
+    # Compute whether adjustment was actually applied.
+    # Currently, only daily candles are adjusted; higher-level aggregates
+    # (weekly, monthly, quarterly) are served as raw OHLC values.
+    adjusted_applied = bool(adjusted and timeframe == Timeframe.DAILY)
+
     return {
         "ticker": stock_row.ticker,
         "name": stock_row.name,
         "timeframe": timeframe.value,
-        "adjusted": adjusted,
+        "adjusted": adjusted_applied,
         "count": len(candles),
         "candles": candles,
     }

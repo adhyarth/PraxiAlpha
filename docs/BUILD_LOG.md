@@ -1956,7 +1956,7 @@ Addressed all 6 Copilot review comments on PR #27:
    - Passes `adjusted` parameter through to the API fetch call
    - Info bar now shows 4 columns (Ticker, Timeframe, Candles, Adjusted status)
 
-4. **7 new tests** (`backend/tests/test_candle_service.py`)
+4. **9 new tests** (`backend/tests/test_candle_service.py`)
    - `test_adjusted_applies_factor_to_ohlc` — 10:1 split scenario, verifies all OHLC fields scaled by 0.1, volume scaled by 10×
    - `test_unadjusted_returns_raw_prices` — same split data, adjusted=False returns raw prices unchanged
    - `test_no_split_no_change` — close == adjusted_close, adjusted=True produces identical output
@@ -1964,6 +1964,8 @@ Addressed all 6 Copilot review comments on PR #27:
    - `test_adjusted_default_is_true` — calling without `adjusted` kwarg applies adjustment
    - `test_zero_close_skips_adjustment` — close=0 doesn't crash
    - `test_dividend_adjustment` — small factor (0.98) for dividend-only adjustment
+   - `test_weekly_skips_adjustment` — weekly aggregate candles skip adjustment even when adjusted=True
+   - `test_monthly_skips_adjustment` — monthly aggregate candles skip adjustment even when adjusted=True
 
 #### Key Design Decisions
 
@@ -1989,4 +1991,4 @@ Addressed all 6 Copilot review comments on PR #27:
 - `WORKFLOW.md` — updated last session (28), next session (29 Watchlist Backend)
 - `docs/PROGRESS.md` — updated component status, test count (444), session history, phase checklist, roadmap
 
-#### Test Count: 444 (7 new)
+#### Test Count: 446 (9 new)
