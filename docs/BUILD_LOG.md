@@ -1931,3 +1931,62 @@ Addressed all 6 Copilot review comments on PR #27:
 
 4. **Fixed PROGRESS.md crash-recovery checkpoint** — updated Status/Last checkpoint to reflect PR state
    - *Why:* The crash-recovery block is the first thing read after a crash. If it says "docs in progress" when docs are done, the next session wastes time re-doing completed work.
+
+### Session 28 — 2026-03-25: Split-Adjusted Charts (Phase 2)
+
+**Goal:** Fix stock split discontinuity in charts — prices showed massive jumps at split boundaries (e.g., NVDA $800 → $80 for a 10:1 split), making charts unreadable and all technical indicators (SMA, EMA, RSI, MACD, Bollinger Bands) mathematically incorrect.
+
+**Branch:** `fix/split-adjusted-charts`
+
+#### What Was Done
+
+1. **Split-adjusted candle service** (`backend/services/candle_service.py`)
+   - Added `adjusted: bool = True` parameter to `get_candles()`
+   - When `adjusted=True`, derives the adjustment factor per candle as `adjusted_close / close` and applies it to all OHLC prices (`open`, `high`, `low` are scaled by the factor; `close` becomes `adjusted_close`). Volume is inversely scaled (`volume / factor`) to reflect the higher pre-split share count.
+   - When `adjusted=False`, returns raw historical prices unchanged (useful for auditing or seeing original traded prices).
+   - Safe handling of edge cases: `close == 0` skips adjustment (no division by zero); `adjusted_close == close` (no split) results in factor = 1.0 (identity).
+
+2. **API parameter** (`backend/api/routes/charts.py`)
+   - Added `adjusted: bool = Query(default=True)` parameter to `GET /api/v1/charts/{ticker}/candles`
+   - Response now includes `"adjusted": true/false` field so the UI knows the adjustment state
+   - Updated docstring with examples
+
+3. **Streamlit sidebar toggle** (`streamlit_app/pages/charts.py`)
+   - Added "Split-Adjusted Prices" checkbox (default: on) with help tooltip explaining what it does
+   - Passes `adjusted` parameter through to the API fetch call
+   - Info bar now shows 4 columns (Ticker, Timeframe, Candles, Adjusted status)
+
+4. **7 new tests** (`backend/tests/test_candle_service.py`)
+   - `test_adjusted_applies_factor_to_ohlc` — 10:1 split scenario, verifies all OHLC fields scaled by 0.1, volume scaled by 10×
+   - `test_unadjusted_returns_raw_prices` — same split data, adjusted=False returns raw prices unchanged
+   - `test_no_split_no_change` — close == adjusted_close, adjusted=True produces identical output
+   - `test_adjusted_series_is_continuous` — two candles spanning a split boundary, adjusted prices are in the same range (no 800→82 gap)
+   - `test_adjusted_default_is_true` — calling without `adjusted` kwarg applies adjustment
+   - `test_zero_close_skips_adjustment` — close=0 doesn't crash
+   - `test_dividend_adjustment` — small factor (0.98) for dividend-only adjustment
+
+#### Key Design Decisions
+
+- **Query-time adjustment, not stored data modification** — the raw `daily_ohlcv` data is never modified. The `adjusted_close` column (provided by EODHD) already contains the cumulative split+dividend adjustment. We derive the factor at read time. This preserves data integrity and enables toggling between views.
+- **Factor = adjusted_close / close** — this is the standard approach used by data providers. For a 10:1 split, pre-split candles have `adjusted_close = close / 10`, giving factor = 0.1. Post-split candles have `adjusted_close == close`, giving factor = 1.0. The factor varies per candle because it's cumulative — it accounts for ALL future splits/dividends from that date forward.
+- **Volume inverse scaling** — pre-split volume is divided by the factor (i.e., multiplied by the split ratio). A stock that traded 50M shares pre-split at $800 is equivalent to 500M shares at $80 post-split. This keeps volume charts proportional.
+- **Default adjusted=True** — matches TradingView, Yahoo Finance, Bloomberg, and every other charting platform. Users rarely want raw prices for charting. The toggle exists for power users who want to verify the raw data.
+- **No indicator code changes needed** — since the adjustment happens in the service layer before data reaches the chart builder, all indicators (SMA, EMA, RSI, MACD, Bollinger) automatically compute on adjusted prices. The indicators were already correct algorithmically — they were just receiving wrong (discontinuous) input data.
+
+#### Lessons Learned
+
+- The `adjusted_close` column from EODHD is a powerful asset — it contains the cumulative split+dividend adjustment already computed by the provider. Leveraging it via a simple division avoids needing to maintain a separate adjustment table or recompute splits from scratch.
+- The existing tests all used `adj_close == close` in their mock data, so the default change from unadjusted to adjusted didn't break any existing tests (factor = 1.0 = identity).
+- This fix affects moving averages, RSI, MACD, and Bollinger Bands **retroactively** — a 200-day SMA on NVDA was previously averaging pre-split $800 prices with post-split $130 prices, producing meaningless ~$400 values. Now it computes correctly on the smooth adjusted series.
+
+#### Files Changed
+
+- `backend/services/candle_service.py` — added `adjusted` parameter, split-adjustment logic in `get_candles()`, updated module docstring
+- `backend/api/routes/charts.py` — added `adjusted` query parameter, response field, updated docstring
+- `streamlit_app/pages/charts.py` — added sidebar toggle, passed `adjusted` to API, added Adjusted status in info bar
+- `backend/tests/test_candle_service.py` — 7 new tests in `TestSplitAdjustment` class
+- `docs/CHANGELOG.md` — Added + Fixed entries for split-adjusted charts
+- `WORKFLOW.md` — updated last session (28), next session (29 Watchlist Backend)
+- `docs/PROGRESS.md` — updated component status, test count (444), session history, phase checklist, roadmap
+
+#### Test Count: 444 (7 new)
