@@ -145,7 +145,9 @@ class CandleService:
                 # volume so the entire bar is self-consistent.
                 factor = adj_close / raw_close
                 candle: dict[str, Any] = {
-                    "date": row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date),
+                    "date": row.date.isoformat()
+                    if hasattr(row.date, "isoformat")
+                    else str(row.date),
                     "open": round(float(row.open) * factor, 4),
                     "high": round(float(row.high) * factor, 4),
                     "low": round(float(row.low) * factor, 4),
@@ -155,7 +157,9 @@ class CandleService:
                 }
             else:
                 candle = {
-                    "date": row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date),
+                    "date": row.date.isoformat()
+                    if hasattr(row.date, "isoformat")
+                    else str(row.date),
                     "open": float(row.open),
                     "high": float(row.high),
                     "low": float(row.low),
