@@ -16,7 +16,7 @@
 | **Session** | 28 — Split-Adjusted Charts |
 | **Branch** | `fix/split-adjusted-charts` |
 | **Status** | PR opened / awaiting review. |
-| **Last checkpoint** | Code + small docs committed and pushed. BUILD_LOG pending. |
+| **Last checkpoint** | Code + all docs (incl. BUILD_LOG) committed and pushed. PR review in progress. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

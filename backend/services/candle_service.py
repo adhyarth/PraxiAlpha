@@ -137,7 +137,16 @@ class CandleService:
             raw_close = float(row.close)
             adj_close = float(row.adjusted_close)
 
-            if adjusted and raw_close != 0:
+            # Split adjustment is only safe for daily candles.  For
+            # weekly/monthly/quarterly aggregates the open/high/low are
+            # computed from raw daily rows (first/max/min).  If a split
+            # occurs inside the bucket, a single end-of-bucket factor
+            # cannot correctly adjust all aggregated fields.  Aggregates
+            # already carry an adjusted_close that reflects the last
+            # day's adjustment, but the other OHLC fields would be wrong.
+            apply_adj = adjusted and timeframe == Timeframe.DAILY and raw_close != 0
+
+            if apply_adj:
                 # Derive the cumulative adjustment factor from the provider.
                 # adjusted_close already accounts for all historical splits
                 # and dividends.  Dividing by raw close gives the factor we
@@ -153,7 +162,7 @@ class CandleService:
                     "low": round(float(row.low) * factor, 4),
                     "close": round(adj_close, 4),
                     "adjusted_close": round(adj_close, 4),
-                    "volume": int(row.volume / factor) if factor != 0 else int(row.volume),
+                    "volume": int(round(row.volume / factor)) if factor != 0 else int(row.volume),
                 }
             else:
                 candle = {

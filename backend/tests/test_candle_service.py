@@ -558,6 +558,73 @@ class TestSplitAdjustment:
         assert c["low"] == round(98.0 * factor, 4)
         assert c["close"] == round(98.0, 4)
 
+    @pytest.mark.asyncio
+    async def test_weekly_skips_adjustment(self, service, mock_session):
+        """Aggregate (weekly) candles should NOT apply adjustment even when adjusted=True.
+
+        The continuous aggregates compute open/high/low/volume from raw daily
+        rows.  A single end-of-bucket factor cannot correctly adjust fields
+        that span a split boundary, so we intentionally skip adjustment for
+        non-daily timeframes.
+        """
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 3),
+                open_=790.0,
+                high=810.0,
+                low=78.0,
+                close=82.0,
+                adj_close=82.0,
+                volume=350_000_000,
+                trading_days=5,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(
+            stock_id=1, timeframe=Timeframe.WEEKLY, adjusted=True, limit=10
+        )
+
+        c = candles[0]
+        # Should return raw prices — no factor applied
+        assert c["open"] == 790.0
+        assert c["high"] == 810.0
+        assert c["low"] == 78.0
+        assert c["close"] == 82.0
+        assert c["volume"] == 350_000_000
+        assert c["trading_days"] == 5
+
+    @pytest.mark.asyncio
+    async def test_monthly_skips_adjustment(self, service, mock_session):
+        """Monthly (aggregate) candles should also skip adjustment."""
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 1),
+                open_=800.0,
+                high=900.0,
+                low=75.0,
+                close=85.0,
+                adj_close=85.0,
+                volume=1_000_000_000,
+                trading_days=21,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(
+            stock_id=1, timeframe=Timeframe.MONTHLY, adjusted=True, limit=10
+        )
+
+        c = candles[0]
+        assert c["open"] == 800.0
+        assert c["high"] == 900.0
+        assert c["close"] == 85.0
+        assert c["trading_days"] == 21
+
 
 # ============================================================
 # Celery Task Registration Tests
