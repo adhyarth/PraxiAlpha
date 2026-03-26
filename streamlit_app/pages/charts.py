@@ -97,8 +97,9 @@ with st.sidebar:
 
     split_adjusted = st.checkbox(
         "Split-Adjusted Prices",
-        value=True,
+        value=(timeframe == "daily"),
         disabled=(timeframe != "daily"),
+        key=f"split_adj_{timeframe}",
         help=(
             "When enabled, historical prices are adjusted for stock splits "
             "and dividends, producing a smooth continuous chart (like "
@@ -108,6 +109,7 @@ with st.sidebar:
         ),
     )
     if timeframe != "daily":
+        split_adjusted = False
         st.caption("ℹ️ Adjustment is only available for daily candles.")
 
     st.divider()

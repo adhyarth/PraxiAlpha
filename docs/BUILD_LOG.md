@@ -1986,9 +1986,9 @@ Addressed all 6 Copilot review comments on PR #27:
 - `backend/services/candle_service.py` — added `adjusted` parameter, split-adjustment logic in `get_candles()`, updated module docstring
 - `backend/api/routes/charts.py` — added `adjusted` query parameter, response field, updated docstring
 - `streamlit_app/pages/charts.py` — added sidebar toggle, passed `adjusted` to API, added Adjusted status in info bar
-- `backend/tests/test_candle_service.py` — 7 new tests in `TestSplitAdjustment` class
+- `backend/tests/test_candle_service.py` — 9 new tests in `TestSplitAdjustment` class
 - `docs/CHANGELOG.md` — Added + Fixed entries for split-adjusted charts
 - `WORKFLOW.md` — updated last session (28), next session (29 Watchlist Backend)
-- `docs/PROGRESS.md` — updated component status, test count (444), session history, phase checklist, roadmap
+- `docs/PROGRESS.md` — updated component status, test count (446), session history, phase checklist, roadmap
 
 #### Test Count: 446 (9 new)

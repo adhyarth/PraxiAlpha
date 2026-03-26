@@ -91,10 +91,13 @@ class CandleService:
             end: End date filter (inclusive)
             limit: Maximum number of candles to return (most recent N)
             adjusted: If True (default), apply split/dividend adjustment to
-                OHLC prices and volume using the adjustment factor derived
-                from ``adjusted_close / close``.  This eliminates price
-                discontinuities at split boundaries and produces correct
-                moving-average / indicator values.
+                OHLC prices using the adjustment factor derived from
+                ``adjusted_close / close``. Volume is only rescaled when the
+                adjustment factor deviates materially from 1 (e.g. split-like
+                events); pure dividend adjustments typically leave volume
+                unchanged. This eliminates price discontinuities at split
+                boundaries and produces correct moving-average / indicator
+                values.
 
         Returns:
             List of candle dicts, ordered by date ascending (oldest → newest).

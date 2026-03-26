@@ -8,7 +8,7 @@
 ## [Unreleased]
 
 ### Added
-- **Split-adjusted chart prices** — candle service now applies the `adjusted_close / close` ratio to all OHLC prices and volume at query time, producing a smooth, continuous chart identical to TradingView/Bloomberg. No database changes — raw data is preserved and adjustment is computed on the fly.
+- **Split-adjusted chart prices** — candle service now applies the `adjusted_close / close` ratio to all OHLC prices and, for split-like adjustments, volume at query time (dividend-only adjustments keep volume unscaled), producing a smooth, continuous chart identical to TradingView/Bloomberg. No database changes — raw data is preserved and adjustment is computed on the fly.
 - **`adjusted` parameter on candle API** — `GET /api/v1/charts/{ticker}/candles?adjusted=true|false` (default `true`). Allows toggling between split-adjusted and raw historical prices.
 - **Split-Adjusted toggle in Streamlit chart sidebar** — checkbox to switch between adjusted (default) and raw price views. Info bar now shows adjustment status.
 - **9 new split-adjustment tests** (446 total) — factor application to OHLC, unadjusted raw passthrough, no-split identity, cross-split continuity, default-is-true, zero-close safety, dividend-only adjustment, weekly skip-adjustment, monthly skip-adjustment.

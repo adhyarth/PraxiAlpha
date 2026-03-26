@@ -50,7 +50,7 @@ async def get_candles(
     get raw historical prices.  For non-daily timeframes (weekly, monthly,
     quarterly), adjustment is not applied regardless of this flag.
 
-    The response includes ``adjusted_applied`` (boolean) indicating whether
+    The response includes ``adjusted`` (boolean) indicating whether
     adjustment was actually applied to the returned OHLCV values.
 
     Examples:
