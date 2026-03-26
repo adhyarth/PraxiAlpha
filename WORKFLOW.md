@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-23 (Session 27 — Celery Task Bug Fixes)
+> **Last updated:** 2026-03-25 (Session 28 — Split-Adjusted Charts)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 27 — Celery Task Bug Fixes |
-| **Date** | 2026-03-23 |
-| **PR** | #29 (Celery Task Bug Fixes) |
-| **What was done** | Fixed 3 Celery task bugs: engine pool disposal (stale connections across event loops), timestamp cast in candle aggregate refresh, worker queue routing (`-Q celery,data_pipeline`). Staggered beat schedule to 7 PM ET window. |
+| **Session** | 28 — Split-Adjusted Charts |
+| **Date** | 2026-03-25 |
+| **PR** | #30 (Split-Adjusted Charts) |
+| **What was done** | Fixed stock split discontinuity in charts: candle service now applies `adjusted_close / close` ratio to all OHLCV prices and volume at query time, producing smooth continuous charts. Added `adjusted` API parameter, Streamlit sidebar toggle, 7 new tests (444 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,13 +26,12 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 28 — Watchlist Backend |
+| **Session** | 29 — Watchlist Backend |
 | **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
 | **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
 
-> **After Session 27:** Session 28 builds the Streamlit Watchlist UI — create/rename/delete watchlists,
-> add/remove tickers, sparkline/change columns.
+> **After Session 28:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
 
