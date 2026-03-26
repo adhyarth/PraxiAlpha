@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | No active session |
-| **Branch** | `main` |
-| **Status** | Session 27 merged (PR #29). |
-| **Last checkpoint** | Post-merge cleanup complete. |
+| **Session** | 28 — Split-Adjusted Charts |
+| **Branch** | `fix/split-adjusted-charts` |
+| **Status** | Code complete, CI passed (444 tests). Docs pending. |
+| **Last checkpoint** | All code committed. Starting docs. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
