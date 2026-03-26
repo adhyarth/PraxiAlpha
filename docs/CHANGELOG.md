@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Added
+- **Split-adjusted chart prices** — candle service now applies the `adjusted_close / close` ratio to all OHLC prices and, for split-like adjustments, volume at query time (dividend-only adjustments keep volume unscaled), producing a smooth, continuous chart identical to TradingView/Bloomberg. No database changes — raw data is preserved and adjustment is computed on the fly.
+- **`adjusted` parameter on candle API** — `GET /api/v1/charts/{ticker}/candles?adjusted=true|false` (default `true`). Toggles between split-adjusted and raw historical prices for daily candles; non-daily timeframes always return raw OHLCV. Response `adjusted` field reflects whether adjustment was requested and applicable.
+- **Split-Adjusted toggle in Streamlit chart sidebar** — checkbox to switch between adjusted (default) and raw price views; disabled for non-daily timeframes. Info bar shows whether adjustment was applied.
+- **9 new split-adjustment tests** (446 total) — factor application to OHLC, unadjusted raw passthrough, no-split identity, cross-split continuity, default-is-true, zero-close safety, dividend-only adjustment, weekly skip-adjustment, monthly skip-adjustment.
 - **Smart OHLCV gap-fill** — `daily_ohlcv_update` Celery task now auto-detects missing dates since the last successful fetch and fills all gaps using one EODHD bulk API call per missing trading day. On a normal day this is still 1 API call; after a 5-day outage it self-heals with ~3-4 calls (weekdays only).
 - **`_candidate_dates()` helper** — generates weekday-only date lists for gap-fill, extracted for testability.
 - **`_fetch_and_upsert_date()` helper** — handles single-date bulk fetch, record matching, batch upsert, and `latest_date` update. Extracted from the monolithic task for testability.
@@ -51,6 +55,7 @@
 - **55 new UI tests** (422 total) — formatting helpers (12), API client (19), URL construction (3), rendering with mocked st (12), page helpers (9).
 
 ### Fixed
+- **Stock split discontinuity in charts** — charts now display smooth, continuous prices by using split-adjusted OHLCV data instead of raw historical prices. Previously, stocks like NVDA showed massive price jumps at split boundaries (e.g., $800 → $80 for a 10:1 split), making the chart unreadable and all technical indicators (SMA, EMA, RSI, MACD, Bollinger Bands) mathematically incorrect across split boundaries.
 - **Engine pool disposal in Celery tasks** — all async Celery tasks (`daily_ohlcv_update`, `daily_macro_update`, `backfill_stock`, `backfill_all_stocks`, `daily_economic_calendar_sync`, `generate_snapshots`) now call `await engine.dispose()` before creating sessions, preventing "Future attached to a different loop" errors on repeated task executions in the same worker process.
 - **Timestamp cast in candle aggregate refresh** — `refresh_continuous_aggregate()` call now casts `(now() - interval)::date` instead of raw `now() - interval`, fixing TimescaleDB type mismatch errors.
 - **Celery worker queue routing** — added `-Q celery,data_pipeline` to the worker command in `docker-compose.yml` so that tasks routed to the `data_pipeline` queue are actually consumed (previously only the default `celery` queue was listened to).

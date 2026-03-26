@@ -340,6 +340,299 @@ class TestCandleService:
 
 
 # ============================================================
+# Split-Adjustment Tests
+# ============================================================
+class TestSplitAdjustment:
+    """Tests for the split-adjusted candle feature."""
+
+    @pytest.fixture
+    def mock_session(self):
+        return AsyncMock()
+
+    @pytest.fixture
+    def service(self, mock_session):
+        return CandleService(mock_session)
+
+    @pytest.mark.asyncio
+    async def test_adjusted_applies_factor_to_ohlc(self, service, mock_session):
+        """When adjusted=True, OHLC prices should be scaled by adjusted_close/close."""
+        # Simulate a pre-split candle: raw close=800, adjusted_close=80 (10:1 split)
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 7),
+                open_=790.0,
+                high=810.0,
+                low=785.0,
+                close=800.0,
+                adj_close=80.0,
+                volume=50_000_000,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(stock_id=1, adjusted=True, limit=10)
+
+        assert len(candles) == 1
+        c = candles[0]
+        # factor = 80 / 800 = 0.1
+        assert c["close"] == 80.0
+        assert c["open"] == round(790.0 * 0.1, 4)  # 79.0
+        assert c["high"] == round(810.0 * 0.1, 4)  # 81.0
+        assert c["low"] == round(785.0 * 0.1, 4)  # 78.5
+        # Volume should be scaled inversely: 50M / 0.1 = 500M
+        assert c["volume"] == int(50_000_000 / 0.1)
+
+    @pytest.mark.asyncio
+    async def test_unadjusted_returns_raw_prices(self, service, mock_session):
+        """When adjusted=False, raw prices should be returned unchanged."""
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 7),
+                open_=790.0,
+                high=810.0,
+                low=785.0,
+                close=800.0,
+                adj_close=80.0,
+                volume=50_000_000,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(stock_id=1, adjusted=False, limit=10)
+
+        assert len(candles) == 1
+        c = candles[0]
+        assert c["open"] == 790.0
+        assert c["high"] == 810.0
+        assert c["low"] == 785.0
+        assert c["close"] == 800.0
+        assert c["adjusted_close"] == 80.0
+        assert c["volume"] == 50_000_000
+
+    @pytest.mark.asyncio
+    async def test_no_split_no_change(self, service, mock_session):
+        """When close == adjusted_close, adjustment factor is 1.0 — no change."""
+        rows = [
+            _make_mock_row(
+                date(2026, 3, 20),
+                open_=150.0,
+                high=155.0,
+                low=148.0,
+                close=153.0,
+                adj_close=153.0,
+                volume=40_000_000,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(stock_id=1, adjusted=True, limit=10)
+
+        c = candles[0]
+        assert c["open"] == 150.0
+        assert c["high"] == 155.0
+        assert c["low"] == 148.0
+        assert c["close"] == 153.0
+        assert c["volume"] == 40_000_000
+
+    @pytest.mark.asyncio
+    async def test_adjusted_series_is_continuous(self, service, mock_session):
+        """Adjusted prices across a split boundary should be continuous."""
+        # Pre-split: close=800, adj=80 (factor=0.1)
+        # Post-split: close=82, adj=82 (factor=1.0)
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 7),
+                open_=790.0,
+                high=810.0,
+                low=785.0,
+                close=800.0,
+                adj_close=80.0,
+                volume=50_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 10),
+                open_=81.0,
+                high=84.0,
+                low=79.0,
+                close=82.0,
+                adj_close=82.0,
+                volume=300_000_000,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(stock_id=1, adjusted=True, limit=10)
+
+        pre_split = candles[0]
+        post_split = candles[1]
+        # Pre-split close (adjusted) should be in the same range as post-split
+        assert pre_split["close"] == 80.0
+        assert post_split["close"] == 82.0
+        # No massive gap — difference should be small, not 800 vs 82
+        assert abs(post_split["close"] - pre_split["close"]) < 10
+
+    @pytest.mark.asyncio
+    async def test_adjusted_default_is_true(self, service, mock_session):
+        """The default value of adjusted should be True."""
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 7),
+                open_=800.0,
+                high=810.0,
+                low=790.0,
+                close=800.0,
+                adj_close=80.0,
+                volume=50_000_000,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        # Call without specifying adjusted — should default to True
+        candles = await service.get_candles(stock_id=1, limit=10)
+
+        c = candles[0]
+        # Should be adjusted (factor 0.1)
+        assert c["close"] == 80.0
+        assert c["open"] == round(800.0 * 0.1, 4)
+
+    @pytest.mark.asyncio
+    async def test_zero_close_skips_adjustment(self, service, mock_session):
+        """If raw close is 0, skip adjustment to avoid division by zero."""
+        rows = [
+            _make_mock_row(
+                date(2024, 1, 1),
+                open_=0.0,
+                high=0.0,
+                low=0.0,
+                close=0.0,
+                adj_close=0.0,
+                volume=0,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(stock_id=1, adjusted=True, limit=10)
+
+        c = candles[0]
+        assert c["close"] == 0.0
+        assert c["open"] == 0.0
+        assert c["volume"] == 0
+
+    @pytest.mark.asyncio
+    async def test_dividend_adjustment(self, service, mock_session):
+        """Dividend-only adjustments (small factor < 1) should adjust OHLC but NOT volume.
+
+        Dividends don't change share count, so volume should remain unadjusted.
+        Only splits (factor deviating >5% from 1.0) trigger volume scaling.
+        """
+        # Post-dividend: close=100, adj_close=98 (factor=0.98 due to dividend)
+        rows = [
+            _make_mock_row(
+                date(2025, 11, 1),
+                open_=99.0,
+                high=101.0,
+                low=98.0,
+                close=100.0,
+                adj_close=98.0,
+                volume=10_000_000,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(stock_id=1, adjusted=True, limit=10)
+
+        c = candles[0]
+        factor = 98.0 / 100.0  # 0.98
+        assert c["open"] == round(99.0 * factor, 4)
+        assert c["high"] == round(101.0 * factor, 4)
+        assert c["low"] == round(98.0 * factor, 4)
+        assert c["close"] == round(98.0, 4)
+        # Volume should NOT be scaled for dividend-only adjustments
+        assert c["volume"] == 10_000_000
+
+    @pytest.mark.asyncio
+    async def test_weekly_skips_adjustment(self, service, mock_session):
+        """Aggregate (weekly) candles should NOT apply adjustment even when adjusted=True.
+
+        The continuous aggregates compute open/high/low/volume from raw daily
+        rows.  A single end-of-bucket factor cannot correctly adjust fields
+        that span a split boundary, so we intentionally skip adjustment for
+        non-daily timeframes.
+        """
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 3),
+                open_=790.0,
+                high=810.0,
+                low=78.0,
+                close=82.0,
+                adj_close=82.0,
+                volume=350_000_000,
+                trading_days=5,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(
+            stock_id=1, timeframe=Timeframe.WEEKLY, adjusted=True, limit=10
+        )
+
+        c = candles[0]
+        # Should return raw prices — no factor applied
+        assert c["open"] == 790.0
+        assert c["high"] == 810.0
+        assert c["low"] == 78.0
+        assert c["close"] == 82.0
+        assert c["volume"] == 350_000_000
+        assert c["trading_days"] == 5
+
+    @pytest.mark.asyncio
+    async def test_monthly_skips_adjustment(self, service, mock_session):
+        """Monthly (aggregate) candles should also skip adjustment."""
+        rows = [
+            _make_mock_row(
+                date(2024, 6, 1),
+                open_=800.0,
+                high=900.0,
+                low=75.0,
+                close=85.0,
+                adj_close=85.0,
+                volume=1_000_000_000,
+                trading_days=21,
+            ),
+        ]
+        mock_result = MagicMock()
+        mock_result.fetchall.return_value = rows
+        mock_session.execute.return_value = mock_result
+
+        candles = await service.get_candles(
+            stock_id=1, timeframe=Timeframe.MONTHLY, adjusted=True, limit=10
+        )
+
+        c = candles[0]
+        assert c["open"] == 800.0
+        assert c["high"] == 900.0
+        assert c["close"] == 85.0
+        assert c["trading_days"] == 21
+
+
+# ============================================================
 # Celery Task Registration Tests
 # ============================================================
 class TestRefreshCandleAggregatesTask:

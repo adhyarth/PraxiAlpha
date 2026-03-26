@@ -6,6 +6,21 @@ daily, weekly, monthly, and quarterly.
 
 Daily data comes from the `daily_ohlcv` hypertable.
 Weekly/monthly/quarterly come from TimescaleDB continuous aggregates.
+
+Split adjustment
+----------------
+When ``adjusted=True`` (the default) for **daily** candles
+(``timeframe == Timeframe.DAILY``), OHLC prices are retroactively adjusted
+for stock splits and dividends using the ratio
+``adjustment_factor = adjusted_close / close``.  This produces a smooth,
+continuous price series — the same behavior as TradingView, Yahoo Finance,
+and Bloomberg.  The raw data in the database is never modified; daily
+adjustment is applied at query time in Python.
+
+For non-daily timeframes (weekly, monthly, quarterly), the current
+implementation does not apply additional Python-side adjustment and the
+``adjusted`` flag is effectively ignored; candles for those aggregates are
+returned as stored in the underlying continuous aggregate views.
 """
 
 import logging
@@ -64,6 +79,7 @@ class CandleService:
         start: date | None = None,
         end: date | None = None,
         limit: int = 500,
+        adjusted: bool = True,
     ) -> list[dict[str, Any]]:
         """
         Fetch OHLCV candles for a stock in the specified timeframe.
@@ -74,6 +90,14 @@ class CandleService:
             start: Start date filter (inclusive)
             end: End date filter (inclusive)
             limit: Maximum number of candles to return (most recent N)
+            adjusted: If True (default), apply split/dividend adjustment to
+                OHLC prices using the adjustment factor derived from
+                ``adjusted_close / close``. Volume is only rescaled when the
+                adjustment factor deviates materially from 1 (e.g. split-like
+                events); pure dividend adjustments typically leave volume
+                unchanged. This eliminates price discontinuities at split
+                boundaries and produces correct moving-average / indicator
+                values.
 
         Returns:
             List of candle dicts, ordered by date ascending (oldest → newest).
@@ -119,15 +143,60 @@ class CandleService:
 
         candles = []
         for row in rows:
-            candle: dict[str, Any] = {
-                "date": row.date.isoformat() if hasattr(row.date, "isoformat") else str(row.date),
-                "open": float(row.open),
-                "high": float(row.high),
-                "low": float(row.low),
-                "close": float(row.close),
-                "adjusted_close": float(row.adjusted_close),
-                "volume": int(row.volume),
-            }
+            raw_close = float(row.close)
+            adj_close = float(row.adjusted_close)
+
+            # Split adjustment is only safe for daily candles.  For
+            # weekly/monthly/quarterly aggregates the open/high/low are
+            # computed from raw daily rows (first/max/min).  If a split
+            # occurs inside the bucket, a single end-of-bucket factor
+            # cannot correctly adjust all aggregated fields.  Aggregates
+            # already carry an adjusted_close that reflects the last
+            # day's adjustment, but the other OHLC fields would be wrong.
+            apply_adj = adjusted and timeframe == Timeframe.DAILY and raw_close != 0
+
+            if apply_adj:
+                # Derive the cumulative adjustment factor from the provider.
+                # adjusted_close already accounts for all historical splits
+                # and dividends.  Dividing by raw close gives the factor we
+                # need to apply to the other OHLC fields and (inversely) to
+                # volume so the entire bar is self-consistent.
+                factor = adj_close / raw_close
+
+                # Volume should only be inversely scaled when the factor
+                # represents a stock split (significant deviation from 1.0).
+                # Dividend-only adjustments produce small factors (e.g. 0.98)
+                # that would incorrectly inflate/deflate volume since
+                # dividends don't change share count.  We use a 5% threshold
+                # to distinguish splits from dividends.
+                is_split = abs(factor - 1.0) > 0.05
+                adj_volume = (
+                    int(round(row.volume / factor)) if is_split and factor != 0 else int(row.volume)
+                )
+
+                candle: dict[str, Any] = {
+                    "date": row.date.isoformat()
+                    if hasattr(row.date, "isoformat")
+                    else str(row.date),
+                    "open": round(float(row.open) * factor, 4),
+                    "high": round(float(row.high) * factor, 4),
+                    "low": round(float(row.low) * factor, 4),
+                    "close": round(adj_close, 4),
+                    "adjusted_close": round(adj_close, 4),
+                    "volume": adj_volume,
+                }
+            else:
+                candle = {
+                    "date": row.date.isoformat()
+                    if hasattr(row.date, "isoformat")
+                    else str(row.date),
+                    "open": float(row.open),
+                    "high": float(row.high),
+                    "low": float(row.low),
+                    "close": raw_close,
+                    "adjusted_close": adj_close,
+                    "volume": int(row.volume),
+                }
             if timeframe != Timeframe.DAILY:
                 candle["trading_days"] = int(row.trading_days)
             candles.append(candle)

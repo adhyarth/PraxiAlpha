@@ -27,6 +27,16 @@ async def get_candles(
     start: date | None = Query(default=None, description="Start date (YYYY-MM-DD)"),
     end: date | None = Query(default=None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(default=500, ge=1, le=5000, description="Max candles to return"),
+    adjusted: bool = Query(
+        default=True,
+        description=(
+            "If true (default), return split- and dividend-adjusted OHLCV prices "
+            "for daily candles. Produces a smooth, continuous chart like TradingView. "
+            "If false, return raw historical prices as originally recorded. "
+            "For non-daily timeframes (weekly, monthly, quarterly), adjustment is "
+            "not applied regardless of this flag."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -35,10 +45,21 @@ async def get_candles(
     Returns candles in ascending date order (oldest first), suitable for
     charting libraries like Plotly or Lightweight Charts.
 
+    By default, prices are **split-adjusted** for daily candles so the chart
+    is continuous (no jumps at split boundaries).  Pass ``adjusted=false`` to
+    get raw historical prices.  For non-daily timeframes (weekly, monthly,
+    quarterly), adjustment is not applied regardless of this flag.
+
+    The response includes ``adjusted`` (boolean) indicating whether
+    split/dividend adjustment was requested **and** applicable for the
+    given timeframe (i.e. daily).  Note: individual candles with
+    ``close == 0`` are returned unadjusted regardless; this flag
+    reflects the overall intent, not a per-candle guarantee.
+
     Examples:
         GET /api/v1/charts/AAPL/candles?timeframe=daily&limit=252
         GET /api/v1/charts/AAPL/candles?timeframe=weekly&start=2024-01-01
-        GET /api/v1/charts/AAPL/candles?timeframe=monthly&start=2020-01-01&end=2025-12-31
+        GET /api/v1/charts/AAPL/candles?adjusted=false&limit=500
         GET /api/v1/charts/AAPL/candles?timeframe=quarterly&limit=40
     """
     # Resolve ticker → stock_id
@@ -57,12 +78,20 @@ async def get_candles(
         start=start,
         end=end,
         limit=limit,
+        adjusted=adjusted,
     )
+
+    # Compute whether adjustment was requested and applicable for this
+    # timeframe.  Individual candles with close==0 are returned unadjusted
+    # by the service, but this flag reflects the overall intent — i.e.
+    # "daily candles were adjusted" vs "non-daily candles are raw".
+    adjusted_applied = bool(adjusted and timeframe == Timeframe.DAILY)
 
     return {
         "ticker": stock_row.ticker,
         "name": stock_row.name,
         "timeframe": timeframe.value,
+        "adjusted": adjusted_applied,
         "count": len(candles),
         "candles": candles,
     }
