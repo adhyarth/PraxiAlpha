@@ -33,7 +33,7 @@
 
 > **After Session 28:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
-> **How to resume:** Start a new chat, paste one of the prompts in §6 (Resume Prompts).
+> **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 
 ### Key Files to Read for Context
 | File | What It Tells You |
@@ -416,7 +416,114 @@ grep -n "^### Session" docs/BUILD_LOG.md # List all session entries
 
 ---
 
-## 6. Resume Prompts
+## 6. Quick Command: Log Trade
+
+> **Self-contained workflow for rapid trade entry via Copilot Chat.**
+> Does NOT depend on any active session, crash recovery state, or other
+> workflow steps. Can be used at any time.
+>
+> Template file: [`TRADE_ENTRY.md`](TRADE_ENTRY.md)
+
+### Usage
+
+1. Copy a template from `TRADE_ENTRY.md`, fill in your values
+2. Paste the filled template into Copilot Chat
+3. Say: **"Log this trade"** (or **"Add this exit"**)
+4. Copilot executes the steps below automatically
+
+### Step-by-step (what Copilot does)
+
+#### Pre-flight: Docker & API health
+```bash
+# 1. Ensure Docker containers are running
+docker compose ps --format '{{.Name}} {{.State}}' | grep -E 'praxialpha-(db|app)'
+
+# 2. Start containers if not running
+docker compose up -d db app
+
+# 3. Wait for API to be healthy
+curl -sf http://localhost:8000/health
+```
+> If `/health` fails after containers are up, check `docker compose logs -f app`.
+
+#### A — New Trade Entry
+
+Parse the template fields and POST to the journal API:
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/journal/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticker": "<TICKER>",
+    "direction": "<DIRECTION>",
+    "asset_type": "<ASSET_TYPE>",
+    "trade_type": "<TRADE_TYPE>",
+    "timeframe": "<TIMEFRAME>",
+    "entry_date": "<ENTRY_DATE>",
+    "entry_price": <ENTRY_PRICE>,
+    "total_quantity": <QUANTITY>,
+    "stop_loss": <STOP_LOSS or null>,
+    "take_profit": <TAKE_PROFIT or null>,
+    "tags": [<TAGS as JSON array or null>],
+    "comments": "<COMMENTS or null>"
+  }'
+```
+
+**On success:** Print the returned JSON (includes `id`, `status`, computed fields).
+Save the `id` — needed for future exits.
+
+#### B — Add Exit
+
+Parse the template and POST to the exit endpoint:
+
+```bash
+curl -s -X POST http://localhost:8000/api/v1/journal/<TRADE_ID>/exits \
+  -H "Content-Type: application/json" \
+  -d '{
+    "exit_date": "<EXIT_DATE>",
+    "exit_price": <EXIT_PRICE>,
+    "quantity": <QUANTITY>,
+    "comments": "<COMMENTS or null>"
+  }'
+```
+
+**On success:** Print the updated trade JSON (shows `status`, `realized_pnl`,
+`return_pct`, `r_multiple`).
+
+#### Verification
+
+After the API call succeeds, remind the user:
+
+> ✅ Trade logged. To verify in the Streamlit Journal UI:
+> ```bash
+> streamlit run streamlit_app/app.py
+> ```
+> Navigate to the **📝 Trading Journal** page → your trade should appear
+> in the table with the correct status and PnL.
+
+### Template Reference
+
+```
+ACTION: NEW_TRADE
+TICKER: AAPL
+DIRECTION: long
+ASSET_TYPE: shares
+TRADE_TYPE: single_leg
+TIMEFRAME: daily
+ENTRY_DATE: 2026-03-26
+ENTRY_PRICE: 185.50
+QUANTITY: 100
+STOP_LOSS: 180.00
+TAKE_PROFIT: 200.00
+TAGS: momentum, breakout
+COMMENTS: Clean breakout above 184 resistance
+```
+
+See [`TRADE_ENTRY.md`](TRADE_ENTRY.md) for more templates and field reference.
+
+---
+
+## 7. Resume Prompts
 
 ### Starting a new session (normal):
 > **"I'm continuing work on PraxiAlpha. Read `WORKFLOW.md`, `docs/PROGRESS.md`, the latest session in `docs/BUILD_LOG.md`, and the Phase Roadmap in `DESIGN_DOC.md` to understand where we left off. Then let's discuss what to build next."**
