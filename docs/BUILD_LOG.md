@@ -2064,3 +2064,15 @@ Addressed all 6 Copilot review comments on PR #27:
 7. **OpenAPI `adjusted` parameter description said "split- and dividend-adjusted"** — Updated to "split-only adjusted" to avoid promising dividend adjustment the backend doesn't perform.
 
 8. **Endpoint docstring said "split/dividend adjustment"** — Updated to "split-only adjustment" for consistency.
+
+#### PR Review Fixes — Round 2 (PR #33 — 4 comments from copilot-pull-request-reviewer + self-audit)
+
+1. **No-splits path leaking EODHD `adjusted_close`** — When `adjusted=True` but the stock has no splits, the code was returning EODHD's dividend-adjusted `adjusted_close` value (e.g., 98.0 for close=102.0), violating the split-only contract. Fixed: `adjusted_close = raw_close` when `adjusted=True` regardless of whether splits exist. Added explicit `adjusted_close` assertions to `test_no_splits_returns_raw` and `test_dividend_not_applied`. **Impact if not fixed:** API consumers would see dividend-tainted `adjusted_close` that contradicts `close`, causing charting inconsistencies for non-split stocks.
+
+2. **Unbounded `daily_limit` in aggregate rebuild** — For quarterly adjusted requests, `daily_limit = limit * 63 + 10` with API `limit` up to 5000 could fetch ~315K daily rows into pandas — slow and memory-heavy. Fixed: capped `daily_limit` at 50,000 rows (enough for ~800 quarterly bars, ~2400 monthly bars, or ~10,000 weekly bars). **Impact if not fixed:** A single `?timeframe=quarterly&limit=5000&adjusted=true` request could OOM the API server or cause multi-second latency.
+
+3. **PROGRESS.md resample rules `ME/QE` vs actual `MS/QS`** — Roadmap entry for Session 28b documented resample rules as `W-SUN/ME/QE`, but the actual code uses `W-SUN/MS/QS`. Fixed to match implementation. **Impact if not fixed:** Debugging aggregate behavior using outdated docs would lead to wrong pandas offsets.
+
+4. **CHANGELOG test count 450 → 451** — Aggregate-adjustment bullet still said 450 total tests; actual count is 451. Fixed.
+
+5. **(Self-audit) ARCHITECTURE.md "adjusted close" explanation** — The educational note said "adjusted close accounts for splits and dividends". Updated to clarify our candle service uses split-only adjustment from `stock_splits`, matching TradingView, and intentionally excludes dividends.
