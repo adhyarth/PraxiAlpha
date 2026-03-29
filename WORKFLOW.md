@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-28 (Session 28b — Weekly Aggregate Split Adjustment)
+> **Last updated:** 2026-03-28 (Session 28c — Split-Only Adjustment)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28b — Weekly Aggregate Split Adjustment |
+| **Session** | 28c — Split-Only Adjustment |
 | **Date** | 2026-03-28 |
-| **PR** | #33 (Weekly Aggregate Split Adjustment) |
-| **What was done** | Fixed split/dividend adjustment for weekly/monthly/quarterly candles: non-daily timeframes with `adjusted=True` now re-aggregate from adjusted daily candles via pandas resample (W-SUN/ME/QE) instead of raw TimescaleDB continuous aggregates. 200-week SMA for SMH now matches TradingView. Streamlit toggle enabled for all timeframes. 4 new tests (450 total). |
+| **PR** | #34 (Split-Only Adjustment — no dividend adjustment) |
+| **What was done** | Refactored candle service to use split-only adjustment for all timeframes, matching TradingView behavior. Replaced EODHD `adjusted_close` (split+dividend) with cumulative split factors computed from `stock_splits` table. Added `_get_split_factors` and `_compute_cumulative_split_factor` helpers. Overhauled test suite for split-only logic. 451 tests total (1 new). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -31,7 +31,7 @@
 | **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
 
-> **After Session 28b:** Session 29 builds the Watchlist backend — model, service, API, tests.
+> **After Session 28c:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 
