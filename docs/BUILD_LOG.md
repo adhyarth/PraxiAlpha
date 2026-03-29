@@ -2046,3 +2046,21 @@ Addressed all 6 Copilot review comments on PR #27:
 - `docs/BUILD_LOG.md` — this entry
 
 #### Test Count: 451 (35 candle service tests, all passing)
+
+#### PR Review Fixes (PR #33 — 8 comments from copilot-pull-request-reviewer)
+
+1. **`adjusted_close` field inconsistency** — When splits exist, `adjusted_close` was still populated from the provider column (split+dividend), making the response internally inconsistent with the split-only `close`. Fixed: `adjusted_close` now equals `close` (split-only) when adjustment is applied. **Impact if not fixed:** API consumers relying on `adjusted_close` would see dividend-adjusted values that contradict the split-only `close`, causing confusion and potential charting bugs.
+
+2. **Zero-denominator guard in `_get_split_factors()`** — `row.denominator = 0` would cause `ZeroDivisionError`. Added explicit guard: skip the split row and log a warning. Also handles `None` defensively. **Impact if not fixed:** A single bad split row in the DB would crash the entire candle endpoint for that stock.
+
+3. **Stale CHANGELOG bullets** — Removed old bullets referencing `adjusted_close / close` ratio logic and "9 new split-adjustment tests" that were replaced by the split-only refactor. **Impact if not fixed:** Changelog would document behavior that no longer exists, misleading contributors.
+
+4. **PROGRESS.md crash-recovery status stale** — Updated from "Ready to commit, push, and open PR" to "PR #33 opened, awaiting review/merge" so crash recovery instructions reflect reality.
+
+5. **PROGRESS.md test count mismatch** — Changed 450 → 451 to match actual pytest count and PR description.
+
+6. **Streamlit help text said "splits and dividends"** — Updated to "splits only (no dividend adjustment)" to match the actual backend behavior.
+
+7. **OpenAPI `adjusted` parameter description said "split- and dividend-adjusted"** — Updated to "split-only adjusted" to avoid promising dividend adjustment the backend doesn't perform.
+
+8. **Endpoint docstring said "split/dividend adjustment"** — Updated to "split-only adjustment" for consistency.
