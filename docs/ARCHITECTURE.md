@@ -98,6 +98,7 @@ We're in **Phase 2** — building charting and dashboard features on top of the 
 | **Alembic** | Migration tool | Tracks database schema changes over time | Version control for the database |
 | **EODHD** | Data provider API | 30+ years of US stock data, good value | Our stock data supplier |
 | **FRED** | Federal Reserve API | Free macro data (interest rates, inflation, etc.) | Our economics data supplier |
+| **TradingView** | Charting platform | Gold-standard OHLCV data for validation (via `tvdatafeed`) | Quality-check reference |
 
 ---
 
@@ -249,6 +250,23 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | 1. Populate | `--populate` | Fetches 49,225 US ticker symbols from EODHD | ✅ Done |
 | 2. Test | `--test` | Backfills 10 blue-chip stocks (AAPL, MSFT, etc.) as a smoke test | ✅ Done (67,919 records) |
 | 3. Full | `--all` | Backfills ALL 49,225 tickers (~75M+ rows, takes hours) | ⬜ After test |
+
+### Data Validation (TradingView Cross-Check)
+
+We validate our EODHD-sourced OHLCV data against **TradingView Premium** (the gold standard for retail traders) to catch data pipeline bugs, split adjustment errors, and provider quality issues.
+
+| Aspect | Details |
+|--------|---------|
+| **Service** | `backend/services/tv_validation_service.py` |
+| **Streamlit UI** | `streamlit_app/pages/validation.py` |
+| **CLI tool** | `scripts/validate_tradingview.py` |
+| **Tickers** | 5 fixed split-test tickers (AAPL, MSFT, NVDA, SMH, TSLA) |
+| **Timeframes** | Daily, weekly, monthly, quarterly |
+| **Tolerances** | Price: 1%, Volume: 10% |
+| **Quarterly** | TV doesn't provide quarterly — we fetch monthly and aggregate |
+| **Known issue** | Volume on most-recent 1-2 bars differs 5-8% between EODHD and TV due to data provider consolidation lag (not a code bug) |
+| **Robustness** | Auto-retry with fresh `TvDatafeed` client on TCPTransport websocket errors |
+| **Logging** | Each run saves a timestamped log to `data/tv_validation_YYYYMMDD_HHMMSS.log` |
 
 ---
 
@@ -600,6 +618,8 @@ PraxiAlpha/
 │   │       └── ... (stubs)   ← Future: charts, screener, etc.
 │   │
 │   ├── 📁 services/          ← Business logic
+│   │   ├── candle_service.py     ← Split-adjusted OHLCV for all timeframes
+│   │   ├── tv_validation_service.py ← TradingView data validation
 │   │   └── data_pipeline/
 │   │       ├── eodhd_fetcher.py  ← Talks to EODHD API
 │   │       ├── fred_fetcher.py   ← Talks to FRED API
@@ -613,11 +633,13 @@ PraxiAlpha/
 │
 ├── 📁 scripts/               ← One-off utility scripts
 │   ├── setup_db.py           ← Creates database tables
-│   └── backfill_data.py      ← Populates stock data
+│   ├── backfill_data.py      ← Populates stock data
+│   ├── validate_tradingview.py ← CLI TradingView validation (CSV export)
+│   └── debug_aapl_volume.py  ← Volume mismatch investigation
 │
 ├── 📁 data/migrations/       ← Alembic database migrations
 ├── 📁 docs/                  ← 📖 You are here!
-├── 📁 streamlit_app/         ← MVP dashboard (future)
+├── 📁 streamlit_app/         ← MVP dashboard (charts, journal, validation)
 ├── 📁 education_content/     ← Learning materials (future)
 └── 📁 notebooks/             ← Jupyter notebooks for exploration
 ```
@@ -646,4 +668,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-22 — Phase 2 (added user_id column for trade isolation, trade_snapshots schema for post-close "what-if" tracking)*
+*Last updated: 2026-03-29 — Phase 2 (added TradingView data validation subsection, tvdatafeed in tech stack, validation files in project structure)*

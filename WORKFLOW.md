@@ -18,7 +18,7 @@
 | **Session** | 28d — TradingView Data Validation |
 | **Date** | 2026-03-29 |
 | **PR** | #34 |
-| **What was done** | Deleted CLI script. Created `backend/services/tv_validation_service.py` (comparison, TV fetch, quarterly aggregation, failure persistence, summary). Created `streamlit_app/pages/validation.py` (Streamlit UI with progress bar, results table, CSV export). Updated sidebar nav. 43 tests (494 total). |
+| **What was done** | Created `backend/services/tv_validation_service.py` (comparison, TV fetch, quarterly aggregation, failure persistence, summary). Created `streamlit_app/pages/validation.py` (Streamlit UI with progress bar, results table, CSV export, log capture). Updated sidebar nav. 43 tests (494 total). Hardened: volume tolerance 5%→10%, date normalization for weekly/monthly, auto-retry on TCPTransport errors, per-run log capture/download, debug & CLI scripts. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.

@@ -19,6 +19,7 @@ A modular, cloud-hosted, systematic trading and education platform for retail in
 | **Backend** | Python 3.11+, FastAPI, Celery + Redis |
 | **Database** | PostgreSQL + TimescaleDB |
 | **Data Providers** | EODHD (market data), FRED (macro data) |
+| **Data Validation** | TradingView Premium (via `tvdatafeed`) |
 | **Dashboard (MVP)** | Streamlit |
 | **Frontend (Production)** | React + TypeScript + TailwindCSS |
 | **Infrastructure** | Docker, AWS ECS (Fargate) |
@@ -82,7 +83,7 @@ This starts:
 - **PostgreSQL + TimescaleDB** on port `5432`
 - **Redis** on port `6379`
 - **Celery Worker** for background tasks
-- **Celery Beat** for scheduled tasks (daily data updates at 6 PM ET)
+- **Celery Beat** for scheduled tasks (daily data updates at 7 PM ET)
 
 ### Streamlit Dashboard (local dev)
 
@@ -104,15 +105,20 @@ PraxiAlpha/
 │   ├── api/routes/       # API endpoints
 │   ├── models/           # SQLAlchemy ORM models
 │   ├── services/         # Business logic
-│   │   ├── data_pipeline/  # EODHD & FRED fetchers
-│   │   ├── analysis/       # Technical analysis
-│   │   ├── trading/        # Strategy & execution
-│   │   ├── risk/           # Risk management
+│   │   ├── candle_service.py        # Split-adjusted OHLCV
+│   │   ├── tv_validation_service.py # TradingView data validation
+│   │   ├── data_pipeline/           # EODHD & FRED fetchers
+│   │   ├── analysis/                # Technical analysis
+│   │   ├── trading/                 # Strategy & execution
+│   │   ├── risk/                    # Risk management
 │   │   └── ...
 │   ├── tasks/            # Celery async tasks
-│   └── tests/            # Test suite
+│   └── tests/            # Test suite (494 tests)
 ├── streamlit_app/        # Streamlit MVP dashboard
+│   └── pages/            # Charts, Journal, Validation
 ├── scripts/              # Utility scripts
+│   ├── validate_tradingview.py  # CLI data validation
+│   └── debug_aapl_volume.py     # Volume investigation
 ├── data/migrations/      # Alembic DB migrations
 ├── education_content/    # Curriculum content
 ├── notebooks/            # Jupyter exploration
@@ -123,8 +129,8 @@ PraxiAlpha/
 
 | Phase | Focus | Status |
 |-------|-------|--------|
-| **Phase 1** | Foundation, Database, Data Pipeline | 🔧 In Progress |
-| **Phase 2** | Charting & Basic Dashboard | ⏳ Upcoming |
+| **Phase 1** | Foundation, Database, Data Pipeline | ✅ Complete |
+| **Phase 2** | Charting & Basic Dashboard | 🔧 In Progress |
 | **Phase 3** | Analysis Engine | ⏳ Planned |
 | **Phase 4** | Backtesting Framework | ⏳ Planned |
 | **Phase 5** | Education Module | ⏳ Planned |
@@ -141,10 +147,11 @@ Once the server is running, visit:
 
 ## Data Coverage
 
-- **~10,000+ active US stocks & ETFs** (NYSE, NASDAQ, AMEX)
-- **30+ years of daily OHLCV** history
+- **~49,000+ US stocks & ETFs** (NYSE, NASDAQ, AMEX)
+- **58M+ daily OHLCV records** with split-adjusted prices matching TradingView
+- **Weekly, monthly, quarterly candle aggregates** (TimescaleDB continuous aggregates)
 - **14 macroeconomic indicators** from FRED (Treasury yields, VIX, DXY, oil, inflation expectations, etc.)
-- **~33 GB** estimated total database size
+- **Data validation** — cross-checked against TradingView Premium (1% price, 10% volume tolerance)
 
 ---
 

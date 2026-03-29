@@ -39,7 +39,7 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
-| **Data Validation** | ✅ Working | TradingView comparison: 10 fixed (split/dividend) + 10 random tickers × 4 timeframes (daily, weekly, monthly, quarterly). Streamlit UI with progress bar, results table, failure persistence, CSV export. 43 tests. |
+| **Data Validation** | ✅ Working | TradingView comparison: 5 fixed (split-test) tickers × 4 timeframes (daily, weekly, monthly, quarterly). Volume tolerance 10% (provider consolidation lag). Automatic retry on TCPTransport errors. Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. Debug & CLI scripts. 43 tests. |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (494 tests) |
 | **Tests** | ✅ 494 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, TV data validation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
@@ -73,6 +73,7 @@
 - [x] Trading Journal — Streamlit UI (trade list, entry form, detail view, PDF download, what-if display) — Session 23
 - [x] Split-adjusted chart prices (smooth continuous charts, toggle adjusted/raw) — Session 28
 - [x] Split-adjusted weekly/monthly/quarterly candles (re-aggregate from adjusted daily data) — Session 28b
+- [x] TradingView data validation (service, Streamlit UI, 43 tests, hardened: 10% volume tolerance, TCPTransport retry, log capture) — Session 28d
 - [ ] Watchlist management backend
 - [ ] Watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)
@@ -115,7 +116,7 @@
 | 27 | 2026-03-23 | Celery task bug fixes: engine.dispose() in all async tasks, timestamp cast fix in candle aggregate refresh, worker queue routing fix (`-Q celery,data_pipeline`), beat schedule staggered to 7 PM ET window. | PR #29 |
 | 28 | 2026-03-25 | Split-adjusted chart prices: candle service applies `adjusted_close / close` ratio to OHLCV at query time, `adjusted` API param, Streamlit sidebar toggle, 9 new tests (446 total). | PR #31 |
 | 28b | 2026-03-28 | Weekly aggregate split adjustment: non-daily candles re-aggregated from adjusted daily data via pandas resample, 200-week SMA matches TradingView, Streamlit toggle for all timeframes, 4 new tests (450 total). | PR #33 |
-| 28d | 2026-03-29 | TradingView data validation: service layer (compare, TV fetch, quarterly aggregation, failure persistence), Streamlit UI page (run button, progress, results table, CSV export), deleted CLI script, 43 new tests (494 total). | PR #34 |
+| 28d | 2026-03-29 | TradingView data validation: service layer (compare, TV fetch, quarterly aggregation, failure persistence), Streamlit UI page (run button, progress, results table, CSV export), 43 new tests (494 total). Hardened: volume tolerance 5%→10%, date normalization for weekly/monthly, auto-retry on TCPTransport errors, per-run log capture, debug & CLI scripts. | PR #34 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
