@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-28 (Session 28c — Split-Only Adjustment)
+> **Last updated:** 2026-03-29 (Session 28d — TradingView Data Validation)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 28c — Split-Only Adjustment (no dividend) |
-| **Branch** | `fix/weekly-aggregate-split-adjustment` |
-| **Status** | CI green (35/35 candle tests). PR #33 opened, awaiting review/merge. |
-| **Last checkpoint** | PR opened with finalized code, tests, and docs; next step is review fixes and merge. |
+| **Session** | 28d — TradingView Data Validation |
+| **Branch** | `feat/tradingview-data-validation` |
+| **Status** | CI green (470 tests). PR pending. |
+| **Last checkpoint** | Code pushed, docs in progress. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 

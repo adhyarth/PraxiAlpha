@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-28 (Session 28c — Split-Only Adjustment)
+> **Last updated:** 2026-03-29 (Session 28d — TradingView Data Validation)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28c — Split-Only Adjustment |
-| **Date** | 2026-03-28 |
-| **PR** | #33 (Split-Only Adjustment — no dividend adjustment) |
-| **What was done** | Refactored candle service to use split-only adjustment for all timeframes, matching TradingView behavior. Replaced EODHD `adjusted_close` (split+dividend) with cumulative split factors computed from `stock_splits` table. Added `_get_split_factors` and `_compute_cumulative_split_factor` helpers. Overhauled test suite for split-only logic. 451 tests total (1 new). |
+| **Session** | 28d — TradingView Data Validation |
+| **Date** | 2026-03-29 |
+| **PR** | #34 (TradingView Data Validation Script) |
+| **What was done** | Added `scripts/validate_tradingview.py` — CLI to compare OHLCV data between PraxiAlpha DB and TradingView Premium across daily/weekly/monthly timeframes. Configurable tolerances, CSV report, dry-run mode. Added `tvdatafeed` optional dep, TV credentials to config. 19 new unit tests (470 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
