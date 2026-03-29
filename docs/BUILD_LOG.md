@@ -557,7 +557,7 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - `backend/services/data_pipeline/eodhd_fetcher.py` — added `timeout` parameter to `EODHDFetcher.__init__`
 - `.gitignore` — added `data/backfill_progress.json`, `data/backfill_progress.tmp`, `data/backfill_live.log`
 - `docs/BUILD_LOG.md` — this entry
-- `docs/CHANGELOG.md` — documented all changes
+- `docs/CHANGELOG.md` — documented all fixes
 - `WORKFLOW.md` — updated current state, phase status, session log
 
 #### Test Count: 95 (was 62, +33 new)
@@ -1992,3 +1992,57 @@ Addressed all 6 Copilot review comments on PR #27:
 - `docs/PROGRESS.md` — updated component status, test count (446), session history, phase checklist, roadmap
 
 #### Test Count: 446 (9 new)
+
+### Session 28c — 2026-03-28: Split-Only Adjustment (No Dividend)
+
+**Goal:** Fix chart mismatch with TradingView caused by dividend adjustment — the previous `adjusted_close / close` factor included both split and dividend adjustments, causing ~1-2% per-year drift. TradingView, Yahoo, and Bloomberg default to split-only adjustment.
+
+**Branch:** `fix/weekly-aggregate-split-adjustment` (continued from Session 28b)
+
+#### What Was Done
+
+1. **Refactored candle service to split-only adjustment** (`backend/services/candle_service.py`)
+   - Removed the `adjusted_close / close` factor derivation (which included dividend adjustments from EODHD)
+   - Added `_get_split_factors()` method: queries `stock_splits` table for all splits for a stock, returns `(date, numerator/denominator)` pairs
+   - Added `_compute_cumulative_split_factor()` method: for a given candle date, computes the product of `1/ratio` for all splits occurring *after* that date
+   - Updated `_get_candles_from_table()` to pre-fetch splits and apply split-only factors to daily candles
+   - When no splits exist for a stock, raw prices are returned unchanged (no dividend drag)
+   - Updated module docstring with comprehensive explanation of split-only logic and why EODHD `adjusted_close` is avoided
+
+2. **Updated all tests** (`backend/tests/test_candle_service.py`)
+   - Added `_make_split_row()` helper: creates mock rows matching `stock_splits` query shape
+   - Added `_mock_ohlcv_then_splits()` helper: configures mock session to return OHLCV rows first, then split rows (since the service now calls `execute()` twice for adjusted daily candles)
+   - Converted all daily `adjusted=True` tests to use the two-call mock pattern
+   - Replaced `test_zero_close_skips_adjustment` with `test_no_splits_returns_raw` (zero close is no longer a special case)
+   - Replaced `test_dividend_adjustment` with `test_dividend_not_applied` (verifies dividend drag is NOT applied)
+   - Added `test_multiple_splits` (cumulative factor for stocks like Apple with 7:1 + 4:1 splits)
+   - Fixed `test_weekly_adjusted_split_boundary` to provide mock split rows and expect split-only adjusted prices
+   - Fixed `test_adjusted_aggregate_empty` and other weekly/monthly tests to use proper two-call mock
+
+3. **Updated documentation**
+   - CHANGELOG: new Added/Fixed/Changed entries for split-only adjustment
+   - PROGRESS: updated session status, component description
+   - BUILD_LOG: this entry
+
+#### Key Design Decisions
+
+- **Split-only, not split+dividend** — TradingView, Yahoo Finance, and Bloomberg all default to split-only adjustment. The EODHD `adjusted_close` includes cumulative dividends, which pulls historical prices down by ~1-2% per year. For SMH, this caused a visible mismatch on the 200-week SMA.
+- **Compute factors from `stock_splits` table** — instead of relying on the provider's pre-computed `adjusted_close`, we compute factors ourselves from the `stock_splits` table. This gives us full control and matches the TradingView methodology exactly.
+- **Cumulative product of future splits** — for each candle, the factor is the product of `1/ratio` for all splits after that date. Mathematically: "how many current shares does one share on that date equal?"
+- **Split date boundary: `split_date > candle_date`** — a candle on the split date itself is considered post-split (factor = 1.0). This matches market convention where the split takes effect at market open on the split date.
+
+#### Validation
+
+- SMH weekly chart: 200-week SMA now matches TradingView exactly (split-only, no dividend drag)
+- SMH 2:1 split on 2023-05-05: pre-split candles halved, post-split candles unchanged, weekly bars self-consistent
+- CI: ruff lint, ruff format, mypy, pytest 451/451 all passing
+
+#### Files Changed
+
+- `backend/services/candle_service.py` — split-only adjustment logic, new helper methods, updated docstrings
+- `backend/tests/test_candle_service.py` — new helpers, updated all split-adjustment tests for split-only logic
+- `docs/CHANGELOG.md` — Added/Fixed/Changed entries
+- `docs/PROGRESS.md` — session status, component description
+- `docs/BUILD_LOG.md` — this entry
+
+#### Test Count: 451 (35 candle service tests, all passing)
