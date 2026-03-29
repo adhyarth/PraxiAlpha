@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-25 (Session 28 — Split-Adjusted Charts)
+> **Last updated:** 2026-03-28 (Session 28b — Weekly Aggregate Split Adjustment)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28 — Split-Adjusted Charts |
-| **Date** | 2026-03-25 |
-| **PR** | #31 (Split-Adjusted Charts) |
-| **What was done** | Fixed stock split discontinuity in charts: candle service now applies `adjusted_close / close` ratio to OHLC prices at query time (daily only; volume scaled for splits only), producing smooth continuous charts. Added `adjusted` API parameter (response reflects applied state), Streamlit sidebar toggle (disabled for non-daily), 9 new tests (446 total). |
+| **Session** | 28b — Weekly Aggregate Split Adjustment |
+| **Date** | 2026-03-28 |
+| **PR** | #33 (Weekly Aggregate Split Adjustment) |
+| **What was done** | Fixed split/dividend adjustment for weekly/monthly/quarterly candles: non-daily timeframes with `adjusted=True` now re-aggregate from adjusted daily candles via pandas resample (W-SUN/ME/QE) instead of raw TimescaleDB continuous aggregates. 200-week SMA for SMH now matches TradingView. Streamlit toggle enabled for all timeframes. 4 new tests (450 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -31,7 +31,7 @@
 | **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
 | **Depends on** | Session 16 (Trading Journal Backend) |
 
-> **After Session 28:** Session 29 builds the Watchlist backend — model, service, API, tests.
+> **After Session 28b:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 

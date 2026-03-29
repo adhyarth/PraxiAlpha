@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-25 (Session 28 — Split-Adjusted Charts)
+> **Last updated:** 2026-03-28 (Session 28b — Weekly Aggregate Split Adjustment)
 
 ---
 
@@ -13,8 +13,8 @@
 
 | | |
 |-|-|
-| **Session** | 28 — Split-Adjusted Charts |
-| **Branch** | `fix/split-adjusted-charts` |
+| **Session** | 28b — Weekly Aggregate Split Adjustment |
+| **Branch** | `fix/weekly-aggregate-split-adjustment` |
 | **Status** | PR opened / awaiting review. |
 | **Last checkpoint** | Code + all docs (incl. BUILD_LOG) committed and pushed. PR review in progress. |
 
@@ -35,12 +35,12 @@
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/`, `/api/v1/journal/`, `/api/v1/journal/report` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (7 PM ET) → candle aggregate refresh (chained), daily macro (7:10 PM ET), daily trade snapshots (7:20 PM ET), daily economic calendar (7 AM ET) |
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
-| **Charting** | ✅ Working | Plotly candlestick charts with volume subplot, indicator overlays (SMA, EMA, RSI, MACD, Bollinger), and **split-adjusted prices** (smooth continuous charts, no discontinuities at split boundaries) |
+| **Charting** | ✅ Working | Plotly candlestick charts with volume subplot, indicator overlays (SMA, EMA, RSI, MACD, Bollinger), and **split-adjusted prices** for all timeframes (daily, weekly, monthly, quarterly — smooth continuous charts, no discontinuities at split boundaries). Non-daily candles re-aggregated from adjusted daily data via pandas resample. |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (446 tests) |
-| **Tests** | ✅ 446 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (450 tests) |
+| **Tests** | ✅ 450 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
 
 ---
@@ -71,6 +71,7 @@
 - [x] Trading Journal — PDF report generator (annotated charts, PDF export) — Session 22
 - [x] Trading Journal — Streamlit UI (trade list, entry form, detail view, PDF download, what-if display) — Session 23
 - [x] Split-adjusted chart prices (smooth continuous charts, toggle adjusted/raw) — Session 28
+- [x] Split-adjusted weekly/monthly/quarterly candles (re-aggregate from adjusted daily data) — Session 28b
 - [ ] Watchlist management backend
 - [ ] Watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)
@@ -112,6 +113,7 @@
 | 26 | 2026-03-23 | Skip options what-if: excluded options trades from snapshot generation and what-if summary (no live options pricing data), Streamlit UI reason message, 3 new tests (437 total). | PR #28 |
 | 27 | 2026-03-23 | Celery task bug fixes: engine.dispose() in all async tasks, timestamp cast fix in candle aggregate refresh, worker queue routing fix (`-Q celery,data_pipeline`), beat schedule staggered to 7 PM ET window. | PR #29 |
 | 28 | 2026-03-25 | Split-adjusted chart prices: candle service applies `adjusted_close / close` ratio to OHLCV at query time, `adjusted` API param, Streamlit sidebar toggle, 9 new tests (446 total). | PR #31 |
+| 28b | 2026-03-28 | Weekly aggregate split adjustment: non-daily candles re-aggregated from adjusted daily data via pandas resample, 200-week SMA matches TradingView, Streamlit toggle for all timeframes, 4 new tests (450 total). | PR #33 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
@@ -138,6 +140,7 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **26** | **Skip Options What-If** | ✅ Done — excluded options trades from snapshot generation, Streamlit UI reason message, 3 new tests (437 total). | `backend/services/trade_snapshot_service.py`, `backend/tasks/trade_snapshot_task.py`, `streamlit_app/components/journal_trade_detail.py`, `backend/tests/test_trade_snapshots.py` | Session 20 ✅ |
 | **27** | **Celery Task Bug Fixes** | ✅ Done — engine.dispose() in all async tasks, timestamp cast fix, worker queue routing fix, beat schedule staggered to 7 PM ET. | `backend/tasks/data_tasks.py`, `backend/tasks/trade_snapshot_task.py`, `backend/tasks/celery_app.py`, `docker-compose.yml` | Session 8 ✅ |
 | **28** | **Split-Adjusted Charts** | ✅ Done — candle service applies `adjusted_close / close` ratio to OHLCV at query time (daily only), `adjusted` API parameter, Streamlit sidebar toggle, 9 new tests (446 total). | `backend/services/candle_service.py`, `backend/api/routes/charts.py`, `streamlit_app/pages/charts.py`, `backend/tests/test_candle_service.py` | Session 12 ✅ |
+| **28b** | **Weekly Aggregate Split Adjustment** | ✅ Done — non-daily candles re-aggregated from adjusted daily data via pandas resample (W-SUN/ME/QE), 200-week SMA matches TradingView, Streamlit toggle for all timeframes, 4 new tests (450 total). | `backend/services/candle_service.py`, `backend/api/routes/charts.py`, `streamlit_app/pages/charts.py`, `backend/tests/test_candle_service.py` | Session 28 ✅ |
 | **29** | **Watchlist — Backend** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration | Session 16 |
 | **30** | **Watchlist — UI** | Streamlit watchlist page: create/rename/delete watchlists, add/remove tickers (uses search from Session 13), display watchlist with sparkline/change columns. | `streamlit_app/pages/watchlists.py`, `streamlit_app/components/watchlist_card.py` | Session 29 |
 | **31** | **Dashboard Polish** | Wire everything together: dashboard home page shows watchlist summary cards, recent price changes, upcoming economic events, and a "Jump to Chart" link per ticker. Final Phase 2 QA pass. | `streamlit_app/pages/dashboard.py` (rewrite), `streamlit_app/app.py` (nav update) | Session 30 |
