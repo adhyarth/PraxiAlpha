@@ -115,7 +115,7 @@
 | 27 | 2026-03-23 | Celery task bug fixes: engine.dispose() in all async tasks, timestamp cast fix in candle aggregate refresh, worker queue routing fix (`-Q celery,data_pipeline`), beat schedule staggered to 7 PM ET window. | PR #29 |
 | 28 | 2026-03-25 | Split-adjusted chart prices: candle service applies `adjusted_close / close` ratio to OHLCV at query time, `adjusted` API param, Streamlit sidebar toggle, 9 new tests (446 total). | PR #31 |
 | 28b | 2026-03-28 | Weekly aggregate split adjustment: non-daily candles re-aggregated from adjusted daily data via pandas resample, 200-week SMA matches TradingView, Streamlit toggle for all timeframes, 4 new tests (450 total). | PR #33 |
-| 28d | 2026-03-29 | TradingView data validation: service layer (compare, TV fetch, quarterly aggregation, failure persistence), Streamlit UI page (run button, progress, results table, CSV export), deleted CLI script, 43 new tests (494 total). | PR pending |
+| 28d | 2026-03-29 | TradingView data validation: service layer (compare, TV fetch, quarterly aggregation, failure persistence), Streamlit UI page (run button, progress, results table, CSV export), deleted CLI script, 43 new tests (494 total). | PR #34 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
