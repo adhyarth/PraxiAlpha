@@ -165,8 +165,9 @@ docker compose up -d
 # 2. Wait for API health
 curl -sf http://localhost:8000/health
 
-# 3. Launch Streamlit (PYTHONPATH=. is required for internal imports)
-PYTHONPATH=. streamlit run streamlit_app/app.py
+# 3. Launch Streamlit (PYTHONPATH=. is required for internal imports;
+#    override DB host to localhost since Streamlit runs outside Docker)
+PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" streamlit run streamlit_app/app.py
 ```
 
 Then perform the relevant visual checks. **No manual computation is needed** —
@@ -542,7 +543,7 @@ After the API call succeeds, remind the user:
 
 > ✅ Trade logged. To verify in the Streamlit Journal UI:
 > ```bash
-> PYTHONPATH=. streamlit run streamlit_app/app.py
+> PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" streamlit run streamlit_app/app.py
 > ```
 > Navigate to the **📝 Trading Journal** page → your trade should appear
 > in the table with the correct status and PnL.

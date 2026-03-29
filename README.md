@@ -67,7 +67,8 @@ python scripts/backfill_data.py --all
 uvicorn backend.main:app --reload
 
 # 11. Launch the Streamlit dashboard (in a separate terminal)
-PYTHONPATH=. streamlit run streamlit_app/app.py
+# Requires Docker running (step 3) — DB is accessed via localhost:5432
+PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" streamlit run streamlit_app/app.py
 ```
 
 ### Docker (full stack)
@@ -86,8 +87,8 @@ This starts:
 ### Streamlit Dashboard (local dev)
 
 ```bash
-# Must be run from the project root
-PYTHONPATH=. streamlit run streamlit_app/app.py
+# Must be run from the project root (Docker must be running for DB access)
+PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" streamlit run streamlit_app/app.py
 ```
 
 This launches the Streamlit MVP dashboard on `http://localhost:8501`.
