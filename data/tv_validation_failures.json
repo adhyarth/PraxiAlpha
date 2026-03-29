@@ -1,0 +1,141 @@
+{
+  "timestamp": "2026-03-29T17:08:46.371933",
+  "failures": [
+    {
+      "ticker": "AAPL",
+      "timeframe": "daily",
+      "group": "fixed",
+      "error": null,
+      "mismatch_count": 2,
+      "match_pct": 99.84,
+      "worst_diff": "volume: +7.60%"
+    },
+    {
+      "ticker": "AAPL",
+      "timeframe": "weekly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x127904390>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "AAPL",
+      "timeframe": "quarterly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x131469ba0>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "MSFT",
+      "timeframe": "daily",
+      "group": "fixed",
+      "error": null,
+      "mismatch_count": 1,
+      "match_pct": 99.92,
+      "worst_diff": "volume: +5.49%"
+    },
+    {
+      "ticker": "MSFT",
+      "timeframe": "weekly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x123f74bd0>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "MSFT",
+      "timeframe": "quarterly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x13146ec10>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "NVDA",
+      "timeframe": "weekly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x1310d5120>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "NVDA",
+      "timeframe": "monthly",
+      "group": "fixed",
+      "error": null,
+      "mismatch_count": 39,
+      "match_pct": 87.0,
+      "worst_diff": "volume: +3900.00%"
+    },
+    {
+      "ticker": "NVDA",
+      "timeframe": "quarterly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x131489990>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "SMH",
+      "timeframe": "weekly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x125ce5120>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "SMH",
+      "timeframe": "monthly",
+      "group": "fixed",
+      "error": null,
+      "mismatch_count": 27,
+      "match_pct": 91.0,
+      "worst_diff": "volume: +100.18%"
+    },
+    {
+      "ticker": "SMH",
+      "timeframe": "quarterly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x1314b12d0>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "TSLA",
+      "timeframe": "weekly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x13145e4e0>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    },
+    {
+      "ticker": "TSLA",
+      "timeframe": "monthly",
+      "group": "fixed",
+      "error": null,
+      "mismatch_count": 17,
+      "match_pct": 94.33,
+      "worst_diff": "volume: +200.00%"
+    },
+    {
+      "ticker": "TSLA",
+      "timeframe": "quarterly",
+      "group": "fixed",
+      "error": "unable to perform operation on <TCPTransport closed=True reading=False 0x13149bae0>; the handler is closed",
+      "mismatch_count": 0,
+      "match_pct": 0.0,
+      "worst_diff": "\u2014"
+    }
+  ],
+  "random_tickers": []
+}

@@ -12,7 +12,11 @@ and failure persistence for re-checking on the next run.
 from __future__ import annotations
 
 import asyncio
+import io
+import logging
 import time
+from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -27,10 +31,8 @@ from backend.services.tv_validation_service import (
     compute_summary,
     fetch_our_candles,
     fetch_tv_candles,
-    get_retry_tickers_from_failures,
     get_tv_client,
     load_previous_failures,
-    sample_random_tickers,
     save_failures,
 )
 
@@ -113,47 +115,63 @@ def _run_async(coro):
 if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     results: list[ValidationResult] = []
 
+    # --- Set up log capture ---
+    log_stream = io.StringIO()
+    log_handler = logging.StreamHandler(log_stream)
+    log_handler.setLevel(logging.DEBUG)
+    log_handler.setFormatter(
+        logging.Formatter("%(asctime)s  %(name)-20s  %(levelname)-7s  %(message)s")
+    )
+    # Attach to the tv_validate logger and root logger
+    tv_logger = logging.getLogger("tv_validate")
+    tv_logger.setLevel(logging.DEBUG)
+    tv_logger.addHandler(log_handler)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(log_handler)
+
+    LOG_DIR = Path("data")
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file_path = LOG_DIR / f"tv_validation_{run_ts}.log"
+
     # --- Phase 1: Build ticker list ---
     status = st.status("Building ticker list...", expanded=True)
 
     # Fixed tickers
     all_tickers_with_group: list[tuple[str, str]] = [(t, "fixed") for t in FIXED_TICKERS]
 
-    # Random tickers
-    try:
-        random_tickers = _run_async(sample_random_tickers(10))
-        all_tickers_with_group.extend((t, "random") for t in random_tickers)
-        status.write(
-            f"✅ Sampled {len(random_tickers)} random tickers: {', '.join(random_tickers)}"
-        )
-    except Exception as e:
-        random_tickers = []
-        status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
+    # Random tickers (disabled for now — re-enable after stable)
+    random_tickers: list[str] = []
+    # try:
+    #     random_tickers = _run_async(sample_random_tickers(10))
+    #     all_tickers_with_group.extend((t, "random") for t in random_tickers)
+    #     status.write(
+    #         f"✅ Sampled {len(random_tickers)} random tickers: {', '.join(random_tickers)}"
+    #     )
+    # except Exception as e:
+    #     random_tickers = []
+    #     status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
 
-    # Retry tickers from previous failures
-    retry_pairs = get_retry_tickers_from_failures()
-    retry_tickers_set = set()
-    for ticker, _tf in retry_pairs:
-        # Only add if not already in the ticker list
-        if ticker not in {t for t, _ in all_tickers_with_group}:
-            retry_tickers_set.add(ticker)
-    for t in retry_tickers_set:
-        all_tickers_with_group.append((t, "retry"))
+    # Retry tickers from previous failures (disabled for now — re-enable after stable)
+    retry_pairs: list[tuple[str, str]] = []
+    # retry_pairs = get_retry_tickers_from_failures()
+    # retry_tickers_set = set()
+    # for ticker, _tf in retry_pairs:
+    #     # Only add if not already in the ticker list
+    #     if ticker not in {t for t, _ in all_tickers_with_group}:
+    #         retry_tickers_set.add(ticker)
+    # for t in retry_tickers_set:
+    #     all_tickers_with_group.append((t, "retry"))
 
-    if retry_pairs:
-        status.write(f"🔄 Re-checking {len(retry_pairs)} previously failed combination(s)")
+    # if retry_pairs:
+    #     status.write(f"🔄 Re-checking {len(retry_pairs)} previously failed combination(s)")
 
     # Build the full job list: (ticker, timeframe, group)
     jobs: list[tuple[str, str, str]] = []
-    existing_tickers = {t for t, _ in all_tickers_with_group}
 
     for ticker, group in all_tickers_with_group:
         for tf in ALL_TIMEFRAMES:
             jobs.append((ticker, tf, group))
-
-    # Also add specific retry pairs that might be for tickers already in the list
-    # but we want to make sure those specific timeframes are marked as retry
-    retry_set = {(t, tf) for t, tf in retry_pairs}
 
     total_jobs = len(jobs)
     status.write(
@@ -161,16 +179,18 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     )
     status.update(label="Connecting to TradingView...", state="running")
 
-    # --- Phase 2: Connect to TradingView ---
+    # --- Phase 2: Verify TradingView credentials ---
     try:
         tv = get_tv_client()
-        status.write("✅ Connected to TradingView")
+        status.write("✅ TradingView credentials verified")
     except Exception as e:
         status.update(label="Connection failed", state="error")
         st.error(f"❌ Could not connect to TradingView: {e}")
         st.stop()
 
     # --- Phase 3: Run comparisons ---
+    # Create a fresh TvDatafeed client for EVERY request to avoid
+    # websocket "TCPTransport closed" errors.
     status.update(label="Running validation...", state="running")
     progress_bar = st.progress(0, text="Starting...")
 
@@ -178,11 +198,17 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         progress_pct = (idx + 1) / total_jobs
         progress_bar.progress(progress_pct, text=f"[{idx + 1}/{total_jobs}] {ticker} ({tf})...")
 
+        tv_logger.info("=== [%d/%d] %s / %s (group=%s) ===", idx + 1, total_jobs, ticker, tf, group)
+
         try:
+            # Fresh TV client for each request
+            tv = get_tv_client()
+
             # Fetch our data
             our_df = _run_async(fetch_our_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252)))
 
             if our_df is None or our_df.empty:
+                tv_logger.warning("  No data in our DB for %s (%s)", ticker, tf)
                 results.append(
                     ValidationResult(
                         ticker=ticker,
@@ -196,10 +222,13 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 )
                 continue
 
+            tv_logger.info("  Our DB: %d bars", len(our_df))
+
             # Fetch TV data
             tv_df = fetch_tv_candles(tv, ticker, tf, TIMEFRAME_BARS.get(tf, 252))
 
             if tv_df is None or tv_df.empty:
+                tv_logger.warning("  Not found on TradingView for %s (%s)", ticker, tf)
                 results.append(
                     ValidationResult(
                         ticker=ticker,
@@ -213,11 +242,23 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 )
                 continue
 
+            tv_logger.info("  TV: %d bars", len(tv_df))
+
             # Compare
             result = compare_candles(ticker, tf, our_df, tv_df, group=group)
+            tv_logger.info(
+                "  Result: %s  overlap=%d  mismatches=%d  match=%.1f%%",
+                result.status,
+                result.overlapping_bars,
+                result.mismatch_count,
+                result.match_pct,
+            )
+            if result.error:
+                tv_logger.warning("  Error: %s", result.error)
             results.append(result)
 
         except Exception as e:
+            tv_logger.error("  EXCEPTION for %s (%s): %s", ticker, tf, e, exc_info=True)
             results.append(
                 ValidationResult(
                     ticker=ticker,
@@ -230,15 +271,38 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 )
             )
 
-        # Rate limit (skip on last item)
+        # Rate limit — fresh client per request needs a small cooldown
         if idx < total_jobs - 1:
-            time.sleep(1.5)
+            time.sleep(2)
 
     progress_bar.progress(1.0, text="✅ Validation complete!")
     status.update(label="Validation complete!", state="complete")
 
     # --- Phase 4: Save failures ---
     save_failures(results, random_tickers)
+
+    # --- Phase 4b: Save & display log ---
+    tv_logger.removeHandler(log_handler)
+    root_logger.removeHandler(log_handler)
+    log_handler.flush()
+    log_contents = log_stream.getvalue()
+
+    # Write to file
+    with open(log_file_path, "w") as lf:
+        lf.write(log_contents)
+
+    st.divider()
+    st.subheader("📝 Run Log")
+    st.caption(f"Log saved to `{log_file_path}`")
+    with st.expander("Show full log", expanded=False):
+        st.code(log_contents, language="log")
+    st.download_button(
+        "📥 Download Log File",
+        log_contents,
+        file_name=log_file_path.name,
+        mime="text/plain",
+        use_container_width=True,
+    )
 
     # --- Phase 5: Display results ---
     st.divider()

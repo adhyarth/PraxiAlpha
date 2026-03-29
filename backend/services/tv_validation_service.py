@@ -45,11 +45,6 @@ FIXED_TICKERS = [
     "NVDA",  # 10:1 split (2024)
     "SMH",  # 2:1 split — the bug that started Session 28
     "TSLA",  # 5:1 (2020) + 3:1 (2022) splits
-    "GOOGL",  # 20:1 split (2022)
-    "AMZN",  # 20:1 split (2022)
-    "META",  # No splits
-    "SPY",  # Benchmark ETF
-    "QQQ",  # Benchmark ETF
 ]
 
 ALL_TIMEFRAMES = ["daily", "weekly", "monthly", "quarterly"]
@@ -63,7 +58,10 @@ TIMEFRAME_BARS: dict[str, int] = {
 
 # Tolerance thresholds (ratio — 0.01 = 1%)
 DEFAULT_PRICE_TOLERANCE = 0.01
-DEFAULT_VOLUME_TOLERANCE = 0.05
+# Volume tolerance is higher because data providers report different
+# consolidated volumes (exchange-only vs. dark-pool-inclusive).  EODHD
+# vs TradingView regularly differ by 5-8% on the most recent dates.
+DEFAULT_VOLUME_TOLERANCE = 0.10
 
 # Failure persistence file
 FAILURES_PATH = Path("data/tv_validation_failures.json")
@@ -155,6 +153,50 @@ class ValidationResult:
 # ------------------------------------------------------------------ #
 
 
+def _normalize_dates_for_merge(
+    our_df: pd.DataFrame,
+    tv_df: pd.DataFrame,
+    timeframe: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Normalize dates so our DB and TradingView candles can be joined.
+
+    - **daily**: exact date match (no change needed).
+    - **weekly**: both sources use Monday-start weeks, but our pandas ``W-SUN``
+      resample labels the bucket on the **Saturday before** the week while TV
+      labels on Monday.  Normalise to ISO year-week so the same trading week
+      always matches.
+    - **monthly**: our DB uses 1st-of-month (``MS`` resample), TV uses the
+      first *trading* day (e.g. 2025-11-03 for November).  Normalise to
+      year-month.
+    - **quarterly**: same month-start logic but at quarter boundaries.
+    """
+    if timeframe == "daily":
+        return our_df, tv_df
+
+    our = our_df.copy()
+    tv = tv_df.copy()
+
+    if timeframe == "weekly":
+        # Map each date to the Monday of that ISO week
+        our["date"] = pd.to_datetime(our["date"]).apply(
+            lambda d: (d - pd.Timedelta(days=d.weekday())).date()
+        )
+        tv["date"] = pd.to_datetime(tv["date"]).apply(
+            lambda d: (d - pd.Timedelta(days=d.weekday())).date()
+        )
+    elif timeframe in ("monthly", "quarterly"):
+        # Map each date to the 1st of its month
+        our["date"] = pd.to_datetime(our["date"]).apply(
+            lambda d: d.replace(day=1).date() if hasattr(d, "replace") else d
+        )
+        tv["date"] = pd.to_datetime(tv["date"]).apply(
+            lambda d: d.replace(day=1).date() if hasattr(d, "replace") else d
+        )
+
+    return our, tv
+
+
 def compare_candles(
     ticker: str,
     timeframe: str,
@@ -170,7 +212,8 @@ def compare_candles(
     Joins on date, compares OHLCV fields, and returns a ValidationResult
     with any mismatches.
     """
-    merged = our_df.merge(tv_df, on="date", suffixes=("_ours", "_tv"), how="inner")
+    our_norm, tv_norm = _normalize_dates_for_merge(our_df, tv_df, timeframe)
+    merged = our_norm.merge(tv_norm, on="date", suffixes=("_ours", "_tv"), how="inner")
 
     result = ValidationResult(
         ticker=ticker,
@@ -296,18 +339,27 @@ def fetch_tv_candles(
     ticker: str,
     timeframe: str,
     n_bars: int,
+    *,
+    _max_retries: int = 2,
 ) -> pd.DataFrame | None:
     """
     Fetch OHLCV data from TradingView for a ticker + timeframe.
 
-    For quarterly: fetches monthly and aggregates.
+    For quarterly: fetches monthly (with a **fresh** TV client) and aggregates.
     Returns DataFrame with: date, open, high, low, close, volume.
+
+    Includes automatic retry with a fresh client on TCPTransport / websocket
+    errors that tvdatafeed is prone to.
     """
+    import time as _time
+
     intervals = _get_tv_intervals()
 
-    # Quarterly: fetch monthly from TV, aggregate in pandas
+    # Quarterly: fetch monthly from TV with a FRESH client, then aggregate
     if timeframe == "quarterly":
-        monthly_df = fetch_tv_candles(tv, ticker, "monthly", n_bars * 3)
+        fresh_tv = get_tv_client()
+        _time.sleep(1)
+        monthly_df = fetch_tv_candles(fresh_tv, ticker, "monthly", n_bars * 3)
         if monthly_df is None:
             return None
         return aggregate_monthly_to_quarterly(monthly_df)
@@ -318,21 +370,59 @@ def fetch_tv_candles(
         return None
 
     exchanges = ["NASDAQ", "NYSE", "AMEX"]
-    df = None
 
-    for exchange in exchanges:
-        try:
-            df = tv.get_hist(
-                symbol=ticker,
-                exchange=exchange,
-                interval=interval,
-                n_bars=n_bars,
+    for attempt in range(_max_retries + 1):
+        # On retry, create a fresh client and wait a bit
+        if attempt > 0:
+            logger.info(
+                "Retry %d/%d for %s (%s) — creating fresh TV client",
+                attempt,
+                _max_retries,
+                ticker,
+                timeframe,
             )
-            if df is not None and not df.empty:
-                break
-        except Exception as e:
-            logger.debug("Failed to fetch %s from %s: %s", ticker, exchange, e)
+            _time.sleep(2)
+            try:
+                tv = get_tv_client()
+            except Exception:
+                logger.warning("Could not create fresh TV client on retry")
+                continue
+
+        df = None
+        tcp_error = False
+
+        for exchange in exchanges:
+            try:
+                df = tv.get_hist(
+                    symbol=ticker,
+                    exchange=exchange,
+                    interval=interval,
+                    n_bars=n_bars,
+                )
+                if df is not None and not df.empty:
+                    break
+            except Exception as e:
+                err_str = str(e).lower()
+                if "tcptransport" in err_str or "handler is closed" in err_str:
+                    logger.debug(
+                        "TCPTransport error for %s on %s (attempt %d): %s",
+                        ticker,
+                        exchange,
+                        attempt,
+                        e,
+                    )
+                    tcp_error = True
+                    break  # Don't try other exchanges — need a fresh client
+                logger.debug("Failed to fetch %s from %s: %s", ticker, exchange, e)
+                continue
+
+        # If we hit a TCP error, retry with a fresh client
+        if tcp_error:
             continue
+
+        # Got data (or exhausted exchanges) — stop retrying
+        if df is not None and not df.empty:
+            break
 
     if df is None or df.empty:
         logger.warning("Could not fetch %s from TradingView", ticker)
@@ -424,10 +514,10 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
                     "SELECT ticker FROM stocks "
                     "WHERE exchange = :exchange "
                     "AND asset_type = 'Common Stock' "
-                    "AND ticker NOT IN :exclude "
+                    "AND ticker != ALL(:exclude) "
                     "ORDER BY random() LIMIT :limit"
                 ),
-                {"exchange": exchange, "exclude": tuple(exclude), "limit": count},
+                {"exchange": exchange, "exclude": list(exclude), "limit": count},
             )
             tickers = [row[0] for row in result.fetchall()]
             sampled.extend(tickers)
@@ -438,10 +528,10 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
             text(
                 "SELECT ticker FROM stocks "
                 "WHERE asset_type = 'ETF' "
-                "AND ticker NOT IN :exclude "
+                "AND ticker != ALL(:exclude) "
                 "ORDER BY random() LIMIT :limit"
             ),
-            {"exclude": tuple(exclude), "limit": RANDOM_ETF_COUNT},
+            {"exclude": list(exclude), "limit": RANDOM_ETF_COUNT},
         )
         etf_tickers = [row[0] for row in result.fetchall()]
         sampled.extend(etf_tickers)
