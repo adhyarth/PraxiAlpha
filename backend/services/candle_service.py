@@ -305,7 +305,8 @@ class CandleService:
                     "volume": adj_volume,
                 }
             elif apply_adj:
-                # No splits for this stock — return raw prices unchanged
+                # No splits for this stock — return raw prices unchanged.
+                # adjusted_close = raw_close (split-only contract: no dividend drag)
                 candle = {
                     "date": row.date.isoformat()
                     if hasattr(row.date, "isoformat")
@@ -314,7 +315,7 @@ class CandleService:
                     "high": float(row.high),
                     "low": float(row.low),
                     "close": raw_close,
-                    "adjusted_close": adj_close,
+                    "adjusted_close": raw_close,
                     "volume": int(row.volume),
                 }
             else:
@@ -367,7 +368,13 @@ class CandleService:
             Timeframe.MONTHLY: 21,
             Timeframe.QUARTERLY: 63,
         }
-        daily_limit = limit * daily_multiplier[timeframe] + 10  # small buffer
+        # Cap daily_limit to avoid fetching hundreds of thousands of rows
+        # into pandas for large limit + quarterly combinations (e.g. 5000 * 63 = 315K).
+        max_daily_limit = 50_000
+        daily_limit = min(
+            limit * daily_multiplier[timeframe] + 10,
+            max_daily_limit,
+        )
 
         # Fetch adjusted daily candles (adjustment applied per-row)
         daily_candles = await self._get_candles_from_table(

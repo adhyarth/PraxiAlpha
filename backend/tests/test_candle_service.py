@@ -555,6 +555,8 @@ class TestSplitAdjustment:
         # No splits → prices unchanged (dividend adjustment NOT applied)
         assert c["open"] == 100.0
         assert c["close"] == 102.0
+        # adjusted_close should equal close (split-only contract), NOT EODHD's 98.0
+        assert c["adjusted_close"] == 102.0
         assert c["volume"] == 5_000_000
 
     @pytest.mark.asyncio
@@ -586,6 +588,8 @@ class TestSplitAdjustment:
         assert c["high"] == 101.0
         assert c["low"] == 98.0
         assert c["close"] == 100.0
+        # adjusted_close should equal close (split-only contract), NOT EODHD's 98.0
+        assert c["adjusted_close"] == 100.0
         # Volume unchanged
         assert c["volume"] == 10_000_000
 
