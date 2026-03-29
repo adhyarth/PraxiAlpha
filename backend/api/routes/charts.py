@@ -30,11 +30,13 @@ async def get_candles(
     adjusted: bool = Query(
         default=True,
         description=(
-            "If true (default), return split- and dividend-adjusted OHLCV prices "
-            "for daily candles. Produces a smooth, continuous chart like TradingView. "
-            "If false, return raw historical prices as originally recorded. "
-            "For non-daily timeframes (weekly, monthly, quarterly), adjustment is "
-            "not applied regardless of this flag."
+            "If true (default), return split- and dividend-adjusted OHLCV prices. "
+            "Produces a smooth, continuous chart like TradingView — no jumps at "
+            "split boundaries. For non-daily timeframes (weekly, monthly, quarterly), "
+            "adjusted daily candles are re-aggregated in Python so that splits "
+            "occurring mid-week/month are handled correctly. "
+            "If false, return raw historical prices as originally recorded (daily "
+            "from the hypertable, non-daily from the TimescaleDB continuous aggregates)."
         ),
     ),
     db: AsyncSession = Depends(get_db),
@@ -45,16 +47,15 @@ async def get_candles(
     Returns candles in ascending date order (oldest first), suitable for
     charting libraries like Plotly or Lightweight Charts.
 
-    By default, prices are **split-adjusted** for daily candles so the chart
-    is continuous (no jumps at split boundaries).  Pass ``adjusted=false`` to
-    get raw historical prices.  For non-daily timeframes (weekly, monthly,
-    quarterly), adjustment is not applied regardless of this flag.
+    By default, prices are **split-adjusted** across all timeframes so
+    charts are continuous (no jumps at split boundaries).  For non-daily
+    timeframes, adjusted daily candles are fetched and re-aggregated in
+    Python to avoid the SQL aggregate's raw-price mixing problem.
+    Pass ``adjusted=false`` to get raw historical prices from the
+    pre-computed SQL aggregates.
 
     The response includes ``adjusted`` (boolean) indicating whether
-    split/dividend adjustment was requested **and** applicable for the
-    given timeframe (i.e. daily).  Note: individual candles with
-    ``close == 0`` are returned unadjusted regardless; this flag
-    reflects the overall intent, not a per-candle guarantee.
+    split/dividend adjustment was applied.
 
     Examples:
         GET /api/v1/charts/AAPL/candles?timeframe=daily&limit=252
@@ -81,11 +82,10 @@ async def get_candles(
         adjusted=adjusted,
     )
 
-    # Compute whether adjustment was requested and applicable for this
-    # timeframe.  Individual candles with close==0 are returned unadjusted
-    # by the service, but this flag reflects the overall intent — i.e.
-    # "daily candles were adjusted" vs "non-daily candles are raw".
-    adjusted_applied = bool(adjusted and timeframe == Timeframe.DAILY)
+    # Adjustment is now applied for ALL timeframes when adjusted=True.
+    # Daily candles are adjusted per-row; non-daily candles are rebuilt
+    # from adjusted daily data in Python.
+    adjusted_applied = bool(adjusted)
 
     return {
         "ticker": stock_row.ticker,
