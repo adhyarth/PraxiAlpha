@@ -263,17 +263,21 @@ class CandleService:
 
         # We need enough daily candles to produce `limit` aggregate bars.
         # Rough multipliers: weekly ≈ 5 trading days, monthly ≈ 21, quarterly ≈ 63.
-        _DAILY_MULTIPLIER = {
+        daily_multiplier = {
             Timeframe.WEEKLY: 5,
             Timeframe.MONTHLY: 21,
             Timeframe.QUARTERLY: 63,
         }
-        daily_limit = limit * _DAILY_MULTIPLIER[timeframe] + 10  # small buffer
+        daily_limit = limit * daily_multiplier[timeframe] + 10  # small buffer
 
         # Fetch adjusted daily candles (adjustment applied per-row)
         daily_candles = await self._get_candles_from_table(
-            stock_id, Timeframe.DAILY, start=start, end=end,
-            limit=daily_limit, adjusted=True,
+            stock_id,
+            Timeframe.DAILY,
+            start=start,
+            end=end,
+            limit=daily_limit,
+            adjusted=True,
         )
 
         if not daily_candles:
@@ -285,14 +289,16 @@ class CandleService:
         df = df.set_index("date").sort_index()
 
         # Resample into the target timeframe
-        agg = df.resample(rule).agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "adjusted_close": "last",
-            "volume": "sum",
-        })
+        agg = df.resample(rule).agg(
+            {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "adjusted_close": "last",
+                "volume": "sum",
+            }
+        )
 
         # Count trading days per bucket
         agg["trading_days"] = df["close"].resample(rule).count()
@@ -306,16 +312,18 @@ class CandleService:
         # Convert back to list of dicts
         candles = []
         for dt, row in agg.iterrows():
-            candles.append({
-                "date": dt.strftime("%Y-%m-%d"),
-                "open": round(float(row["open"]), 4),
-                "high": round(float(row["high"]), 4),
-                "low": round(float(row["low"]), 4),
-                "close": round(float(row["close"]), 4),
-                "adjusted_close": round(float(row["adjusted_close"]), 4),
-                "volume": int(row["volume"]),
-                "trading_days": int(row["trading_days"]),
-            })
+            candles.append(
+                {
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "open": round(float(row["open"]), 4),
+                    "high": round(float(row["high"]), 4),
+                    "low": round(float(row["low"]), 4),
+                    "close": round(float(row["close"]), 4),
+                    "adjusted_close": round(float(row["adjusted_close"]), 4),
+                    "volume": int(row["volume"]),
+                    "trading_days": int(row["trading_days"]),
+                }
+            )
 
         return candles
 
@@ -437,60 +445,3 @@ class CandleService:
                 "latest": latest,
             }
         return stats
-
-    async def _aggregate_daily_to_timeframe(
-        self,
-        stock_id: int,
-        timeframe: Timeframe,
-        start: date | None,
-        end: date | None,
-        limit: int,
-    ) -> list[dict[str, Any]]:
-        """
-        Rebuild non-daily candles from adjusted daily data.
-
-        When ``adjusted=True``, we cannot use the raw TimescaleDB aggregates
-        because they mix pre- and post-split values in the same bucket.
-        Instead, we fetch enough adjusted daily candles, then re-aggregate
-        them in Python using pandas resample().
-
-        Args:
-            stock_id: The stock's database ID
-            timeframe: weekly, monthly, or quarterly
-            start: Start date filter (inclusive)
-            end: End date filter (inclusive)
-            limit: Maximum number of candles to return (most recent N)
-
-        Returns:
-            List of candle dicts, ordered by date ascending (oldest → newest).
-        """
-        # Fetch daily candles for the requested date range
-        daily_candles = await self.get_candles(stock_id, Timeframe.DAILY, start, end, limit, adjusted=True)
-        if not daily_candles:
-            return []
-
-        # Convert to DataFrame
-        df = pd.DataFrame(daily_candles)
-
-        # Set date as index for resampling
-        df.set_index("date", inplace=True)
-
-        # Resample to the desired timeframe, aggregating OHLCV
-        df_resampled = df.resample(_RESAMPLE_RULE[timeframe]).agg(
-            {
-                "open": "first",
-                "high": "max",
-                "low": "min",
-                "close": "last",
-                "adjusted_close": "last",
-                "volume": "sum",
-            }
-        )
-
-        # Reset index to turn the date index back into a column
-        df_resampled.reset_index(inplace=True)
-
-        # Convert to list of dicts
-        candles = df_resampled.to_dict(orient="records")
-
-        return candles

@@ -582,17 +582,97 @@ class TestSplitAdjustment:
         # W-SUN resample groups Mon-Fri into a bucket labelled by the Sunday.
         daily_rows = [
             # Week 1 (5 trading days) — post-split prices, adj_close == close
-            _make_mock_row(date(2024, 6, 3), open_=80.0, high=82.0, low=79.0, close=81.0, adj_close=81.0, volume=10_000_000),
-            _make_mock_row(date(2024, 6, 4), open_=81.0, high=83.0, low=80.0, close=82.0, adj_close=82.0, volume=11_000_000),
-            _make_mock_row(date(2024, 6, 5), open_=82.0, high=85.0, low=81.0, close=84.0, adj_close=84.0, volume=12_000_000),
-            _make_mock_row(date(2024, 6, 6), open_=84.0, high=86.0, low=83.0, close=85.0, adj_close=85.0, volume=13_000_000),
-            _make_mock_row(date(2024, 6, 7), open_=85.0, high=87.0, low=84.0, close=86.0, adj_close=86.0, volume=14_000_000),
+            _make_mock_row(
+                date(2024, 6, 3),
+                open_=80.0,
+                high=82.0,
+                low=79.0,
+                close=81.0,
+                adj_close=81.0,
+                volume=10_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 4),
+                open_=81.0,
+                high=83.0,
+                low=80.0,
+                close=82.0,
+                adj_close=82.0,
+                volume=11_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 5),
+                open_=82.0,
+                high=85.0,
+                low=81.0,
+                close=84.0,
+                adj_close=84.0,
+                volume=12_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 6),
+                open_=84.0,
+                high=86.0,
+                low=83.0,
+                close=85.0,
+                adj_close=85.0,
+                volume=13_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 7),
+                open_=85.0,
+                high=87.0,
+                low=84.0,
+                close=86.0,
+                adj_close=86.0,
+                volume=14_000_000,
+            ),
             # Week 2 (5 trading days)
-            _make_mock_row(date(2024, 6, 10), open_=86.0, high=88.0, low=85.0, close=87.0, adj_close=87.0, volume=15_000_000),
-            _make_mock_row(date(2024, 6, 11), open_=87.0, high=90.0, low=86.0, close=89.0, adj_close=89.0, volume=16_000_000),
-            _make_mock_row(date(2024, 6, 12), open_=89.0, high=91.0, low=88.0, close=90.0, adj_close=90.0, volume=17_000_000),
-            _make_mock_row(date(2024, 6, 13), open_=90.0, high=92.0, low=89.0, close=91.0, adj_close=91.0, volume=18_000_000),
-            _make_mock_row(date(2024, 6, 14), open_=91.0, high=93.0, low=90.0, close=92.0, adj_close=92.0, volume=19_000_000),
+            _make_mock_row(
+                date(2024, 6, 10),
+                open_=86.0,
+                high=88.0,
+                low=85.0,
+                close=87.0,
+                adj_close=87.0,
+                volume=15_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 11),
+                open_=87.0,
+                high=90.0,
+                low=86.0,
+                close=89.0,
+                adj_close=89.0,
+                volume=16_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 12),
+                open_=89.0,
+                high=91.0,
+                low=88.0,
+                close=90.0,
+                adj_close=90.0,
+                volume=17_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 13),
+                open_=90.0,
+                high=92.0,
+                low=89.0,
+                close=91.0,
+                adj_close=91.0,
+                volume=18_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 14),
+                open_=91.0,
+                high=93.0,
+                low=90.0,
+                close=92.0,
+                adj_close=92.0,
+                volume=19_000_000,
+            ),
         ]
         mock_result = MagicMock()
         mock_result.fetchall.return_value = daily_rows
@@ -659,9 +739,33 @@ class TestSplitAdjustment:
         """Monthly candles with adjusted=True should be rebuilt from adjusted daily data."""
         # 3 daily candles in June 2024 (simplified — just enough to test aggregation)
         daily_rows = [
-            _make_mock_row(date(2024, 6, 3), open_=80.0, high=85.0, low=79.0, close=84.0, adj_close=84.0, volume=10_000_000),
-            _make_mock_row(date(2024, 6, 4), open_=84.0, high=90.0, low=83.0, close=88.0, adj_close=88.0, volume=12_000_000),
-            _make_mock_row(date(2024, 6, 5), open_=88.0, high=92.0, low=86.0, close=90.0, adj_close=90.0, volume=14_000_000),
+            _make_mock_row(
+                date(2024, 6, 3),
+                open_=80.0,
+                high=85.0,
+                low=79.0,
+                close=84.0,
+                adj_close=84.0,
+                volume=10_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 4),
+                open_=84.0,
+                high=90.0,
+                low=83.0,
+                close=88.0,
+                adj_close=88.0,
+                volume=12_000_000,
+            ),
+            _make_mock_row(
+                date(2024, 6, 5),
+                open_=88.0,
+                high=92.0,
+                low=86.0,
+                close=90.0,
+                adj_close=90.0,
+                volume=14_000_000,
+            ),
         ]
         mock_result = MagicMock()
         mock_result.fetchall.return_value = daily_rows
@@ -726,11 +830,51 @@ class TestSplitAdjustment:
         All adjusted prices should be in the ~120 range.
         """
         daily_rows = [
-            _make_mock_row(date(2023, 5, 1), open_=247.97, high=249.92, low=247.33, close=249.14, adj_close=122.89, volume=5_202_000),
-            _make_mock_row(date(2023, 5, 2), open_=249.06, high=250.36, low=245.00, close=246.98, adj_close=121.83, volume=6_717_600),
-            _make_mock_row(date(2023, 5, 3), open_=245.70, high=248.60, low=244.15, close=244.43, adj_close=120.57, volume=8_223_000),
-            _make_mock_row(date(2023, 5, 4), open_=243.29, high=245.64, low=241.87, close=243.61, adj_close=120.17, volume=5_889_200),
-            _make_mock_row(date(2023, 5, 5), open_=122.16, high=124.97, low=121.59, close=124.38, adj_close=122.71, volume=5_553_000),
+            _make_mock_row(
+                date(2023, 5, 1),
+                open_=247.97,
+                high=249.92,
+                low=247.33,
+                close=249.14,
+                adj_close=122.89,
+                volume=5_202_000,
+            ),
+            _make_mock_row(
+                date(2023, 5, 2),
+                open_=249.06,
+                high=250.36,
+                low=245.00,
+                close=246.98,
+                adj_close=121.83,
+                volume=6_717_600,
+            ),
+            _make_mock_row(
+                date(2023, 5, 3),
+                open_=245.70,
+                high=248.60,
+                low=244.15,
+                close=244.43,
+                adj_close=120.57,
+                volume=8_223_000,
+            ),
+            _make_mock_row(
+                date(2023, 5, 4),
+                open_=243.29,
+                high=245.64,
+                low=241.87,
+                close=243.61,
+                adj_close=120.17,
+                volume=5_889_200,
+            ),
+            _make_mock_row(
+                date(2023, 5, 5),
+                open_=122.16,
+                high=124.97,
+                low=121.59,
+                close=124.38,
+                adj_close=122.71,
+                volume=5_553_000,
+            ),
         ]
         mock_result = MagicMock()
         mock_result.fetchall.return_value = daily_rows
@@ -747,7 +891,7 @@ class TestSplitAdjustment:
         assert c["close"] == round(122.71, 4)
         assert c["open"] < 130  # adjusted open from Monday
         assert c["high"] < 130  # adjusted high, not $250!
-        assert c["low"] > 100   # adjusted low, not $241!
+        assert c["low"] > 100  # adjusted low, not $241!
         assert c["trading_days"] == 5
 
     @pytest.mark.asyncio
