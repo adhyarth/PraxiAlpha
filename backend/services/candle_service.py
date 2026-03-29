@@ -4,35 +4,44 @@ PraxiAlpha — Candle Service
 Provides unified access to OHLCV candle data across all timeframes:
 daily, weekly, monthly, and quarterly.
 
-Daily data comes from the `daily_ohlcv` hypertable.
+Daily data comes from the ``daily_ohlcv`` hypertable.
 Weekly/monthly/quarterly come from TimescaleDB continuous aggregates
 when ``adjusted=False`` (raw prices).  When ``adjusted=True``, non-daily
-candles are **rebuilt from adjusted daily data in Python** using pandas
-``resample()`` so that split/dividend adjustments are applied correctly.
+candles are **rebuilt from split-adjusted daily data in Python** using pandas
+``resample()`` so that split adjustments are applied correctly.
 The SQL aggregates operate on raw daily prices, which means a stock split
 mid-week (or mid-month) produces a bucket that mixes pre- and post-split
 values — e.g. a weekly bar whose open is $248 (pre-split) and close is
 $124 (post-split).  Rebuilding from adjusted dailies eliminates this.
 
-Split adjustment
-----------------
-When ``adjusted=True`` (the default) for **daily** candles
-(``timeframe == Timeframe.DAILY``), OHLC prices are retroactively adjusted
-for stock splits and dividends using the ratio
-``adjustment_factor = adjusted_close / close``.  This produces a smooth,
-continuous price series — the same behavior as TradingView, Yahoo Finance,
-and Bloomberg.  The raw data in the database is never modified; daily
-adjustment is applied at query time in Python.
+Split adjustment (split-only, no dividend adjustment)
+-----------------------------------------------------
+When ``adjusted=True`` (the default), OHLC prices are retroactively adjusted
+for stock splits **only** — not dividends.  This matches TradingView's
+default behavior.
+
+The adjustment factor is computed from the ``stock_splits`` table:
+for each candle, we compute the cumulative product of all split ratios
+that occur *after* that date.  For example, if SMH had a 2:1 split on
+2023-05-05, all pre-split candles get factor = 0.5 (prices halved, volume
+doubled).  Post-split candles get factor = 1.0 (no change).
+
+This approach was chosen over the EODHD ``adjusted_close`` column because
+``adjusted_close`` includes *both* split and dividend adjustments.  Dividend
+adjustment pulls historical prices down by ~1-2% per year of cumulative
+dividends, causing our charts to diverge from TradingView, Yahoo Finance,
+and Bloomberg (which all default to split-only adjustment).
 
 For non-daily timeframes (weekly, monthly, quarterly), when ``adjusted=True``
-the service fetches enough adjusted daily candles, then re-aggregates them
-into the requested timeframe in Python.  When ``adjusted=False``, the
+the service fetches enough split-adjusted daily candles, then re-aggregates
+them into the requested timeframe in Python.  When ``adjusted=False``, the
 pre-computed TimescaleDB continuous aggregates are returned as-is (raw prices).
 """
 
 import logging
 from datetime import date
 from enum import StrEnum
+from functools import reduce
 from typing import Any
 
 import pandas as pd
@@ -92,6 +101,59 @@ class CandleService:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    # ------------------------------------------------------------------ #
+    #  Split factor computation                                           #
+    # ------------------------------------------------------------------ #
+
+    async def _get_split_factors(
+        self,
+        stock_id: int,
+    ) -> list[tuple[date, float]]:
+        """
+        Fetch all splits for a stock and return a list of (split_date, ratio).
+
+        Each entry represents a split event.  The ``ratio`` is
+        ``numerator / denominator`` — e.g. 2.0 for a 2:1 split (each
+        pre-split share becomes 2 post-split shares, so pre-split prices
+        are divided by 2).
+        """
+        result = await self.session.execute(
+            text(
+                "SELECT date, numerator, denominator "
+                "FROM stock_splits "
+                "WHERE stock_id = :stock_id "
+                "ORDER BY date ASC"
+            ),
+            {"stock_id": stock_id},
+        )
+        splits = []
+        for row in result.fetchall():
+            denom = float(row.denominator) if row.denominator else 1.0
+            ratio = float(row.numerator) / denom
+            splits.append((row.date, ratio))
+        return splits
+
+    def _compute_cumulative_split_factor(
+        self,
+        candle_date: date,
+        splits: list[tuple[date, float]],
+    ) -> float:
+        """
+        Compute the cumulative split adjustment factor for a candle.
+
+        The factor is the product of ``1 / ratio`` for every split that
+        occurs **after** ``candle_date``.  For a candle on or after the
+        last split, the factor is 1.0 (no adjustment).
+
+        Example: SMH 2:1 split on 2023-05-05.
+        - Candle on 2023-05-04 (pre-split): factor = 1/2 = 0.5
+        - Candle on 2023-05-05 (split day, post-split): factor = 1.0
+        """
+        future_ratios = [ratio for split_date, ratio in splits if split_date > candle_date]
+        if not future_ratios:
+            return 1.0
+        return reduce(lambda a, b: a * b, (1.0 / r for r in future_ratios), 1.0)
+
     async def get_candles(
         self,
         stock_id: int,
@@ -110,14 +172,16 @@ class CandleService:
             start: Start date filter (inclusive)
             end: End date filter (inclusive)
             limit: Maximum number of candles to return (most recent N)
-            adjusted: If True (default), apply split/dividend adjustment to
-                OHLC prices using the adjustment factor derived from
-                ``adjusted_close / close``.  For daily candles, each row is
-                adjusted individually.  For non-daily timeframes, **adjusted
-                daily candles are fetched and re-aggregated in Python** using
-                pandas ``resample()`` so that split boundaries within a bucket
-                are handled correctly.  When ``adjusted=False``, non-daily
-                timeframes return the pre-computed SQL aggregates (raw prices).
+            adjusted: If True (default), apply **split-only** adjustment to
+                OHLC prices using the cumulative split factor computed from
+                the ``stock_splits`` table.  Dividends are NOT included —
+                this matches TradingView / Yahoo / Bloomberg defaults.
+                For daily candles, each row is adjusted individually.  For
+                non-daily timeframes, **adjusted daily candles are fetched
+                and re-aggregated in Python** using pandas ``resample()``
+                so that split boundaries within a bucket are handled
+                correctly.  When ``adjusted=False``, non-daily timeframes
+                return the pre-computed SQL aggregates (raw prices).
 
         Returns:
             List of candle dicts, ordered by date ascending (oldest → newest).
@@ -153,9 +217,9 @@ class CandleService:
         """
         Low-level fetch from a single table/view.
 
-        For daily candles with ``adjusted=True``, applies the per-row
-        adjustment factor.  For non-daily or ``adjusted=False``, returns
-        raw prices.
+        For daily candles with ``adjusted=True``, applies split-only
+        adjustment using the cumulative factor from ``stock_splits``.
+        For non-daily or ``adjusted=False``, returns raw prices.
         """
         table = _TIMEFRAME_TABLE[timeframe]
         date_col = _DATE_COLUMN[timeframe]
@@ -192,19 +256,28 @@ class CandleService:
         result = await self.session.execute(query, params)
         rows = result.fetchall()
 
+        # Pre-fetch splits if adjustment is needed
+        splits: list[tuple[date, float]] = []
+        if adjusted and timeframe == Timeframe.DAILY:
+            splits = await self._get_split_factors(stock_id)
+
         candles = []
         for row in rows:
             raw_close = float(row.close)
             adj_close = float(row.adjusted_close)
 
-            apply_adj = adjusted and timeframe == Timeframe.DAILY and raw_close != 0
+            apply_adj = adjusted and timeframe == Timeframe.DAILY
 
-            if apply_adj:
-                factor = adj_close / raw_close
+            if apply_adj and splits:
+                candle_date = (
+                    row.date if isinstance(row.date, date) else date.fromisoformat(str(row.date))
+                )
+                factor = self._compute_cumulative_split_factor(candle_date, splits)
 
-                is_split = abs(factor - 1.0) > 0.05
                 adj_volume = (
-                    int(round(row.volume / factor)) if is_split and factor != 0 else int(row.volume)
+                    int(round(row.volume / factor))
+                    if factor != 1.0 and factor != 0
+                    else int(row.volume)
                 )
 
                 candle: dict[str, Any] = {
@@ -214,9 +287,22 @@ class CandleService:
                     "open": round(float(row.open) * factor, 4),
                     "high": round(float(row.high) * factor, 4),
                     "low": round(float(row.low) * factor, 4),
-                    "close": round(adj_close, 4),
+                    "close": round(raw_close * factor, 4),
                     "adjusted_close": round(adj_close, 4),
                     "volume": adj_volume,
+                }
+            elif apply_adj:
+                # No splits for this stock — return raw prices unchanged
+                candle = {
+                    "date": row.date.isoformat()
+                    if hasattr(row.date, "isoformat")
+                    else str(row.date),
+                    "open": float(row.open),
+                    "high": float(row.high),
+                    "low": float(row.low),
+                    "close": raw_close,
+                    "adjusted_close": adj_close,
+                    "volume": int(row.volume),
                 }
             else:
                 candle = {
