@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-28 (Session 28b — Weekly Aggregate Split Adjustment)
+> **Last updated:** 2026-03-28 (Session 28c — Split-Only Adjustment)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 28b — Weekly Aggregate Split Adjustment |
+| **Session** | 28c — Split-Only Adjustment (no dividend) |
 | **Branch** | `fix/weekly-aggregate-split-adjustment` |
-| **Status** | PR opened / awaiting review. |
-| **Last checkpoint** | Code + all docs (incl. BUILD_LOG) committed and pushed. PR review in progress. |
+| **Status** | CI green (35/35 candle tests). Ready to commit, push, and open PR. |
+| **Last checkpoint** | Code + tests finalized, docs updated, ready for final commit. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -35,7 +35,7 @@
 | **API** | ✅ Working | FastAPI — `/health`, `/api/v1/stocks/`, `/api/v1/calendar/`, `/api/v1/charts/`, `/api/v1/journal/`, `/api/v1/journal/report` |
 | **Scheduler** | ✅ Working | Celery Beat — daily OHLCV (7 PM ET) → candle aggregate refresh (chained), daily macro (7:10 PM ET), daily trade snapshots (7:20 PM ET), daily economic calendar (7 AM ET) |
 | **Analysis** | ✅ Working | Technical indicators: SMA, EMA, RSI, MACD, Bollinger Bands (pure pandas, no DB dependency) |
-| **Charting** | ✅ Working | Plotly candlestick charts with volume subplot, indicator overlays (SMA, EMA, RSI, MACD, Bollinger), and **split-adjusted prices** for all timeframes (daily, weekly, monthly, quarterly — smooth continuous charts, no discontinuities at split boundaries). Non-daily candles re-aggregated from adjusted daily data via pandas resample. |
+| **Charting** | ✅ Working | Plotly candlestick charts with volume subplot, indicator overlays (SMA, EMA, RSI, MACD, Bollinger), and **split-only adjusted prices** for all timeframes (daily, weekly, monthly, quarterly — smooth continuous charts matching TradingView, no dividend drag). Non-daily candles re-aggregated from split-adjusted daily data via pandas resample. |
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page |
