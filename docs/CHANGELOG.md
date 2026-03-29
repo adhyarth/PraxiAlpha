@@ -86,6 +86,7 @@
 - **Tags type annotation** (PR #16 review — Round 2) — `Mapped[list | None]` → `Mapped[list[str] | None]` for type safety on JSONB tags column
 
 ### Changed
+- **GUI verification step added to workflow (Step 6b)** — new step in `WORKFLOW.md` between CI checks and documentation: if the session changed anything user-visible in Streamlit (charts, indicators, UI controls, pages), verify visually before writing docs and opening a PR. Includes a change-type checklist, Docker/Streamlit launch commands, and pass/fail guidance. Added pitfall #19 for skipping verification.
 - **Non-daily candle aggregation refactored** — `CandleService.get_candles()` for weekly/monthly/quarterly with `adjusted=True` now fetches adjusted daily candles and re-aggregates via pandas `resample` (W-SUN, ME, QE) instead of querying raw TimescaleDB continuous aggregates. This ensures split/dividend-adjusted prices flow through to all non-daily timeframes. The `adjusted=False` path still uses the raw SQL aggregates for performance.
 - **`adjusted` API parameter extended to all timeframes** — previously `adjusted` only applied to daily candles; now it applies to weekly, monthly, and quarterly as well. The Streamlit sidebar toggle is enabled for all timeframes (was disabled for non-daily).
 - **Removed duplicate `_aggregate_weekly_candles` method** — legacy method in `CandleService` was superseded by the new general-purpose `_aggregate_candles_from_daily`.

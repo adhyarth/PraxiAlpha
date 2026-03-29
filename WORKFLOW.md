@@ -137,6 +137,51 @@ git commit -m "wip: progress checkpoint — CI passed"
 > **Why:** Both the code fixes AND the updated progress are committed separately,
 > ensuring nothing is lost if Copilot crashes during the documentation step.
 
+### Step 6b: GUI Verification (if applicable)
+
+> **When to do this step:** If the session changed anything user-visible in the
+> Streamlit dashboard — charts, indicators, UI controls, journal page, etc. —
+> verify it visually before documenting and pushing. Skip this step for
+> backend-only, model-only, or docs-only sessions.
+
+**Checklist — does this session need GUI verification?**
+
+| Change Type | Needs GUI Check? | What to Verify |
+|-------------|-----------------|----------------|
+| Chart rendering / indicators / candle data | ✅ Yes | Open the chart page, select the relevant ticker + timeframe, eyeball prices and indicators |
+| API response shape (new fields, changed defaults) | ✅ Yes | Hit the endpoint in browser or `curl`, confirm response structure |
+| Streamlit UI controls (toggles, filters, forms) | ✅ Yes | Interact with the control, confirm behavior |
+| New/changed pages or navigation | ✅ Yes | Navigate to the page, confirm it loads correctly |
+| Backend service logic (no UI touch) | ❌ No | Tests are sufficient |
+| Models / migrations / schema changes | ❌ No | Tests are sufficient |
+| Docs-only sessions | ❌ No | N/A |
+
+**How to verify:**
+
+```bash
+# 1. Ensure Docker is running (needs Postgres + FastAPI)
+docker compose up -d
+
+# 2. Wait for API health
+curl -sf http://localhost:8000/health
+
+# 3. Launch Streamlit
+streamlit run streamlit_app/app.py
+```
+
+Then perform the relevant visual checks. **No manual computation is needed** —
+the backend computes everything; you are just confirming the UI renders
+correctly and the data looks right (e.g., smooth charts with no split
+discontinuities, indicators in expected ranges, controls behaving as intended).
+
+> **If verification fails:** Fix the issue, re-run CI (Step 5), re-commit
+> (Step 6), and re-verify. Do NOT proceed to documentation with a known
+> visual defect.
+>
+> **If verification passes:** Note the result in the session's BUILD_LOG
+> entry (e.g., "GUI verified: SMH weekly chart with 200-SMA matches
+> TradingView, no split discontinuities"). Then proceed to Step 7.
+
 ### Step 7: Update All Documentation
 
 > ⚠️ **BUILD_LOG.md is the largest file in the project and edits to it frequently
@@ -345,6 +390,7 @@ are already committed and pushed. Use:
 | 16 | **Copilot Chat OOM crash on 8 GB Mac** | Stop Docker when not needed (`docker compose stop`). Keep chat sessions short — one PR per session. Commit after every logical chunk (Steps 3, 4, 6). Start a new chat after each PR merge. See §3 for crash recovery. |
 | 17 | **BUILD_LOG.md edits trigger OOM crashes** | **Never use file-editing tools on BUILD_LOG.md.** Always use `cat >> docs/BUILD_LOG.md << 'EOF'` to blindly append. Commit + push all other docs (CHANGELOG, WORKFLOW, PROGRESS) BEFORE touching BUILD_LOG (Step 7b→7c). If Copilot crashes during the `cat >>` step, only the BUILD_LOG entry is lost — all code and other docs are safe on the remote. |
 | 18 | **Docs step crashes lose all doc updates** | Update small docs first (CHANGELOG, WORKFLOW, PROGRESS), commit + push, THEN append BUILD_LOG. This way a crash during BUILD_LOG loses only that one entry, not all session documentation. See Step 7b→7c ordering. |
+| 19 | **UI-visible changes documented without visual verification** | If the session changed charts, indicators, UI controls, or page layout, always verify in Streamlit (Step 6b) BEFORE writing docs and opening a PR. Catching a visual defect after docs are written wastes a full re-do cycle. |
 
 ---
 
