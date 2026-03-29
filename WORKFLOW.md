@@ -17,7 +17,7 @@
 |-|-|
 | **Session** | 28c — Split-Only Adjustment |
 | **Date** | 2026-03-28 |
-| **PR** | #34 (Split-Only Adjustment — no dividend adjustment) |
+| **PR** | #33 (Split-Only Adjustment — no dividend adjustment) |
 | **What was done** | Refactored candle service to use split-only adjustment for all timeframes, matching TradingView behavior. Replaced EODHD `adjusted_close` (split+dividend) with cumulative split factors computed from `stock_splits` table. Added `_get_split_factors` and `_compute_cumulative_split_factor` helpers. Overhauled test suite for split-only logic. 451 tests total (1 new). |
 
 ### Current Phase
