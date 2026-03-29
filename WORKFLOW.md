@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-29 (Session 28d — TradingView Data Validation)
+> **Last updated:** 2026-03-29 (Session 28e — Validation Metadata Enrichment)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28d — TradingView Data Validation |
+| **Session** | 28e — Validation Metadata Enrichment |
 | **Date** | 2026-03-29 |
 | **PR** | #34 |
-| **What was done** | Created `backend/services/tv_validation_service.py` (comparison, TV fetch, quarterly aggregation, failure persistence, summary). Created `streamlit_app/pages/validation.py` (Streamlit UI with progress bar, results table, CSV export, log capture). Updated sidebar nav. 43 tests (494 total). Hardened: volume tolerance 5%→10%, date normalization for weekly/monthly, auto-retry on TCPTransport errors, per-run log capture/download, debug & CLI scripts. |
+| **What was done** | Added `StockMeta` dataclass and `fetch_stock_metadata()` to validation service. Enriched Streamlit validation UI with Type, Avg Vol (90d), and Note columns. Added `note` property to `ValidationResult` — flags low-liquidity/exotic securities as safe to ignore. Created `scripts/debug_volume_multi.py` for multi-ticker volume tolerance validation. CI green (494 tests). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.

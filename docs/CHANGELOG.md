@@ -8,6 +8,11 @@
 ## [Unreleased]
 
 ### Added
+- **`StockMeta` metadata enrichment** (`tv_validation_service.py`) — new `StockMeta` dataclass with `type_label`, `is_low_liquidity`, and `is_exotic` properties. `fetch_stock_metadata()` async function queries the DB for name, exchange, asset_type, and 90-day average daily volume. Used to annotate validation results so users can distinguish real data issues from ignorable mismatches on SPACs, warrants, rights, or micro-cap securities.
+- **Validation UI enrichment** (`streamlit_app/pages/validation.py`) — results table now displays "Type" (Stock, ETF, SPAC, Warrant, etc.), "Avg Vol (90d)" (formatted with commas), and "Note" columns. The Note column flags low-liquidity or exotic securities with "⏭️ safe to ignore" when they have mismatches.
+- **`ValidationResult.note` property** — contextual note explaining ignorable mismatches based on security type and liquidity.
+- **`ValidationResult.meta` field** — optional `StockMeta` attached to each result, fetched once per ticker and cached across timeframes.
+- **`scripts/debug_volume_multi.py`** — multi-ticker volume debug script comparing daily volume for N random tickers between our DB and TradingView. Validates that the 10% volume tolerance is robust across a diverse sample. Supports `--n`, `--tickers`, and `--bars` CLI args.
 - **TradingView data validation service** (`backend/services/tv_validation_service.py`) — backend service for comparing OHLCV data (daily, weekly, monthly, quarterly) between PraxiAlpha's database and TradingView Premium. Includes bar-by-bar comparison with configurable tolerances (1% price, 10% volume), quarterly aggregation from TV monthly data, failure persistence (JSON), and summary computation.
 - **Data Validation Streamlit page** (`streamlit_app/pages/validation.py`) — UI for manually triggering validation: previous failures banner, "Run Validation" button with live progress bar, summary metrics, full results table with status/match%/worst diff, expandable mismatch details, CSV report download, and **timestamped log capture** (saved to file, displayed in UI, downloadable).
 - **TradingView config fields** — `TV_USERNAME` and `TV_PASSWORD` in `backend/config.py` and `.env.example` for TradingView Premium authentication.

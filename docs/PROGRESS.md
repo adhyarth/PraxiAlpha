@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-29 (Session 28d — TradingView Data Validation)
+> **Last updated:** 2026-03-29 (Session 28e — Validation Metadata Enrichment)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 28d — TradingView Data Validation |
+| **Session** | 28e — Validation Metadata Enrichment |
 | **Branch** | `feat/tradingview-data-validation` |
-| **Status** | CI green (494 tests). Ready for commit & PR. |
-| **Last checkpoint** | All CI checks pass (ruff lint, format, mypy, pytest 494). Commit pending. |
+| **Status** | CI green (494 tests). WIP committed. Streamlit GUI verification pending. |
+| **Last checkpoint** | Added `StockMeta` enrichment (type, avg vol, note) to validation service & Streamlit UI. Multi-ticker debug script. CI all green. WIP commit `96f2cf6`. Next: restart Streamlit, verify daily volume checks visually. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -39,7 +39,7 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
-| **Data Validation** | ✅ Working | TradingView comparison: 5 fixed (split-test) tickers × 4 timeframes (daily, weekly, monthly, quarterly). Volume tolerance 10% (provider consolidation lag). Automatic retry on TCPTransport errors. Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. Debug & CLI scripts. 43 tests. |
+| **Data Validation** | ✅ Working | TradingView comparison: 5 fixed (split-test) tickers × 4 timeframes (daily, weekly, monthly, quarterly). Volume tolerance 10% (provider consolidation lag). Automatic retry on TCPTransport errors. **Metadata enrichment** — results table shows stock type, 90-day avg volume, and contextual notes (flags low-liquidity/exotic securities as safe to ignore). Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. Multi-ticker volume debug script. 43 tests. |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (494 tests) |
 | **Tests** | ✅ 494 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, TV data validation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
