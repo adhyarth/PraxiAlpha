@@ -65,6 +65,9 @@ python scripts/backfill_data.py --all
 
 # 10. Start the API
 uvicorn backend.main:app --reload
+
+# 11. Launch the Streamlit dashboard (in a separate terminal)
+PYTHONPATH=. streamlit run streamlit_app/app.py
 ```
 
 ### Docker (full stack)
@@ -79,6 +82,15 @@ This starts:
 - **Redis** on port `6379`
 - **Celery Worker** for background tasks
 - **Celery Beat** for scheduled tasks (daily data updates at 6 PM ET)
+
+### Streamlit Dashboard (local dev)
+
+```bash
+# Must be run from the project root
+PYTHONPATH=. streamlit run streamlit_app/app.py
+```
+
+This launches the Streamlit MVP dashboard on `http://localhost:8501`.
 
 ## Project Structure
 
