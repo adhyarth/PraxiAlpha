@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-29 (Session 28e — Validation Metadata Enrichment)
+> **Last updated:** 2026-03-29 (Session 28f — Migrate Validation to yfinance)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 28e — Validation Metadata Enrichment |
+| **Session** | 28f — Migrate Validation from tvdatafeed to yfinance |
 | **Branch** | `feat/tradingview-data-validation` |
-| **Status** | CI green (494 tests). WIP committed. Streamlit GUI verification pending. |
-| **Last checkpoint** | Added `StockMeta` enrichment (type, avg vol, note) to validation service & Streamlit UI. Multi-ticker debug script. CI all green. WIP commit `96f2cf6`. Next: restart Streamlit, verify daily volume checks visually. |
+| **Status** | Decision made, docs committed. Code changes pending (next chat). |
+| **Last checkpoint** | Investigated tvdatafeed TCPTransport failures — library is unmaintained (4yr, no PyPI, websocket scraping). Decided to replace with `yfinance` (stable REST API, 12K+ stars, actively maintained). All existing code (service, Streamlit UI, tests, metadata enrichment) works — only the TV fetch layer needs swapping. Next: replace `fetch_tv_candles()` + `get_tv_client()` with yfinance equivalents, update pyproject.toml, re-run validation in Streamlit, update tests if needed. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -39,7 +39,7 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
-| **Data Validation** | ✅ Working | TradingView comparison: 5 fixed (split-test) tickers × 4 timeframes (daily, weekly, monthly, quarterly). Volume tolerance 10% (provider consolidation lag). Automatic retry on TCPTransport errors. **Metadata enrichment** — results table shows stock type, 90-day avg volume, and contextual notes (flags low-liquidity/exotic securities as safe to ignore). Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. Multi-ticker volume debug script. 43 tests. |
+| **Data Validation** | 🟡 Migrating | EODHD vs second-source comparison: 5 fixed tickers × 4 timeframes. Volume tolerance 10%. **Metadata enrichment** — results table shows stock type, 90-day avg volume, and contextual notes. **Migrating from tvdatafeed (unmaintained websocket scraping) to yfinance (stable REST API)**. Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. 43 tests. |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (494 tests) |
 | **Tests** | ✅ 494 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, TV data validation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |

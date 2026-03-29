@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-29 (Session 28e — Validation Metadata Enrichment)
+> **Last updated:** 2026-03-29 (Session 28f — Migrate Validation to yfinance)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28e — Validation Metadata Enrichment |
+| **Session** | 28f — Migrate Validation to yfinance |
 | **Date** | 2026-03-29 |
 | **PR** | #34 |
-| **What was done** | Added `StockMeta` dataclass and `fetch_stock_metadata()` to validation service. Enriched Streamlit validation UI with Type, Avg Vol (90d), and Note columns. Added `note` property to `ValidationResult` — flags low-liquidity/exotic securities as safe to ignore. Created `scripts/debug_volume_multi.py` for multi-ticker volume tolerance validation. CI green (494 tests). |
+| **What was done** | Investigated tvdatafeed TCPTransport connection failures during Streamlit validation runs. Determined root cause: tvdatafeed is an unmaintained (4yr) library that scrapes TradingView's internal websocket protocol — no official API exists. Decided to replace with `yfinance` (stable PyPI package, REST API, actively maintained). All existing validation logic (comparison, metadata enrichment, Streamlit UI, tests) is preserved — only the data-fetch layer needs swapping. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,12 +26,13 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 29 — Watchlist Backend |
-| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
-| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
-| **Depends on** | Session 16 (Trading Journal Backend) |
+| **Session** | 28f — Migrate Validation from tvdatafeed to yfinance |
+| **Scope** | Replace `fetch_tv_candles()` + `get_tv_client()` with yfinance equivalents. Remove tvdatafeed dependency from pyproject.toml, add yfinance. Update Streamlit page (rename references from "TradingView" to "Yahoo Finance" or generic "second source"). Re-run validation in Streamlit to verify all daily/weekly/monthly/quarterly checks pass without TCP errors. Update tests if needed. CI must stay green. |
+| **Key files** | `backend/services/tv_validation_service.py` (swap fetch layer), `streamlit_app/pages/validation.py` (UI label updates), `pyproject.toml` (swap dep), `backend/tests/test_tv_validation.py` (update if needed) |
+| **Depends on** | Session 28e (metadata enrichment, all committed) |
+| **Why** | `tvdatafeed` is unmaintained (last commit 4yr ago, not on PyPI), scrapes TradingView's internal websocket, and suffers constant `TCPTransport closed` errors causing ~50% of validation requests to fail. `yfinance` is a stable, maintained PyPI package using REST API — same split-adjusted OHLCV data, 100% reliable. |
 
-> **After Session 28c:** Session 29 builds the Watchlist backend — model, service, API, tests.
+> **After Session 28f:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 
