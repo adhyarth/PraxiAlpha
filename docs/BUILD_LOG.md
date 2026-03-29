@@ -2076,3 +2076,45 @@ Addressed all 6 Copilot review comments on PR #27:
 4. **CHANGELOG test count 450 → 451** — Aggregate-adjustment bullet still said 450 total tests; actual count is 451. Fixed.
 
 5. **(Self-audit) ARCHITECTURE.md "adjusted close" explanation** — The educational note said "adjusted close accounts for splits and dividends". Updated to clarify our candle service uses split-only adjustment from `stock_splits`, matching TradingView, and intentionally excludes dividends.
+
+### Session 28d — 2026-03-29: TradingView Data Validation (Phase 2)
+
+**Goal:** Build a recurring data validation script that uses TradingView Premium credentials to fetch OHLCV data (daily, weekly, monthly) and compare it against PraxiAlpha's database — verifying data accuracy and catching pipeline/adjustment errors.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+1. **TradingView credentials** — added `TV_USERNAME` and `TV_PASSWORD` to `backend/config.py` (Pydantic settings) and `.env.example`.
+2. **Optional dependency** — added `tvdatafeed` (installed from GitHub) as `[project.optional-dependencies] tv-validate` in `pyproject.toml`. Not required in CI — tests use no TradingView connection.
+3. **Validation script** (`scripts/validate_tradingview.py`) — full CLI tool:
+   - Fetches split-adjusted OHLCV from our DB via `CandleService` and from TradingView via `tvdatafeed`.
+   - Compares bar-by-bar on overlapping dates with configurable tolerances (1% price, 5% volume).
+   - Multi-exchange fallback (NASDAQ → NYSE → AMEX).
+   - Supports `--tickers`, `--timeframes`, `--bars`, `--tolerance`, `--output` (CSV), and `--dry-run` flags.
+   - Prints a human-readable summary with match percentages and worst mismatches.
+   - Saves detailed CSV report for further analysis.
+4. **Data structures** — `CandleMismatch` (with `is_significant` property using stored tolerance), `ValidationResult` (with `mismatch_count` and `match_pct` computed properties).
+5. **Bug fix: tolerance unit mismatch** — `is_significant` was comparing `pct_diff` (stored as %, e.g., 1.35) against tolerance (stored as ratio, e.g., 0.01). Fixed by converting: `abs(pct_diff) > tol * 100`. Also added `tolerance` field to `CandleMismatch` so custom tolerances passed to `compare_candles()` propagate to `is_significant`.
+6. **19 unit tests** (`backend/tests/test_tv_validation.py`) — `CandleMismatch` (4), `ValidationResult` (3), `compare_candles` (8), report structure (2). All tests exercise comparison logic without requiring TradingView or a database.
+7. **CI cleanup** — fixed ruff lint (unused import, unsorted imports, SIM108 ternary) and format issues.
+
+#### Key Design Decisions
+- **Optional dependency** — `tvdatafeed` only needed when running the validation script, not in CI or production. Tests mock nothing — they test pure comparison logic.
+- **Tolerance stored on mismatch** — `CandleMismatch.tolerance` field ensures `is_significant` uses the same tolerance that was used during comparison, not just the global default. This makes custom tolerance via `compare_candles(price_tolerance=...)` work correctly end-to-end.
+- **pct_diff as percentage, tolerance as ratio** — `pct_diff` is stored as a human-readable percentage (1.35 = 1.35%) while tolerances follow the ratio convention (0.01 = 1%). The `is_significant` property bridges the gap with `tol * 100`.
+
+#### Lessons Learned
+- Unit mismatches between percentage and ratio representations are subtle — the tests passed for "significant" cases (large numbers > both units) but failed for "within tolerance" cases. Always be explicit about units in data structures.
+- `ruff format` must be run as a separate step after `ruff check --fix` — the fixer doesn't apply formatting.
+
+#### Files Changed
+- `backend/config.py` — added `tv_username`, `tv_password` settings
+- `.env.example` — added `TV_USERNAME`, `TV_PASSWORD` placeholders
+- `pyproject.toml` — added `[project.optional-dependencies] tv-validate`
+- `scripts/validate_tradingview.py` — **new** (validation script, ~650 lines)
+- `backend/tests/test_tv_validation.py` — **new** (19 tests)
+- `docs/CHANGELOG.md` — added validation entries
+- `WORKFLOW.md` — updated last/next session
+- `docs/PROGRESS.md` — updated session status
+
+#### Test Count: 470 (19 new)
