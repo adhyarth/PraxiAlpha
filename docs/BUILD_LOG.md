@@ -557,7 +557,7 @@ Addressed all 9 Copilot review comments on PR #3 (economic calendar integration)
 - `backend/services/data_pipeline/eodhd_fetcher.py` — added `timeout` parameter to `EODHDFetcher.__init__`
 - `.gitignore` — added `data/backfill_progress.json`, `data/backfill_progress.tmp`, `data/backfill_live.log`
 - `docs/BUILD_LOG.md` — this entry
-- `docs/CHANGELOG.md` — documented all changes
+- `docs/CHANGELOG.md` — documented all fixes
 - `WORKFLOW.md` — updated current state, phase status, session log
 
 #### Test Count: 95 (was 62, +33 new)
@@ -1992,3 +1992,87 @@ Addressed all 6 Copilot review comments on PR #27:
 - `docs/PROGRESS.md` — updated component status, test count (446), session history, phase checklist, roadmap
 
 #### Test Count: 446 (9 new)
+
+### Session 28c — 2026-03-28: Split-Only Adjustment (No Dividend)
+
+**Goal:** Fix chart mismatch with TradingView caused by dividend adjustment — the previous `adjusted_close / close` factor included both split and dividend adjustments, causing ~1-2% per-year drift. TradingView, Yahoo, and Bloomberg default to split-only adjustment.
+
+**Branch:** `fix/weekly-aggregate-split-adjustment` (continued from Session 28b)
+
+#### What Was Done
+
+1. **Refactored candle service to split-only adjustment** (`backend/services/candle_service.py`)
+   - Removed the `adjusted_close / close` factor derivation (which included dividend adjustments from EODHD)
+   - Added `_get_split_factors()` method: queries `stock_splits` table for all splits for a stock, returns `(date, numerator/denominator)` pairs
+   - Added `_compute_cumulative_split_factor()` method: for a given candle date, computes the product of `1/ratio` for all splits occurring *after* that date
+   - Updated `_get_candles_from_table()` to pre-fetch splits and apply split-only factors to daily candles
+   - When no splits exist for a stock, raw prices are returned unchanged (no dividend drag)
+   - Updated module docstring with comprehensive explanation of split-only logic and why EODHD `adjusted_close` is avoided
+
+2. **Updated all tests** (`backend/tests/test_candle_service.py`)
+   - Added `_make_split_row()` helper: creates mock rows matching `stock_splits` query shape
+   - Added `_mock_ohlcv_then_splits()` helper: configures mock session to return OHLCV rows first, then split rows (since the service now calls `execute()` twice for adjusted daily candles)
+   - Converted all daily `adjusted=True` tests to use the two-call mock pattern
+   - Replaced `test_zero_close_skips_adjustment` with `test_no_splits_returns_raw` (zero close is no longer a special case)
+   - Replaced `test_dividend_adjustment` with `test_dividend_not_applied` (verifies dividend drag is NOT applied)
+   - Added `test_multiple_splits` (cumulative factor for stocks like Apple with 7:1 + 4:1 splits)
+   - Fixed `test_weekly_adjusted_split_boundary` to provide mock split rows and expect split-only adjusted prices
+   - Fixed `test_adjusted_aggregate_empty` and other weekly/monthly tests to use proper two-call mock
+
+3. **Updated documentation**
+   - CHANGELOG: new Added/Fixed/Changed entries for split-only adjustment
+   - PROGRESS: updated session status, component description
+   - BUILD_LOG: this entry
+
+#### Key Design Decisions
+
+- **Split-only, not split+dividend** — TradingView, Yahoo Finance, and Bloomberg all default to split-only adjustment. The EODHD `adjusted_close` includes cumulative dividends, which pulls historical prices down by ~1-2% per year. For SMH, this caused a visible mismatch on the 200-week SMA.
+- **Compute factors from `stock_splits` table** — instead of relying on the provider's pre-computed `adjusted_close`, we compute factors ourselves from the `stock_splits` table. This gives us full control and matches the TradingView methodology exactly.
+- **Cumulative product of future splits** — for each candle, the factor is the product of `1/ratio` for all splits after that date. Mathematically: "how many current shares does one share on that date equal?"
+- **Split date boundary: `split_date > candle_date`** — a candle on the split date itself is considered post-split (factor = 1.0). This matches market convention where the split takes effect at market open on the split date.
+
+#### Validation
+
+- SMH weekly chart: 200-week SMA now matches TradingView exactly (split-only, no dividend drag)
+- SMH 2:1 split on 2023-05-05: pre-split candles halved, post-split candles unchanged, weekly bars self-consistent
+- CI: ruff lint, ruff format, mypy, pytest 451/451 all passing
+
+#### Files Changed
+
+- `backend/services/candle_service.py` — split-only adjustment logic, new helper methods, updated docstrings
+- `backend/tests/test_candle_service.py` — new helpers, updated all split-adjustment tests for split-only logic
+- `docs/CHANGELOG.md` — Added/Fixed/Changed entries
+- `docs/PROGRESS.md` — session status, component description
+- `docs/BUILD_LOG.md` — this entry
+
+#### Test Count: 451 (35 candle service tests, all passing)
+
+#### PR Review Fixes (PR #33 — 8 comments from copilot-pull-request-reviewer)
+
+1. **`adjusted_close` field inconsistency** — When splits exist, `adjusted_close` was still populated from the provider column (split+dividend), making the response internally inconsistent with the split-only `close`. Fixed: `adjusted_close` now equals `close` (split-only) when adjustment is applied. **Impact if not fixed:** API consumers relying on `adjusted_close` would see dividend-adjusted values that contradict the split-only `close`, causing confusion and potential charting bugs.
+
+2. **Zero-denominator guard in `_get_split_factors()`** — `row.denominator = 0` would cause `ZeroDivisionError`. Added explicit guard: skip the split row and log a warning. Also handles `None` defensively. **Impact if not fixed:** A single bad split row in the DB would crash the entire candle endpoint for that stock.
+
+3. **Stale CHANGELOG bullets** — Removed old bullets referencing `adjusted_close / close` ratio logic and "9 new split-adjustment tests" that were replaced by the split-only refactor. **Impact if not fixed:** Changelog would document behavior that no longer exists, misleading contributors.
+
+4. **PROGRESS.md crash-recovery status stale** — Updated from "Ready to commit, push, and open PR" to "PR #33 opened, awaiting review/merge" so crash recovery instructions reflect reality.
+
+5. **PROGRESS.md test count mismatch** — Changed 450 → 451 to match actual pytest count and PR description.
+
+6. **Streamlit help text said "splits and dividends"** — Updated to "splits only (no dividend adjustment)" to match the actual backend behavior.
+
+7. **OpenAPI `adjusted` parameter description said "split- and dividend-adjusted"** — Updated to "split-only adjusted" to avoid promising dividend adjustment the backend doesn't perform.
+
+8. **Endpoint docstring said "split/dividend adjustment"** — Updated to "split-only adjustment" for consistency.
+
+#### PR Review Fixes — Round 2 (PR #33 — 4 comments from copilot-pull-request-reviewer + self-audit)
+
+1. **No-splits path leaking EODHD `adjusted_close`** — When `adjusted=True` but the stock has no splits, the code was returning EODHD's dividend-adjusted `adjusted_close` value (e.g., 98.0 for close=102.0), violating the split-only contract. Fixed: `adjusted_close = raw_close` when `adjusted=True` regardless of whether splits exist. Added explicit `adjusted_close` assertions to `test_no_splits_returns_raw` and `test_dividend_not_applied`. **Impact if not fixed:** API consumers would see dividend-tainted `adjusted_close` that contradicts `close`, causing charting inconsistencies for non-split stocks.
+
+2. **Unbounded `daily_limit` in aggregate rebuild** — For quarterly adjusted requests, `daily_limit = limit * 63 + 10` with API `limit` up to 5000 could fetch ~315K daily rows into pandas — slow and memory-heavy. Fixed: capped `daily_limit` at 50,000 rows (enough for ~800 quarterly bars, ~2400 monthly bars, or ~10,000 weekly bars). **Impact if not fixed:** A single `?timeframe=quarterly&limit=5000&adjusted=true` request could OOM the API server or cause multi-second latency.
+
+3. **PROGRESS.md resample rules `ME/QE` vs actual `MS/QS`** — Roadmap entry for Session 28b documented resample rules as `W-SUN/ME/QE`, but the actual code uses `W-SUN/MS/QS`. Fixed to match implementation. **Impact if not fixed:** Debugging aggregate behavior using outdated docs would lead to wrong pandas offsets.
+
+4. **CHANGELOG test count 450 → 451** — Aggregate-adjustment bullet still said 450 total tests; actual count is 451. Fixed.
+
+5. **(Self-audit) ARCHITECTURE.md "adjusted close" explanation** — The educational note said "adjusted close accounts for splits and dividends". Updated to clarify our candle service uses split-only adjustment from `stock_splits`, matching TradingView, and intentionally excludes dividends.

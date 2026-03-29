@@ -295,7 +295,7 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 └────────────────┴──────────────────────────────┘
 ```
 
-**Why "adjusted close"?** When a stock splits (e.g., 4:1), the price drops to 1/4 overnight, but you didn't lose money. Adjusted close accounts for splits and dividends so historical comparisons are accurate.
+**Why "adjusted close"?** When a stock splits (e.g., 4:1), the price drops to 1/4 overnight, but you didn't lose money. The `adjusted_close` column from EODHD accounts for both splits and dividends, but our candle service applies **split-only adjustment** (computed from the `stock_splits` table) to match TradingView's default behavior. Dividend adjustments are intentionally excluded.
 
 **Why TimescaleDB hypertable?** Regular PostgreSQL stores all rows in one big pile. TimescaleDB automatically partitions rows by time (e.g., one chunk per month). Queries like "get AAPL's price for the last 90 days" become 10-100x faster because it only scans 3 chunks instead of millions of rows.
 
