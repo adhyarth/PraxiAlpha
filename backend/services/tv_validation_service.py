@@ -107,6 +107,50 @@ class CandleMismatch:
 
 
 @dataclass
+class StockMeta:
+    """Lightweight metadata for a ticker — used to annotate validation results."""
+
+    name: str = ""
+    exchange: str = ""
+    asset_type: str = ""
+    avg_volume_90d: int = 0
+
+    @property
+    def type_label(self) -> str:
+        """Short human-readable label for the security type."""
+        at = self.asset_type.lower()
+        name_lower = self.name.lower()
+
+        # Detect SPACs, warrants, units, rights from the name
+        for tag in ("warrant", " wt", " ws"):
+            if tag in name_lower:
+                return "Warrant"
+        if "right" in name_lower:
+            return "Right"
+        if "unit" in name_lower:
+            return "Unit"
+        for tag in ("acquisition", "blank check", "spac"):
+            if tag in name_lower:
+                return "SPAC"
+
+        if "etf" in at:
+            return "ETF"
+        if "common stock" in at:
+            return "Stock"
+        return self.asset_type or "Unknown"
+
+    @property
+    def is_low_liquidity(self) -> bool:
+        """True if average daily volume is below 10,000 shares."""
+        return self.avg_volume_90d < 10_000
+
+    @property
+    def is_exotic(self) -> bool:
+        """True if this is a SPAC, unit, warrant, right, or similar exotic."""
+        return self.type_label in ("Warrant", "Right", "Unit", "SPAC")
+
+
+@dataclass
 class ValidationResult:
     """Validation result for one ticker + timeframe combination."""
 
@@ -118,6 +162,7 @@ class ValidationResult:
     group: str = "fixed"  # "fixed", "random", or "retry"
     mismatches: list[CandleMismatch] = field(default_factory=list)
     error: str | None = None
+    meta: StockMeta | None = None
 
     @property
     def mismatch_count(self) -> int:
@@ -146,6 +191,22 @@ class ValidationResult:
             return "—"
         worst = max(significant, key=lambda m: abs(m.pct_diff))
         return f"{worst.field}: {worst.pct_diff:+.2f}%"
+
+    @property
+    def note(self) -> str:
+        """Context note explaining ignorable mismatches."""
+        if not self.meta:
+            return ""
+        parts: list[str] = []
+        if self.meta.is_exotic:
+            parts.append(self.meta.type_label)
+        if self.meta.is_low_liquidity:
+            parts.append(f"avg vol {self.meta.avg_volume_90d:,}")
+        if parts and self.mismatch_count > 0:
+            return "⏭️ " + ", ".join(parts) + " — safe to ignore"
+        if self.meta.is_exotic or self.meta.is_low_liquidity:
+            return ", ".join(parts)
+        return ""
 
 
 # ------------------------------------------------------------------ #
@@ -441,6 +502,43 @@ def fetch_tv_candles(
         return None
 
     return df[["date", "open", "high", "low", "close", "volume"]]
+
+
+# ------------------------------------------------------------------ #
+#  Stock metadata lookup                                               #
+# ------------------------------------------------------------------ #
+
+
+async def fetch_stock_metadata(ticker: str) -> StockMeta:
+    """
+    Look up lightweight metadata for a ticker from our DB.
+
+    Returns name, exchange, asset_type, and 90-day average daily volume.
+    Used to annotate validation results so the user can tell whether
+    a mismatch is on a low-liquidity / exotic security and can be ignored.
+    """
+    from sqlalchemy import text
+
+    from backend.database import async_session_factory
+
+    meta = StockMeta()
+    async with async_session_factory() as session:
+        result = await session.execute(
+            text(
+                "SELECT s.name, s.exchange, s.asset_type, "
+                "  COALESCE((SELECT AVG(volume)::bigint FROM daily_ohlcv "
+                "   WHERE stock_id = s.id AND date > CURRENT_DATE - 90), 0) AS avg_vol "
+                "FROM stocks s WHERE s.ticker = :ticker LIMIT 1"
+            ),
+            {"ticker": ticker},
+        )
+        row = result.fetchone()
+        if row:
+            meta.name = row.name or ""
+            meta.exchange = row.exchange or ""
+            meta.asset_type = row.asset_type or ""
+            meta.avg_volume_90d = int(row.avg_vol) if row.avg_vol else 0
+    return meta
 
 
 # ------------------------------------------------------------------ #

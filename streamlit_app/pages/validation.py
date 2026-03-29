@@ -26,10 +26,12 @@ from backend.services.tv_validation_service import (
     FIXED_TICKERS,
     TIMEFRAME_BARS,
     TV_AVAILABLE,
+    StockMeta,
     ValidationResult,
     compare_candles,
     compute_summary,
     fetch_our_candles,
+    fetch_stock_metadata,
     fetch_tv_candles,
     get_tv_client,
     load_previous_failures,
@@ -194,11 +196,22 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     status.update(label="Running validation...", state="running")
     progress_bar = st.progress(0, text="Starting...")
 
+    # Cache stock metadata per ticker (fetched once, reused across timeframes)
+    meta_cache: dict[str, StockMeta] = {}
+
     for idx, (ticker, tf, group) in enumerate(jobs):
         progress_pct = (idx + 1) / total_jobs
         progress_bar.progress(progress_pct, text=f"[{idx + 1}/{total_jobs}] {ticker} ({tf})...")
 
         tv_logger.info("=== [%d/%d] %s / %s (group=%s) ===", idx + 1, total_jobs, ticker, tf, group)
+
+        # Fetch metadata (once per ticker)
+        if ticker not in meta_cache:
+            try:
+                meta_cache[ticker] = _run_async(fetch_stock_metadata(ticker))
+            except Exception:
+                meta_cache[ticker] = StockMeta()
+        meta = meta_cache[ticker]
 
         try:
             # Fresh TV client for each request
@@ -218,6 +231,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         overlapping_bars=0,
                         group=group,
                         error="No data in our DB",
+                        meta=meta,
                     )
                 )
                 continue
@@ -238,6 +252,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         overlapping_bars=0,
                         group=group,
                         error="Not found on TradingView",
+                        meta=meta,
                     )
                 )
                 continue
@@ -246,6 +261,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
 
             # Compare
             result = compare_candles(ticker, tf, our_df, tv_df, group=group)
+            result.meta = meta
             tv_logger.info(
                 "  Result: %s  overlap=%d  mismatches=%d  match=%.1f%%",
                 result.status,
@@ -268,6 +284,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                     overlapping_bars=0,
                     group=group,
                     error=str(e),
+                    meta=meta,
                 )
             )
 
@@ -334,10 +351,13 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
 
     table_data = []
     for r in results:
+        m = r.meta
         table_data.append(
             {
                 "Status": r.status,
                 "Ticker": r.ticker,
+                "Type": m.type_label if m else "—",
+                "Avg Vol (90d)": f"{m.avg_volume_90d:,}" if m else "—",
                 "Group": r.group.title(),
                 "Timeframe": r.timeframe.title(),
                 "Our Bars": r.our_bar_count,
@@ -346,6 +366,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 "Match %": f"{r.match_pct:.1f}%" if not r.error else "—",
                 "Mismatches": r.mismatch_count if not r.error else "—",
                 "Worst Diff": r.worst_diff if not r.error else r.error,
+                "Note": r.note,
             }
         )
 
@@ -356,7 +377,10 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         hide_index=True,
         column_config={
             "Status": st.column_config.TextColumn(width="small"),
+            "Type": st.column_config.TextColumn(width="small"),
+            "Avg Vol (90d)": st.column_config.TextColumn(width="small"),
             "Match %": st.column_config.TextColumn(width="small"),
+            "Note": st.column_config.TextColumn(width="medium"),
         },
     )
 
