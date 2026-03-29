@@ -128,7 +128,20 @@ class CandleService:
         )
         splits = []
         for row in result.fetchall():
-            denom = float(row.denominator) if row.denominator else 1.0
+            raw_denom = row.denominator
+            if raw_denom is None:
+                # Defensive default: treat missing denominator as 1.0
+                denom = 1.0
+            elif raw_denom == 0:
+                # Bad data: a zero denominator would cause division by zero
+                logger.warning(
+                    "Skipping stock split with zero denominator for stock_id=%s on date=%s",
+                    stock_id,
+                    row.date,
+                )
+                continue
+            else:
+                denom = float(raw_denom)
             ratio = float(row.numerator) / denom
             splits.append((row.date, ratio))
         return splits
@@ -288,7 +301,7 @@ class CandleService:
                     "high": round(float(row.high) * factor, 4),
                     "low": round(float(row.low) * factor, 4),
                     "close": round(raw_close * factor, 4),
-                    "adjusted_close": round(adj_close, 4),
+                    "adjusted_close": round(raw_close * factor, 4),
                     "volume": adj_volume,
                 }
             elif apply_adj:

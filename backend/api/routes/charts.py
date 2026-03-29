@@ -30,7 +30,8 @@ async def get_candles(
     adjusted: bool = Query(
         default=True,
         description=(
-            "If true (default), return split- and dividend-adjusted OHLCV prices. "
+            "If true (default), return split-only adjusted OHLCV prices "
+            "(no dividend adjustment). "
             "Produces a smooth, continuous chart like TradingView — no jumps at "
             "split boundaries. For non-daily timeframes (weekly, monthly, quarterly), "
             "adjusted daily candles are re-aggregated in Python so that splits "
@@ -55,7 +56,7 @@ async def get_candles(
     pre-computed SQL aggregates.
 
     The response includes ``adjusted`` (boolean) indicating whether
-    split/dividend adjustment was applied.
+    split-only adjustment was applied.
 
     Examples:
         GET /api/v1/charts/AAPL/candles?timeframe=daily&limit=252
