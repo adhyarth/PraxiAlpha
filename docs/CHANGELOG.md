@@ -8,10 +8,16 @@
 ## [Unreleased]
 
 ### Added
-- **TradingView data validation script** (`scripts/validate_tradingview.py`) — CLI tool to compare OHLCV data (daily, weekly, monthly) between PraxiAlpha's database and TradingView Premium. Supports per-ticker/timeframe validation, configurable tolerances (1% price, 5% volume), CSV report export, dry-run mode, and multi-exchange fallback (NASDAQ → NYSE → AMEX). Uses `tvdatafeed` library with TradingView Premium credentials.
+- **TradingView data validation service** (`backend/services/tv_validation_service.py`) — backend service for comparing OHLCV data (daily, weekly, monthly, quarterly) between PraxiAlpha's database and TradingView Premium. Includes bar-by-bar comparison with configurable tolerances (1% price, 5% volume), quarterly aggregation from TV monthly data, random cross-exchange ticker sampling (3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs), failure persistence (JSON), and summary computation.
+- **Data Validation Streamlit page** (`streamlit_app/pages/validation.py`) — UI for manually triggering validation: previous failures banner, "Run Validation" button with live progress bar, summary metrics, full results table with status/match%/worst diff, expandable mismatch details, and CSV report download.
 - **TradingView config fields** — `TV_USERNAME` and `TV_PASSWORD` in `backend/config.py` and `.env.example` for TradingView Premium authentication.
 - **`tv-validate` optional dependency** — `pyproject.toml` `[project.optional-dependencies]` group for `tvdatafeed` (installed from GitHub).
-- **19 new validation tests** (`backend/tests/test_tv_validation.py`, 470 total) — unit tests for `CandleMismatch`, `ValidationResult`, and `compare_candles()` comparison logic (tolerance thresholds, custom tolerances, partial overlap, volume vs price tolerance, split-adjusted comparison). No TradingView dependency required for tests.
+- **43 validation tests** (`backend/tests/test_tv_validation.py`, 494 total) — unit tests for `CandleMismatch` (4), `ValidationResult` (3), `compare_candles()` (8), report structure (2), quarterly aggregation (5), failure persistence (7), `compute_summary` (5), and `ValidationResult` properties (7). No TradingView dependency required for tests.
+
+### Removed
+- **`scripts/validate_tradingview.py`** — CLI validation script deleted. All logic refactored into `backend/services/tv_validation_service.py` and exposed via the Streamlit Data Validation page instead.
+
+### Changed
 - **Split-only adjustment (no dividend adjustment)** — candle service now computes adjustment factors from the `stock_splits` table using cumulative split ratios (product of `1/ratio` for all future splits), matching TradingView / Yahoo / Bloomberg defaults. The EODHD `adjusted_close` column (which includes both split and dividend adjustments) is no longer used for price adjustment, eliminating ~1-2% per-year dividend drag that caused our charts to diverge from TradingView.
 - **`_get_split_factors()` and `_compute_cumulative_split_factor()` helpers** — new methods on `CandleService` for computing split adjustment from the `stock_splits` table.
 - **Split-adjusted weekly/monthly/quarterly candles** — non-daily timeframes with `adjusted=True` now re-aggregate from split-adjusted daily candles in Python (pandas `resample` with `W-SUN` for weekly, `MS` for monthly, `QS` for quarterly) instead of reading raw TimescaleDB continuous aggregates. This produces smooth, continuous charts with correct moving averages (e.g., 200-week SMA for SMH matches TradingView). Raw aggregates are still used when `adjusted=False`.

@@ -2118,3 +2118,45 @@ Addressed all 6 Copilot review comments on PR #27:
 - `docs/PROGRESS.md` — updated session status
 
 #### Test Count: 470 (19 new)
+
+#### Session 28d — Continued (refactor to service + Streamlit UI)
+
+**Goal:** Delete CLI script, refactor all logic into a backend service, add Streamlit validation page, add quarterly support, failure persistence, and comprehensive tests.
+
+##### What Was Done
+1. **Deleted** `scripts/validate_tradingview.py` — CLI script replaced by Streamlit UI.
+2. **Created** `backend/services/tv_validation_service.py` — all validation logic in one service:
+   - `CandleMismatch` / `ValidationResult` data structures (moved from script).
+   - `compare_candles()` — bar-by-bar OHLCV comparison with configurable tolerances.
+   - `aggregate_monthly_to_quarterly()` — derive quarterly bars from TV monthly data.
+   - `fetch_tv_candles()` / `fetch_our_candles()` — data fetchers (TV via tvdatafeed, DB via CandleService).
+   - `sample_random_tickers()` — cross-exchange random ticker sampling (3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs).
+   - `load_previous_failures()` / `save_failures()` / `get_retry_tickers_from_failures()` — JSON persistence for failed checks.
+   - `compute_summary()` — aggregate pass/fail/error stats.
+3. **Created** `streamlit_app/pages/validation.py` — Streamlit "Data Validation" page:
+   - Previous failures banner with expandable detail table.
+   - Info expander explaining what gets validated (20 tickers × 4 timeframes).
+   - "Run Validation" button with live progress bar and status messages.
+   - Summary metrics row (total, passed, mismatches, overall match %).
+   - Full results table with status emoji, group, bar counts, match %, worst diff.
+   - Expandable mismatch details per ticker/timeframe.
+   - CSV download button for full report.
+4. **Updated** `streamlit_app/app.py` — added "Data Validation" to sidebar navigation.
+5. **Updated** `backend/tests/test_tv_validation.py` — repointed imports to service, added 24 new tests:
+   - `TestQuarterlyAggregation` (5 tests): basic, multiple quarters, empty, None, date type.
+   - `TestFailurePersistence` (7 tests): save/load round-trip, all-pass deletes file, nonexistent file, corrupt JSON, retry tickers, no file, error results.
+   - `TestComputeSummary` (5 tests): all passing, failures, errors, mixed, empty.
+   - `TestValidationResultProperties` (7 tests): status emoji, worst_diff, group default/custom.
+6. **Lint/type fixes** — removed unused imports (random, time, asdict, func, Stock), fixed `load_previous_failures` return type annotation for mypy, renamed unused loop variable `tf` → `_tf`.
+
+##### Files Changed
+- `scripts/validate_tradingview.py` — **deleted**
+- `backend/services/tv_validation_service.py` — **new** (562 lines)
+- `streamlit_app/pages/validation.py` — **new** (339 lines)
+- `streamlit_app/app.py` — updated sidebar nav
+- `backend/tests/test_tv_validation.py` — repointed imports, 24 new tests (43 total in file)
+- `docs/PROGRESS.md` — updated status + session history
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — updated
+
+##### Test Count: 494 (43 total in validation file, +24 new from refactor)

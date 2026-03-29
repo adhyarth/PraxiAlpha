@@ -1,0 +1,562 @@
+"""
+PraxiAlpha — TradingView Data Validation Service
+
+Core logic for comparing OHLCV data between our database and TradingView.
+Used by the Streamlit "Data Validation" page.
+
+Provides:
+- compare_candles() — bar-by-bar comparison with tolerance thresholds
+- fetch_tv_candles() — TradingView data fetcher via tvdatafeed
+- fetch_our_candles() — DB data fetcher via CandleService
+- sample_random_tickers() — random cross-index ticker sampling
+- aggregate_monthly_to_quarterly() — derive quarterly from TV monthly
+- load_previous_failures() / save_failures() — persistence for failed checks
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
+# Lazy import tvdatafeed (not installed in CI)
+try:
+    from tvDatafeed import Interval, TvDatafeed
+
+    TV_AVAILABLE = True
+except ImportError:
+    TV_AVAILABLE = False
+
+logger = logging.getLogger("tv_validate")
+
+
+# ------------------------------------------------------------------ #
+#  Constants                                                           #
+# ------------------------------------------------------------------ #
+
+FIXED_TICKERS = [
+    "AAPL",  # 7:1 (2014) + 4:1 (2020) splits
+    "MSFT",  # Large cap, no recent splits
+    "NVDA",  # 10:1 split (2024)
+    "SMH",  # 2:1 split — the bug that started Session 28
+    "TSLA",  # 5:1 (2020) + 3:1 (2022) splits
+    "GOOGL",  # 20:1 split (2022)
+    "AMZN",  # 20:1 split (2022)
+    "META",  # No splits
+    "SPY",  # Benchmark ETF
+    "QQQ",  # Benchmark ETF
+]
+
+ALL_TIMEFRAMES = ["daily", "weekly", "monthly", "quarterly"]
+
+TIMEFRAME_BARS: dict[str, int] = {
+    "daily": 252,  # ~1 year of trading days
+    "weekly": 104,  # ~2 years of weeks
+    "monthly": 60,  # ~5 years of months
+    "quarterly": 20,  # ~5 years of quarters
+}
+
+# Tolerance thresholds (ratio — 0.01 = 1%)
+DEFAULT_PRICE_TOLERANCE = 0.01
+DEFAULT_VOLUME_TOLERANCE = 0.05
+
+# Failure persistence file
+FAILURES_PATH = Path("data/tv_validation_failures.json")
+
+# Random ticker sampling — exchange distribution
+RANDOM_SAMPLE_CONFIG = {
+    "NYSE": 3,
+    "NASDAQ": 3,
+    "AMEX": 2,
+    # 2 ETFs from any exchange
+}
+RANDOM_ETF_COUNT = 2
+RANDOM_TOTAL = 10
+
+
+# ------------------------------------------------------------------ #
+#  Data structures                                                     #
+# ------------------------------------------------------------------ #
+
+
+@dataclass
+class CandleMismatch:
+    """A single price/volume mismatch between our data and TradingView."""
+
+    ticker: str
+    timeframe: str
+    date: str
+    field: str  # open, high, low, close, volume
+    our_value: float
+    tv_value: float
+    pct_diff: float  # stored as percentage (e.g. 1.35 = 1.35%)
+    tolerance: float | None = None  # effective tolerance ratio used when created
+
+    @property
+    def is_significant(self) -> bool:
+        """True if the difference exceeds the tolerance used at creation time."""
+        if self.tolerance is not None:
+            tol = self.tolerance
+        else:
+            tol = DEFAULT_VOLUME_TOLERANCE if self.field == "volume" else DEFAULT_PRICE_TOLERANCE
+        # pct_diff is percentage, tolerance is ratio — convert
+        return abs(self.pct_diff) > tol * 100
+
+
+@dataclass
+class ValidationResult:
+    """Validation result for one ticker + timeframe combination."""
+
+    ticker: str
+    timeframe: str
+    our_bar_count: int
+    tv_bar_count: int
+    overlapping_bars: int
+    group: str = "fixed"  # "fixed", "random", or "retry"
+    mismatches: list[CandleMismatch] = field(default_factory=list)
+    error: str | None = None
+
+    @property
+    def mismatch_count(self) -> int:
+        return len([m for m in self.mismatches if m.is_significant])
+
+    @property
+    def match_pct(self) -> float:
+        if self.overlapping_bars == 0:
+            return 0.0
+        total_checks = self.overlapping_bars * 5
+        return (1 - self.mismatch_count / total_checks) * 100
+
+    @property
+    def status(self) -> str:
+        if self.error:
+            return "❌"
+        if self.mismatch_count == 0:
+            return "✅"
+        return "⚠️"
+
+    @property
+    def worst_diff(self) -> str:
+        """Human-readable worst mismatch."""
+        significant = [m for m in self.mismatches if m.is_significant]
+        if not significant:
+            return "—"
+        worst = max(significant, key=lambda m: abs(m.pct_diff))
+        return f"{worst.field}: {worst.pct_diff:+.2f}%"
+
+
+# ------------------------------------------------------------------ #
+#  Comparison logic                                                    #
+# ------------------------------------------------------------------ #
+
+
+def compare_candles(
+    ticker: str,
+    timeframe: str,
+    our_df: pd.DataFrame,
+    tv_df: pd.DataFrame,
+    price_tolerance: float = DEFAULT_PRICE_TOLERANCE,
+    volume_tolerance: float = DEFAULT_VOLUME_TOLERANCE,
+    group: str = "fixed",
+) -> ValidationResult:
+    """
+    Compare our candles against TradingView's candles bar-by-bar.
+
+    Joins on date, compares OHLCV fields, and returns a ValidationResult
+    with any mismatches.
+    """
+    merged = our_df.merge(tv_df, on="date", suffixes=("_ours", "_tv"), how="inner")
+
+    result = ValidationResult(
+        ticker=ticker,
+        timeframe=timeframe,
+        our_bar_count=len(our_df),
+        tv_bar_count=len(tv_df),
+        overlapping_bars=len(merged),
+        group=group,
+    )
+
+    if len(merged) == 0:
+        result.error = "No overlapping dates found"
+        return result
+
+    for field_name in ["open", "high", "low", "close", "volume"]:
+        tolerance = volume_tolerance if field_name == "volume" else price_tolerance
+
+        ours_col = f"{field_name}_ours"
+        tv_col = f"{field_name}_tv"
+
+        for _, row in merged.iterrows():
+            our_val = float(row[ours_col])
+            tv_val = float(row[tv_col])
+
+            if tv_val == 0 and our_val == 0:
+                continue
+            pct_diff = 1.0 if tv_val == 0 else abs(our_val - tv_val) / abs(tv_val)
+
+            if pct_diff > tolerance:
+                result.mismatches.append(
+                    CandleMismatch(
+                        ticker=ticker,
+                        timeframe=timeframe,
+                        date=str(row["date"]),
+                        field=field_name,
+                        our_value=our_val,
+                        tv_value=tv_val,
+                        pct_diff=round(pct_diff * 100, 4),
+                        tolerance=tolerance,
+                    )
+                )
+
+    return result
+
+
+# ------------------------------------------------------------------ #
+#  Quarterly aggregation from monthly TV data                          #
+# ------------------------------------------------------------------ #
+
+
+def aggregate_monthly_to_quarterly(monthly_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Aggregate monthly OHLCV data into quarterly bars.
+
+    Uses calendar quarter starts (QS) matching our DB convention.
+    """
+    if monthly_df is None or monthly_df.empty:
+        return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
+
+    df = monthly_df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.set_index("date").sort_index()
+
+    quarterly = (
+        df.resample("QS")
+        .agg(
+            {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum",
+            }
+        )
+        .dropna()
+    )
+
+    quarterly = quarterly.reset_index()
+    quarterly["date"] = quarterly["date"].dt.date
+    return quarterly
+
+
+# ------------------------------------------------------------------ #
+#  TradingView data fetcher                                            #
+# ------------------------------------------------------------------ #
+
+
+def get_tv_client() -> Any:
+    """Create an authenticated TvDatafeed client from .env credentials."""
+    if not TV_AVAILABLE:
+        raise RuntimeError(
+            'tvdatafeed is not installed. Run: pip install "praxialpha[tv-validate]"'
+        )
+
+    from backend.config import get_settings
+
+    settings = get_settings()
+    if not settings.tv_username or not settings.tv_password:
+        raise RuntimeError(
+            "TV_USERNAME and TV_PASSWORD must be set in .env. See .env.example for details."
+        )
+
+    logger.info("Connecting to TradingView as %s...", settings.tv_username)
+    tv = TvDatafeed(settings.tv_username, settings.tv_password)
+    logger.info("TradingView connection established.")
+    return tv
+
+
+def _get_tv_intervals() -> dict[str, Any]:
+    """Return timeframe → tvdatafeed Interval mapping."""
+    if not TV_AVAILABLE:
+        return {}
+    return {
+        "daily": Interval.in_daily,
+        "weekly": Interval.in_weekly,
+        "monthly": Interval.in_monthly,
+        # quarterly is derived from monthly — no native TV interval
+    }
+
+
+def fetch_tv_candles(
+    tv: Any,
+    ticker: str,
+    timeframe: str,
+    n_bars: int,
+) -> pd.DataFrame | None:
+    """
+    Fetch OHLCV data from TradingView for a ticker + timeframe.
+
+    For quarterly: fetches monthly and aggregates.
+    Returns DataFrame with: date, open, high, low, close, volume.
+    """
+    intervals = _get_tv_intervals()
+
+    # Quarterly: fetch monthly from TV, aggregate in pandas
+    if timeframe == "quarterly":
+        monthly_df = fetch_tv_candles(tv, ticker, "monthly", n_bars * 3)
+        if monthly_df is None:
+            return None
+        return aggregate_monthly_to_quarterly(monthly_df)
+
+    interval = intervals.get(timeframe)
+    if interval is None:
+        logger.warning("Timeframe %s not supported by tvdatafeed", timeframe)
+        return None
+
+    exchanges = ["NASDAQ", "NYSE", "AMEX"]
+    df = None
+
+    for exchange in exchanges:
+        try:
+            df = tv.get_hist(
+                symbol=ticker,
+                exchange=exchange,
+                interval=interval,
+                n_bars=n_bars,
+            )
+            if df is not None and not df.empty:
+                break
+        except Exception as e:
+            logger.debug("Failed to fetch %s from %s: %s", ticker, exchange, e)
+            continue
+
+    if df is None or df.empty:
+        logger.warning("Could not fetch %s from TradingView", ticker)
+        return None
+
+    df = df.reset_index()
+
+    if "datetime" in df.columns:
+        df["date"] = pd.to_datetime(df["datetime"]).dt.date
+    elif df.index.name == "datetime":
+        df["date"] = pd.to_datetime(df.index).date
+        df = df.reset_index(drop=True)
+
+    required = {"date", "open", "high", "low", "close", "volume"}
+    if not required.issubset(set(df.columns)):
+        return None
+
+    return df[["date", "open", "high", "low", "close", "volume"]]
+
+
+# ------------------------------------------------------------------ #
+#  Our DB data fetcher                                                 #
+# ------------------------------------------------------------------ #
+
+
+async def fetch_our_candles(
+    ticker: str,
+    timeframe: str,
+    n_bars: int,
+) -> pd.DataFrame | None:
+    """Fetch split-adjusted OHLCV from our database."""
+    from sqlalchemy import text
+
+    from backend.database import async_session_factory
+    from backend.services.candle_service import CandleService, Timeframe
+
+    async with async_session_factory() as session:
+        result = await session.execute(
+            text("SELECT id FROM stocks WHERE ticker = :ticker LIMIT 1"),
+            {"ticker": ticker},
+        )
+        row = result.fetchone()
+        if not row:
+            return None
+
+        stock_id = row.id
+        tf = Timeframe(timeframe)
+        service = CandleService(session)
+
+        candles = await service.get_candles(
+            stock_id=stock_id,
+            timeframe=tf,
+            limit=n_bars,
+            adjusted=True,
+        )
+
+    if not candles:
+        return None
+
+    df = pd.DataFrame(candles)
+    df["date"] = pd.to_datetime(df["date"]).dt.date
+    return df[["date", "open", "high", "low", "close", "volume"]]
+
+
+# ------------------------------------------------------------------ #
+#  Random ticker sampling                                              #
+# ------------------------------------------------------------------ #
+
+
+async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
+    """
+    Sample n random tickers from our DB, spread across exchanges.
+
+    Distribution: 3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs.
+    Excludes the fixed tickers to avoid duplicates.
+    """
+    from sqlalchemy import text
+
+    from backend.database import async_session_factory
+
+    exclude = set(FIXED_TICKERS)
+    sampled: list[str] = []
+
+    async with async_session_factory() as session:
+        # Sample from each exchange
+        for exchange, count in RANDOM_SAMPLE_CONFIG.items():
+            result = await session.execute(
+                text(
+                    "SELECT ticker FROM stocks "
+                    "WHERE exchange = :exchange "
+                    "AND asset_type = 'Common Stock' "
+                    "AND ticker NOT IN :exclude "
+                    "ORDER BY random() LIMIT :limit"
+                ),
+                {"exchange": exchange, "exclude": tuple(exclude), "limit": count},
+            )
+            tickers = [row[0] for row in result.fetchall()]
+            sampled.extend(tickers)
+            exclude.update(tickers)
+
+        # Sample ETFs from any exchange
+        result = await session.execute(
+            text(
+                "SELECT ticker FROM stocks "
+                "WHERE asset_type = 'ETF' "
+                "AND ticker NOT IN :exclude "
+                "ORDER BY random() LIMIT :limit"
+            ),
+            {"exclude": tuple(exclude), "limit": RANDOM_ETF_COUNT},
+        )
+        etf_tickers = [row[0] for row in result.fetchall()]
+        sampled.extend(etf_tickers)
+
+    return sampled
+
+
+# ------------------------------------------------------------------ #
+#  Failure persistence                                                 #
+# ------------------------------------------------------------------ #
+
+
+def load_previous_failures() -> dict[str, Any] | None:
+    """
+    Load previous validation failures from JSON file.
+
+    Returns dict with keys: timestamp, failures (list of {ticker, timeframe}),
+    random_tickers (list), or None if no file exists.
+    """
+    if not FAILURES_PATH.exists():
+        return None
+    try:
+        with open(FAILURES_PATH) as f:
+            data: dict[str, Any] = json.load(f)
+            return data
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def save_failures(
+    results: list[ValidationResult],
+    random_tickers: list[str],
+) -> None:
+    """
+    Save failed validations to JSON for the next run.
+
+    Only saves if there are failures; deletes the file if all pass.
+    """
+    failures = []
+    for r in results:
+        if r.mismatch_count > 0 or r.error:
+            failures.append(
+                {
+                    "ticker": r.ticker,
+                    "timeframe": r.timeframe,
+                    "group": r.group,
+                    "error": r.error,
+                    "mismatch_count": r.mismatch_count,
+                    "match_pct": round(r.match_pct, 2) if not r.error else 0.0,
+                    "worst_diff": r.worst_diff,
+                }
+            )
+
+    if not failures:
+        # All passed — delete the failure file
+        if FAILURES_PATH.exists():
+            FAILURES_PATH.unlink()
+        return
+
+    FAILURES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "timestamp": datetime.now().isoformat(),
+        "failures": failures,
+        "random_tickers": random_tickers,
+    }
+    with open(FAILURES_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def get_retry_tickers_from_failures() -> list[tuple[str, str]]:
+    """
+    Get (ticker, timeframe) pairs that failed in the previous run.
+
+    These should be re-checked in the next run.
+    """
+    prev = load_previous_failures()
+    if not prev:
+        return []
+    return [(f["ticker"], f["timeframe"]) for f in prev.get("failures", [])]
+
+
+# ------------------------------------------------------------------ #
+#  Summary helpers                                                     #
+# ------------------------------------------------------------------ #
+
+
+def compute_summary(results: list[ValidationResult]) -> dict:
+    """Compute overall summary statistics from results."""
+    total_checks = 0
+    total_mismatches = 0
+    passed = 0
+    failed = 0
+    errors = 0
+
+    for r in results:
+        if r.error:
+            errors += 1
+        elif r.mismatch_count == 0:
+            passed += 1
+            total_checks += r.overlapping_bars * 5
+        else:
+            failed += 1
+            total_checks += r.overlapping_bars * 5
+            total_mismatches += r.mismatch_count
+
+    overall_match = (
+        round((1 - total_mismatches / total_checks) * 100, 2) if total_checks > 0 else 0.0
+    )
+
+    return {
+        "total_combinations": len(results),
+        "passed": passed,
+        "failed": failed,
+        "errors": errors,
+        "total_field_checks": total_checks,
+        "total_mismatches": total_mismatches,
+        "overall_match_pct": overall_match,
+    }

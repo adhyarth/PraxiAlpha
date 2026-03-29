@@ -17,8 +17,8 @@
 |-|-|
 | **Session** | 28d — TradingView Data Validation |
 | **Date** | 2026-03-29 |
-| **PR** | #34 (TradingView Data Validation Script) |
-| **What was done** | Added `scripts/validate_tradingview.py` — CLI to compare OHLCV data between PraxiAlpha DB and TradingView Premium across daily/weekly/monthly timeframes. Configurable tolerances, CSV report, dry-run mode. Added `tvdatafeed` optional dep, TV credentials to config. 19 new unit tests (470 total). |
+| **PR** | Pending |
+| **What was done** | Deleted CLI script. Created `backend/services/tv_validation_service.py` (comparison, TV fetch, quarterly aggregation, failure persistence, summary). Created `streamlit_app/pages/validation.py` (Streamlit UI with progress bar, results table, CSV export). Updated sidebar nav. 43 tests (494 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.

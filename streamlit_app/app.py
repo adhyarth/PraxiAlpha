@@ -31,8 +31,9 @@ with st.sidebar:
     - 📊 [Dashboard](/Dashboard)
     - 📈 [Charts](/Charts) ✨
     - 📝 [Journal](/Journal) ✨ *New*
-    - 📋 Reports *(Phase 3)*
-    - 🔍 Screener *(Phase 3)*
+    - � [Data Validation](/Validation) ✨ *New*
+    - �📋 Reports *(Phase 3)*
+    - � Screener *(Phase 3)*
     - 🧪 Backtesting *(Phase 4)*
     - 🎓 Education *(Phase 5)*
     - 📉 Performance *(Phase 7)*
