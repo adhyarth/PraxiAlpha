@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-29 (Session 28f — Migrate Validation to yfinance — complete)
+> **Last updated:** 2026-03-29 (Session 28g — Validation hardening: split fixes, TCP fix, random tickers)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 28f — Migrate Validation from tvdatafeed to yfinance |
-| **Branch** | `feat/data-validation` |
-| **Status** | Code complete, CI green, PR pending update. |
-| **Last checkpoint** | Replaced tvdatafeed with yfinance. Renamed `tv_validation_service.py` → `data_validation_service.py` and `test_tv_validation.py` → `test_data_validation.py`. Cleaned all TradingView references from code and docs. All 494 tests pass. Code committed and pushed. |
+| **Session** | 28g — Validation hardening: split fixes, async fix, random tickers |
+| **Branch** | `feat/tradingview-data-validation` |
+| **Status** | Code complete, CI green (494 tests), pushed to origin. |
+| **Last checkpoint** | Fixed double volume adjustment (EODHD already split-adjusted), excluded future splits from candle adjustment (CVNA fix), replaced per-call asyncio.run() with persistent background event loop (TCPTransport fix), re-enabled random ticker sampling in Streamlit GUI, expanded to 10 fixed + 10 random tickers × 4 TFs. All CI checks pass. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -39,7 +39,7 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
-| **Data Validation** | ✅ Working | EODHD vs Yahoo Finance comparison: 5 fixed tickers × 4 timeframes. Volume tolerance 10%. **Metadata enrichment** — results table shows stock type, 90-day avg volume, and contextual notes. Uses `yfinance` (stable REST API, no auth required). Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. 43 tests. |
+| **Data Validation** | ✅ Working | EODHD vs Yahoo Finance comparison: 10 fixed + 10 random tickers × 4 timeframes (80 checks). Volume tolerance 10%. **Split fixes** — removed double volume adjustment (EODHD pre-adjusted), excluded future splits (CVNA fix). **Persistent async loop** — fixed TCPTransport errors in Streamlit. YF retry with exponential backoff. Metadata enrichment, failure persistence, CSV export. 43 tests + 494 total. |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (494 tests) |
 | **Tests** | ✅ 494 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
@@ -118,6 +118,7 @@
 | 28b | 2026-03-28 | Weekly aggregate split adjustment: non-daily candles re-aggregated from adjusted daily data via pandas resample, 200-week SMA matches industry-standard charting, Streamlit toggle for all timeframes, 4 new tests (450 total). | PR #33 |
 | 28d | 2026-03-29 | Data validation: service layer (compare, YF fetch, quarterly aggregation, failure persistence), Streamlit UI page (run button, progress, results table, CSV export), 43 new tests (494 total). Hardened: volume tolerance 5%→10%, date normalization for weekly/monthly, per-run log capture, debug scripts. | PR #34 |
 | 28f | 2026-03-29 | Migrated validation from tvdatafeed to yfinance: replaced fetch layer, removed TV credentials, deleted 3 obsolete scripts, updated UI labels, swapped pyproject.toml dep. Renamed `tv_validation_service.py` → `data_validation_service.py`. 494 tests pass, CI green. | PR #34 (updated) |
+| 28g | 2026-03-29 | Validation hardening: fixed double volume adjustment (EODHD pre-adjusted), excluded future splits from candle adjustment (CVNA reverse split fix), persistent background event loop for Streamlit async (TCPTransport fix), YF retry with backoff, re-enabled random tickers in GUI, expanded to 10 fixed + 10 random tickers, extended validation windows to ~10yr, incomplete period exclusion. Updated split volume test. 494 tests, CI green. | PR #34 (updated) |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 

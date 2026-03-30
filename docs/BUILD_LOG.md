@@ -2270,3 +2270,54 @@ Addressed all 6 Copilot review comments on PR #27:
 - `scripts/debug_volume_multi.py` — **deleted**
 
 #### Test Count: 494 (unchanged — no new tests needed, fetch layer not unit-tested)
+
+---
+
+### Session 28g — 2026-03-29: Validation Hardening — Split Fixes, Async Fix, Random Tickers (Phase 2)
+
+**Goal:** Fix split-adjusted volume mismatches, TCPTransport errors in Streamlit, and enable full 10+10 ticker validation across all timeframes.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+
+1. **Fixed double volume adjustment** — EODHD already returns split-adjusted volume, but `_apply_split_adjustment()` in `candle_service.py` was dividing volume by the split ratio again. This caused massive volume mismatches (10x–100x) on split tickers like NVDA, TSLA, SMH. Fix: removed the volume adjustment line; only OHLC prices are now scaled by the cumulative split factor.
+
+2. **Excluded future splits from candle adjustment** — `_get_split_factors()` was fetching ALL splits including future-dated ones. CVNA had an announced 1:5 reverse split (future date) that was being applied to current data, multiplying prices by 5. Fix: added `AND date <= CURRENT_DATE` to the query. Docstring explains the rationale.
+
+3. **Fixed TCPTransport closed errors in Streamlit** — Root cause: each call to `_run_async()` used `asyncio.run()` which creates a new event loop. asyncpg connections are bound to the event loop that created them. When a second `asyncio.run()` started a new loop, the old connections died → `TCPTransport closed`. Fix: replaced with a persistent background event loop in a daemon thread (`_get_persistent_loop()`). All async DB calls now run on the same loop.
+
+4. **Added YF retry with exponential backoff** — `fetch_yf_candles()` now retries up to 3 times with 2s/4s backoff delays for transient Yahoo Finance rate-limits.
+
+5. **Re-enabled random ticker sampling in Streamlit GUI** — `sample_random_tickers(10)` was commented out ("disabled for now — re-enable after stable"). Uncommented and added the missing import. Now safe with the persistent event loop fix.
+
+6. **Expanded fixed ticker set to 10** — AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI.
+
+7. **Extended validation windows** — daily: 2520 bars (~10yr), weekly: 520, monthly: 120, quarterly: 40.
+
+8. **Added incomplete period exclusion** — `compare_candles()` excludes the current incomplete week/month/quarter from comparison, preventing false mismatches on partial periods.
+
+9. **Increased rate-limit delays** — CLI script 0.3s → 1.0s, Streamlit GUI 0.5s → 1.5s.
+
+10. **Updated split volume test** — `test_adjusted_applies_split_factor_to_ohlc` now expects unchanged volume (50M, not 500M), matching the corrected production behavior.
+
+11. **Ruff lint/format cleanup** — fixed f-string without placeholders, auto-formatted 2 files.
+
+#### Key Design Decisions
+- **Volume is NOT split-adjusted by us** — EODHD's daily OHLCV feed already returns split-adjusted volume. Applying our own split factor to volume was a double-adjustment bug that only manifested in validation (our data was 10x–100x off from YF).
+- **Future splits are excluded** — a split's `date` field represents when the split takes effect. Until that date, neither the data provider nor Yahoo Finance has applied it. Including future splits corrupts every current candle.
+- **Persistent event loop** — the standard pattern for calling async code from sync Streamlit is `asyncio.run()`, but this is incompatible with module-level async connection pools. A single daemon-thread loop is the cleanest fix.
+
+#### Lessons Learned
+- When EODHD says "adjusted", they mean it — volume is already split-adjusted. Don't apply split factors to volume.
+- `asyncio.run()` creates AND DESTROYS an event loop. Any async resources (DB pools, connections) created inside one `asyncio.run()` call are dead by the next. For Streamlit apps that make many async calls, use a persistent loop.
+- Future splits in the DB are real (brokers announce splits before they happen). The `date <= CURRENT_DATE` filter is essential.
+
+#### Files Changed
+- `backend/services/candle_service.py` — removed volume adjustment, added `date <= CURRENT_DATE` to split query
+- `backend/services/data_validation_service.py` — YF retry with backoff, extended timeframe windows, incomplete period exclusion, expanded fixed tickers
+- `scripts/validate_local.py` — increased rate-limit delay, suppressed SQLAlchemy logs
+- `streamlit_app/pages/validation.py` — persistent event loop, re-enabled random tickers, increased rate-limit delay, added `sample_random_tickers` import
+- `backend/tests/test_candle_service.py` — updated split volume test expectation
+
+#### Test Count: 494 (1 test updated, no new tests)

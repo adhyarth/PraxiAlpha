@@ -13,6 +13,9 @@
 - **`ValidationResult.note` property** — contextual note explaining ignorable mismatches based on security type and liquidity.
 - **`ValidationResult.meta` field** — optional `StockMeta` attached to each result, fetched once per ticker and cached across timeframes.
 - **`fetch_yf_candles()` function** — Yahoo Finance data fetcher using `yfinance` REST API. Supports daily, weekly, monthly, and quarterly (via monthly aggregation) timeframes. No authentication required.
+- **YF retry with exponential backoff** — `fetch_yf_candles()` retries up to 3 times with 2s/4s backoff on transient failures (Yahoo Finance rate-limits / TCP drops).
+- **Random ticker sampling in Streamlit validation GUI** — re-enabled `sample_random_tickers(10)` for 10 fixed + 10 random tickers per validation run (80 checks total).
+- **Incomplete period exclusion** — `compare_candles()` now excludes the current incomplete week/month/quarter from validation to prevent false mismatches on partial periods.
 
 ### Changed
 - **Migrated validation from tvdatafeed to yfinance** — replaced `fetch_tv_candles()` + `get_tv_client()` with `fetch_yf_candles()`. Removed tvdatafeed dependency in favor of `yfinance` (stable PyPI package, REST API, actively maintained). Renamed `tv_validation_service.py` → `data_validation_service.py` and `test_tv_validation.py` → `test_data_validation.py`. All existing validation logic preserved — only the data-fetch layer swapped.
@@ -20,6 +23,12 @@
 - **Removed `tv_username`/`tv_password` config** — `backend/config.py` and `.env.example` no longer require TradingView credentials. yfinance uses a free REST API with no authentication.
 - **Deleted obsolete tvdatafeed scripts** — removed `scripts/validate_tradingview.py`, `scripts/debug_aapl_volume.py`, and `scripts/debug_volume_multi.py`.
 - **Streamlit validation UI updated** — all labels changed from "TradingView" to "Yahoo Finance", removed TV credential verification step, reduced rate-limit sleep from 2s to 0.5s.
+- **Persistent event loop for Streamlit async** — replaced per-call `asyncio.run()` with a single long-lived event loop in a daemon thread. Fixes `TCPTransport closed` errors caused by asyncpg connections dying when the event loop is destroyed between calls.
+- **Rate-limit delays increased** — CLI script 0.3s → 1.0s, Streamlit GUI 0.5s → 1.5s to reduce Yahoo Finance rate-limit drops.
+- **Expanded fixed ticker set to 10** — AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI.
+- **Extended validation windows** — daily: 2520 bars (~10yr), weekly: 520, monthly: 120, quarterly: 40.
+
+### Changed
 - **Data Validation service** (`backend/services/data_validation_service.py`) — backend service for comparing OHLCV data (daily, weekly, monthly, quarterly) between PraxiAlpha's database and Yahoo Finance. Includes bar-by-bar comparison with configurable tolerances (1% price, 10% volume), quarterly aggregation from YF monthly data, failure persistence (JSON), and summary computation.
 - **43 validation tests** (`backend/tests/test_data_validation.py`, 494 total) — all tests pass with no changes to test logic (tests exercise comparison/aggregation/persistence, not the fetch layer).
 - **Volume tolerance at 10%** — `DEFAULT_VOLUME_TOLERANCE` accounts for data provider consolidation differences (exchange-only vs dark-pool-inclusive volumes).
@@ -59,7 +68,6 @@
 - **Snapshot schedule by timeframe** — daily trades: every trading day for 30 calendar days; weekly trades: weekly for 16 calendar weeks; monthly trades: monthly for 18 calendar months
 - **Celery task plan** — periodic task to auto-generate snapshots for closed trades, fetching prices from `daily_ohlcv`/aggregates, computing direction-aware hypothetical PnL
 - **2 planned API endpoints** — `GET /api/v1/journal/{trade_id}/snapshots` (list snapshots) and `GET /api/v1/journal/{trade_id}/what-if` (best/worst hypothetical PnL summary)
-- **What-if implementation session** added to roadmap (Session 19: model, service, Celery task, API, migration, tests)
 - **Trading Journal backend** — full CRUD implementation for trade journaling with 3 tables (`trades`, `trade_exits`, `trade_legs`), service layer with computed fields (status, PnL, R-multiple), and 7 API endpoints (`/api/v1/journal/`)
 - **Trading Journal models** — `Trade`, `TradeExit`, `TradeLeg` ORM models with 5 ENUMs (`TradeDirection`, `AssetType`, `TradeType`, `Timeframe`, `LegType`), UUID PKs, JSONB tags, cascade relationships
 - **Trading Journal service** — `journal_service.py` with `compute_trade_metrics()` for 6 derived fields, full async CRUD (create, get, list, update, delete), `add_exit()` with quantity validation, `add_leg()` for multi-leg options
@@ -78,72 +86,10 @@
 ### Fixed
 - **AAPL daily volume validation false-positives** — investigation confirmed that AAPL volume mismatches (5-8% on the most recent 1-2 bars) are caused by data provider consolidation lag between EODHD and second sources, not a code bug. Raised `DEFAULT_VOLUME_TOLERANCE` from 5% → 10% to accommodate this real-world provider discrepancy.
 - **TCPTransport websocket errors in validation** — (historical, now resolved) the previous tvdatafeed dependency had frequent websocket failures. Replaced with yfinance REST API which has no such issues.
-- **Weekly/monthly date alignment mismatch** — our DB uses pandas resample labels (Saturday for W-SUN, 1st-of-month for MS) while TradingView uses the first trading day. Added `_normalize_dates_for_merge()` to map both to ISO-Monday (weekly) or 1st-of-month (monthly/quarterly) before joining.
-- **asyncpg `NOT IN` parameter error** — random ticker sampling SQL used `NOT IN :exclude` with a tuple, which asyncpg doesn't support. Changed to `!= ALL(:exclude)` with a list parameter.
-- **Dividend adjustment causing second-source mismatch** — the previous adjustment logic used EODHD's `adjusted_close / close` ratio, which includes both split and dividend adjustments. Yahoo Finance (and Bloomberg) only adjust for splits by default, so our charts were ~1-2% lower per year of cumulative dividends. Fixed by computing split factors directly from the `stock_splits` table, ignoring dividend adjustments entirely.
-- **Split/dividend discontinuity in weekly/monthly/quarterly candles** — non-daily aggregates (TimescaleDB continuous aggregates) mixed pre- and post-split raw prices, causing massive jumps in weekly/monthly charts and incorrect moving averages (e.g., 200-week SMA for SMH was wrong). Fixed by re-aggregating from split-adjusted daily candles in Python when `adjusted=True`, bypassing the raw continuous aggregates entirely.
-- **Stock split discontinuity in charts** — charts now display smooth, continuous prices by using split-adjusted OHLCV data instead of raw historical prices. Previously, stocks like NVDA showed massive price jumps at split boundaries (e.g., $800 → $80 for a 10:1 split), making the chart unreadable and all technical indicators (SMA, EMA, RSI, MACD, Bollinger Bands) mathematically incorrect across split boundaries.
-- **Engine pool disposal in Celery tasks** — all async Celery tasks (`daily_ohlcv_update`, `daily_macro_update`, `backfill_stock`, `backfill_all_stocks`, `daily_economic_calendar_sync`, `generate_snapshots`) now call `await engine.dispose()` before creating sessions, preventing "Future attached to a different loop" errors on repeated task executions in the same worker process.
-- **Timestamp cast in candle aggregate refresh** — `refresh_continuous_aggregate()` call now casts `(now() - interval)::date` instead of raw `now() - interval`, fixing TimescaleDB type mismatch errors.
-- **Celery worker queue routing** — added `-Q celery,data_pipeline` to the worker command in `docker-compose.yml` so that tasks routed to the `data_pipeline` queue are actually consumed (previously only the default `celery` queue was listened to).
-- **Options trades excluded from what-if snapshots** — `get_closed_trades_needing_snapshots()` now skips trades with `asset_type == "options"`. The Celery snapshot task was previously attempting to compute hypothetical PnL for options trades using equity OHLCV prices, which is meaningless without live options pricing data.
-- **What-if summary returns explicit reason for options trades** — `get_whatif_summary()` now returns a `"reason"` field explaining why what-if analysis is unavailable for options trades, instead of silently showing zero snapshots.
-- **Streamlit what-if card shows info banner for options** — `render_whatif_summary()` displays an `st.info()` message when the API returns a `reason` field, rather than the generic "no snapshots yet" caption.
-- **`journal_service.create_trade` — `MissingGreenlet` crash** — assigning `trade.exits = []` after `db.flush()` triggered a SQLAlchemy lazy-load in async context, causing a 500 Internal Server Error on every new trade creation. Fixed by replacing `db.refresh()` + manual relationship assignment with a `select()` + `selectinload()` re-fetch (same pattern used by `get_trade()`).
-- **`journal_service.list_trades` — `MissingGreenlet` crash on PDF report** — when `include_children=True` (used by the report endpoint), `serialize_trade()` accessed `trade.legs` which was not eagerly loaded, triggering a lazy-load in async context. Fixed by conditionally adding `selectinload(Trade.legs)` when `include_children=True`.
-- **3 unit tests updated** — `test_create_trade_returns_serialized`, `test_create_trade_uppercases_ticker`, `test_create_trade_sets_user_id` now mock `db.execute` for the re-fetch query instead of the removed `db.refresh` call.
-- **PR #25 review: strengthened re-fetch assertions** — all 3 create_trade tests now assert `mock_db.execute.assert_awaited_once()` to verify the `selectinload` re-fetch actually runs, preventing silent regressions. Moved `exits`/`legs` initialization from `capture_add()` to the mock re-fetch result to better reflect production behavior (where `selectinload` populates relationships during re-fetch, not during `add()`).
-- **Schema naming alignment** (PR #15 review) — DESIGN_DOC diagram now matches ARCHITECTURE.md (`remaining_quantity`, `single_leg/multi_leg`, `daily/weekly/monthly/quarterly`)
-- **Watchlist schema consistency** (PR #15 review) — DESIGN_DOC diagram updated from `tickers (array)` to `watchlists` + `watchlist_items` two-table design
-- **WORKFLOW.md table formatting** (PR #15 review) — moved planned Trading Journal endpoints out of main API table into dedicated subsection
-- **Computed field clarity** (PR #15 review) — ARCHITECTURE.md now explicitly documents which fields are computed at API level (not stored) with derivation formulas
-- **UUID rationale** (PR #15 review) — reworded from "no enumeration attacks" to "less predictable than sequential IDs" with note that auth/authz is still required
-- **`server_default` SQL literal** (PR #16 review — Round 1) — `trade_type` now uses `text("'single_leg'")` instead of bare string to produce correct SQL `DEFAULT 'single_leg'`
-- **Date/DateTime type annotations** (PR #16 review — Round 1) — `Mapped[str]` → `Mapped[date]`/`Mapped[datetime]` for `entry_date`, `exit_date`, `expiry`, `created_at`, `updated_at`
-- **Decimal precision end-to-end** (PR #16 review — Round 1) — `compute_trade_metrics()` refactored to use `Decimal` throughout, converting to `float` only at the serialization boundary; includes tolerance clamping for remaining quantity
-- **Nullable field clearing** (PR #16 review — Round 1) — `update_trade()` now supports clearing `stop_loss`, `take_profit`, `tags`, `comments` by explicitly passing `null`
-- **Decimal-based exit validation** (PR #16 review — Round 1) — `add_exit()` validates against unrounded `Decimal` remaining quantity instead of rounded float from `compute_trade_metrics()`
-- **CI fastapi skipif** (PR #16 review — Round 1) — `TestAPISchemas` and `TestRouterRegistration` guarded with `@pytest.mark.skipif` for CI environments without fastapi
-- **SQL-level pagination** (PR #16 review — Round 2) — `list_trades()` applies `offset()`/`limit()` at the SQL level when no `status` filter is requested; Python-side slicing only when status post-filtering is needed
-- **Dropped unused `selectinload(Trade.legs)`** (PR #16 review — Round 2) from `list_trades()` — legs are not used in list serialization (`include_children=False`)
-- **`UpdateTradeRequest` validation** (PR #16 review — Round 2) — added `gt=0` constraint to `stop_loss` and `take_profit` fields, matching `CreateTradeRequest` validation
-- **Tags type annotation** (PR #16 review — Round 2) — `Mapped[list | None]` → `Mapped[list[str] | None]` for type safety on JSONB tags column
-
-### Changed
-- **Split adjustment uses `stock_splits` table instead of `adjusted_close`** — `CandleService` no longer derives the adjustment factor from `adjusted_close / close` (which included dividend adjustments). It now queries the `stock_splits` table and computes a cumulative split-only factor. This matches TradingView's default behavior and eliminates the ~1-2% per-year dividend drag that caused our charts to diverge from external charting platforms.
-- **GUI verification step added to workflow (Step 6b)** — new step in `WORKFLOW.md` between CI checks and documentation: if the session changed anything user-visible in Streamlit (charts, indicators, UI controls, pages), verify visually before writing docs and opening a PR. Includes a change-type checklist, Docker/Streamlit launch commands, and pass/fail guidance. Added pitfall #19 for skipping verification.
-- **Non-daily candle aggregation refactored** — `CandleService.get_candles()` for weekly/monthly/quarterly with `adjusted=True` now fetches split-adjusted daily candles and re-aggregates via pandas `resample` (W-SUN, MS, QS) instead of querying raw TimescaleDB continuous aggregates. This ensures split-adjusted prices flow through to all non-daily timeframes. The `adjusted=False` path still uses the raw SQL aggregates for performance.
-- **`adjusted` API parameter extended to all timeframes** — previously `adjusted` only applied to daily candles; now it applies to weekly, monthly, and quarterly as well. The Streamlit sidebar toggle is enabled for all timeframes (was disabled for non-daily).
-- **Removed duplicate `_aggregate_weekly_candles` method** — legacy method in `CandleService` was superseded by the new general-purpose `_aggregate_candles_from_daily`.
-- **Replaced `test_weekly_skips_adjustment` / `test_monthly_skips_adjustment` tests** — old tests verified that weekly/monthly *skipped* adjustment; new tests verify that weekly/monthly *apply* adjustment via re-aggregation from adjusted daily candles.
-- **Celery beat schedule staggered to 7 PM ET** — `daily_ohlcv_update` moved from 6:00 PM → 7:00 PM ET, `daily_macro_update` from 6:30 PM → 7:10 PM ET, `daily_trade_snapshots` from 7:00 PM → 7:20 PM ET. Provides more settlement time and staggers tasks to avoid resource contention. `refresh_candle_aggregates` is chained after OHLCV (no separate schedule entry).
-- **`daily_ohlcv_update` rewritten** — replaced single-day fetch with gap-aware loop. Uses `MAX(latest_date)` from active stocks as the anchor. Falls back to single-day fetch when no history exists (initial backfill needed).
-- **Trading Journal Streamlit UI session** added to roadmap (Session 23) — trade list, entry form, detail view, PDF download, what-if display. After Session 23, the full journal is usable from the Streamlit dashboard.
-- **Workflow Step 7 overhaul** — ordered doc updates (small docs first, BUILD_LOG last via `cat >>`), new pitfalls #18 (docs crash ordering), updated crash recovery prompts
-- **`streamlit_app/pages/journal.py`** — replaced Phase 7 placeholder with full journal UI (list, detail, new trade views with session_state routing)
-- **`streamlit_app/app.py`** — updated sidebar navigation: Journal link now active (was Phase 7 placeholder), moved from bottom to after Charts
-- **Session reorder** — inserted Journal UI Roadmap Reorder as Session 21 (docs-only), PDF Report → Session 22, Journal UI → Session 23, Watchlist Backend → 24, Watchlist UI → 25, Dashboard Polish → 26, Phase 3 Kickoff → 27
-- **Phase 2 checklist** updated in `DESIGN_DOC.md` and `docs/PROGRESS.md` to include Journal Streamlit UI item
-- **`backend/config.py`** — added `praxialpha_user_id: str = "default"` setting
-- **`backend/models/journal.py`** — added `user_id: Mapped[str]` column to `Trade` (indexed, NOT NULL, server_default `'default'`)
-- **`backend/services/journal_service.py`** — all CRUD functions now filter by `_current_user_id()`, `create_trade` auto-sets `user_id`, `serialize_trade` includes `user_id` in output
-- **`.env.example`** — added `PRAXIALPHA_USER_ID=default` with documentation
-- **`WORKFLOW.md`** — Step 7 rewritten: ordered doc updates (7a→7b→7c), `cat >>` for BUILD_LOG, new pitfalls, updated crash recovery
-- **`DESIGN_DOC.md` v1.4** — added user isolation design (§11), `user_id` column in schema diagram, decision rationale (3 options evaluated)
-- **`docs/ARCHITECTURE.md`** — added `user_id` column to `trades` table schema, documented env-var-based isolation design decision
-- **Session roadmap renumbered** — Session 18 = User Isolation Design (new), Session 19 = User Isolation Implementation (new), Session 20 = PDF Report (was 18), Sessions 21+ shifted accordingly
-- **`DESIGN_DOC.md` v1.3** — added `trade_snapshots` to schema diagram, data volume estimates, and Phase 2 roadmap
-- **`docs/ARCHITECTURE.md`** — added full `trade_snapshots` table schema with design decisions, added 2 planned snapshot API endpoints
-- **Session roadmap renumbered** — Session 17 = What-If Design (new), Session 18 = PDF Report (was 17), Session 19 = What-If Implementation (new), Sessions 20–23 shifted accordingly
-- **ENUMs upgraded to `StrEnum`** — all journal enums use Python 3.11+ `enum.StrEnum` (ruff UP042 compliance)
-- **Alembic env.py** — imports `Trade`, `TradeExit`, `TradeLeg` for migration autogenerate support
-- **`backend/main.py`** — registered journal router at `/api/v1/journal/`
-- **`backend/models/__init__.py`** — exports `Trade`, `TradeExit`, `TradeLeg`
-- **Session roadmap reordered** — Trading Journal (16–17) now comes before Watchlist (18–19), Dashboard Polish (20), Phase 3 Kickoff (21)
-- **Phase 2 checklist updated** — added Trading Journal backend and PDF report as Phase 2 deliverables
-- **Phase 2 deliverable updated** in `DESIGN_DOC.md` — now includes "journal trades and generate PDF trade reports"
-- **`DESIGN_DOC.md` schema diagram** — replaced placeholder `trades` box with full `trades`, `trade_exits`, `trade_legs` schemas
-- **`docs/ARCHITECTURE.md`** — added 3 full table schema sections with design decision rationale, plus planned API endpoints table
+- **TCPTransport closed errors in Streamlit validation** — asyncpg connections were dying because each `_run_async()` call created a new event loop via `asyncio.run()`. Fixed by using a persistent background event loop shared across all DB queries.
+- **Double volume adjustment on split tickers** — EODHD already returns split-adjusted volume, but `_apply_split_adjustment()` was dividing volume by the split ratio again. Removed the redundant volume adjustment; only OHLC prices are now adjusted.
+- **Future splits applied to current data** — `_get_split_factors()` was including splits with future dates (e.g., CVNA's announced 1:5 reverse split). Added `date <= CURRENT_DATE` filter so only completed splits affect candle data.
+- **Split volume test updated** — `test_adjusted_applies_split_factor_to_ohlc` now expects unchanged volume (EODHD provides pre-adjusted volume), matching the corrected production behavior.
 
 ---
 

@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-29 (Session 28f — Migrate Validation to yfinance)
+> **Last updated:** 2026-03-29 (Session 28g — Validation hardening: split fixes, async fix, random tickers)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28f — Migrate Validation to yfinance |
+| **Session** | 28g — Validation Hardening |
 | **Date** | 2026-03-29 |
 | **PR** | #34 (updated) |
-| **What was done** | Replaced tvdatafeed (unmaintained websocket scraper, ~50% TCP failure rate) with yfinance (stable PyPI REST API). Swapped `fetch_tv_candles()` + `get_tv_client()` → `fetch_yf_candles()`. Removed TV credentials from config. Deleted 3 obsolete tvdatafeed scripts. Updated Streamlit UI labels. All 494 tests pass, CI green. |
+| **What was done** | Fixed double volume adjustment (EODHD pre-adjusted), excluded future splits from candle adjustment (CVNA reverse split fix), replaced per-call asyncio.run() with persistent background event loop (TCPTransport fix), added YF retry with backoff, re-enabled random tickers in Streamlit GUI, expanded to 10 fixed + 10 random tickers × 4 TFs (80 checks). Updated split volume test. All 494 tests pass, CI green, pushed. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -32,7 +32,7 @@
 | **Depends on** | Session 16 (Journal backend, provides CRUD service pattern) |
 | **Why** | Watchlist management is the last major backend feature before Phase 2 dashboard polish. |
 
-> **After Session 28f:** Session 29 builds the Watchlist backend — model, service, API, tests.
+> **After Session 28g:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 
