@@ -110,18 +110,24 @@ class CandleService:
         stock_id: int,
     ) -> list[tuple[date, float]]:
         """
-        Fetch all splits for a stock and return a list of (split_date, ratio).
+        Fetch all *past* splits for a stock and return a list of (split_date, ratio).
 
         Each entry represents a split event.  The ``ratio`` is
         ``numerator / denominator`` — e.g. 2.0 for a 2:1 split (each
         pre-split share becomes 2 post-split shares, so pre-split prices
         are divided by 2).
+
+        Future splits (date > today) are excluded — they haven't occurred
+        yet, so neither the data provider nor Yahoo Finance has applied them.
+        Including them would corrupt every current candle (e.g. CVNA's
+        announced 1:5 reverse split would multiply prices by 5 prematurely).
         """
         result = await self.session.execute(
             text(
                 "SELECT date, numerator, denominator "
                 "FROM stock_splits "
                 "WHERE stock_id = :stock_id "
+                "  AND date <= CURRENT_DATE "
                 "ORDER BY date ASC"
             ),
             {"stock_id": stock_id},
