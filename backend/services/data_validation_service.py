@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -45,15 +45,20 @@ FIXED_TICKERS = [
     "NVDA",  # 10:1 split (2024)
     "SMH",  # 2:1 split — the bug that started Session 28
     "TSLA",  # 5:1 (2020) + 3:1 (2022) splits
+    "QQQ",   # Mega-cap tech ETF, heavy volume
+    "SPY",   # S&P 500 ETF, most-traded equity
+    "GLD",   # Gold ETF, commodity exposure
+    "CVNA",  # High-volatility growth stock
+    "XBI",   # Biotech ETF, sector rotation proxy
 ]
 
 ALL_TIMEFRAMES = ["daily", "weekly", "monthly", "quarterly"]
 
 TIMEFRAME_BARS: dict[str, int] = {
-    "daily": 252,  # ~1 year of trading days
-    "weekly": 104,  # ~2 years of weeks
-    "monthly": 60,  # ~5 years of months
-    "quarterly": 20,  # ~5 years of quarters
+    "daily": 2520,  # ~10 years of trading days (back to ~2016)
+    "weekly": 520,  # ~10 years of weeks
+    "monthly": 120,  # ~10 years of months
+    "quarterly": 40,  # ~10 years of quarters
 }
 
 # Tolerance thresholds (ratio — 0.01 = 1%)
@@ -258,6 +263,34 @@ def _normalize_dates_for_merge(
     return our, ref
 
 
+def _last_completed_period_cutoff(timeframe: str, today: date | None = None) -> date | None:
+    """
+    Return the exclusive upper-bound date for the last *fully completed* period.
+
+    Any candle whose normalised date >= this cutoff belongs to the current
+    incomplete period and should be excluded from validation comparisons,
+    because EODHD and Yahoo Finance disagree on partial-period volume
+    (different intraday cut-offs, dark-pool consolidation, etc.).
+
+    Returns ``None`` for daily (every closed trading day is complete).
+    """
+    if today is None:
+        today = date.today()
+
+    if timeframe == "daily":
+        return None  # daily bars are always complete once the day closes
+
+    if timeframe == "weekly":
+        # Monday of the current (incomplete) week
+        return today - timedelta(days=today.weekday())
+
+    if timeframe in ("monthly", "quarterly"):
+        # 1st of the current month — any bar in this month is incomplete
+        return today.replace(day=1)
+
+    return None
+
+
 def compare_candles(
     ticker: str,
     timeframe: str,
@@ -272,8 +305,19 @@ def compare_candles(
 
     Joins on date, compares OHLCV fields, and returns a ValidationResult
     with any mismatches.
+
+    The current incomplete period (this week / this month / this quarter)
+    is excluded automatically — partial bars always differ between providers.
     """
     our_norm, ref_norm = _normalize_dates_for_merge(our_df, ref_df, timeframe)
+
+    # Drop the current incomplete period so partial-bar volume differences
+    # don't generate false-positive warnings.
+    cutoff = _last_completed_period_cutoff(timeframe)
+    if cutoff is not None:
+        our_norm = our_norm[our_norm["date"] < cutoff]
+        ref_norm = ref_norm[ref_norm["date"] < cutoff]
+
     merged = our_norm.merge(ref_norm, on="date", suffixes=("_ours", "_ref"), how="inner")
 
     result = ValidationResult(
@@ -370,8 +414,8 @@ _YF_INTERVALS: dict[str, str] = {
 
 # Approximate lookback periods per timeframe
 _YF_PERIODS: dict[str, str] = {
-    "daily": "2y",  # ~500 trading days
-    "weekly": "5y",  # ~260 weeks
+    "daily": "10y",  # ~2520 trading days (back to ~2016)
+    "weekly": "10y",  # ~520 weeks
     "monthly": "10y",  # ~120 months
 }
 

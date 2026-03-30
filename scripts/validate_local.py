@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Local validation: compare our DB against Yahoo Finance for
-5 fixed stress-test tickers + 10 random tickers × 4 timeframes.
+10 fixed stress-test tickers + 10 random tickers × 4 timeframes.
 
 Usage:
     PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" \
@@ -146,7 +146,7 @@ async def main() -> None:
 
     print("=" * 78)
     print("  PraxiAlpha — Local Data Validation")
-    print("  5 fixed tickers + 10 random tickers × 4 timeframes")
+    print("  10 fixed tickers + 10 random tickers × 4 timeframes")
     print("=" * 78)
 
     # ---- Sample random tickers ----

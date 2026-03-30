@@ -287,11 +287,11 @@ class CandleService:
                 )
                 factor = self._compute_cumulative_split_factor(candle_date, splits)
 
-                adj_volume = (
-                    int(round(row.volume / factor))
-                    if factor != 1.0 and factor != 0
-                    else int(row.volume)
-                )
+                # Volume is NOT adjusted here — EODHD already returns
+                # split-adjusted volume in its API responses.  Applying
+                # ``volume / factor`` would double-adjust, inflating
+                # pre-split volume by the split ratio (e.g. 10× for NVDA).
+                # Only OHLC prices need adjustment (raw → split-adjusted).
 
                 candle: dict[str, Any] = {
                     "date": row.date.isoformat()
@@ -302,7 +302,7 @@ class CandleService:
                     "low": round(float(row.low) * factor, 4),
                     "close": round(raw_close * factor, 4),
                     "adjusted_close": round(raw_close * factor, 4),
-                    "volume": adj_volume,
+                    "volume": int(row.volume),
                 }
             elif apply_adj:
                 # No splits for this stock — return raw prices unchanged.
