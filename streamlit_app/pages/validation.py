@@ -58,7 +58,7 @@ if prev_failures:
     ts = prev_failures.get("timestamp", "unknown")
     st.warning(
         f"⚠️ **Previous run** ({ts}) had **{n_fail} failure(s)**. "
-        "Those tickers will be automatically re-checked in this run."
+        "Review them below — automatic re-checking will be enabled in a future release."
     )
     with st.expander("Show previous failures"):
         fail_df = pd.DataFrame(prev_failures["failures"])
@@ -95,24 +95,22 @@ if not YF_AVAILABLE:
     st.stop()
 
 
-# Module-level persistent event loop — asyncpg connections are bound to
-# the event loop that created them.  If we call ``asyncio.run()`` for
-# every DB query we get a *new* loop each time and the old connections
-# die with ``TCPTransport closed``.  Keeping one persistent loop avoids that.
-_PERSISTENT_LOOP: asyncio.AbstractEventLoop | None = None
+# Persistent event loop — asyncpg connections are bound to the event loop
+# that created them.  If we call ``asyncio.run()`` for every DB query we
+# get a *new* loop each time and the old connections die with
+# ``TCPTransport closed``.  ``st.cache_resource`` ensures a single loop
+# (and background thread) survives across Streamlit reruns without leaking.
 
 
+@st.cache_resource
 def _get_persistent_loop() -> asyncio.AbstractEventLoop:
     """Return a single long-lived event loop running in a daemon thread."""
-    global _PERSISTENT_LOOP  # noqa: PLW0603
-    if _PERSISTENT_LOOP is None:
-        import threading
+    import threading
 
-        loop = asyncio.new_event_loop()
-        thread = threading.Thread(target=loop.run_forever, daemon=True)
-        thread.start()
-        _PERSISTENT_LOOP = loop
-    return _PERSISTENT_LOOP
+    loop = asyncio.new_event_loop()
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    return loop
 
 
 def _run_async(coro):
@@ -139,73 +137,129 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     root_logger = logging.getLogger()
     root_logger.addHandler(log_handler)
 
-    LOG_DIR = Path("data")
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-    run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = LOG_DIR / f"data_validation_{run_ts}.log"
-
-    # --- Phase 1: Build ticker list ---
-    status = st.status("Building ticker list...", expanded=True)
-
-    # Fixed tickers
-    all_tickers_with_group: list[tuple[str, str]] = [(t, "fixed") for t in FIXED_TICKERS]
-
-    # Random tickers
-    random_tickers: list[str] = []
     try:
-        random_tickers = _run_async(sample_random_tickers(10))
-        all_tickers_with_group.extend((t, "random") for t in random_tickers)
-        status.write(
-            f"✅ Sampled {len(random_tickers)} random tickers: {', '.join(random_tickers)}"
-        )
-    except Exception as e:
-        random_tickers = []
-        status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
+        LOG_DIR = Path("data")
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file_path = LOG_DIR / f"data_validation_{run_ts}.log"
 
-    # TODO: Re-check previously failed tickers automatically.
-    # Disabled for now — retry logic will be enabled once the failure
-    # persistence layer is validated end-to-end across CLI + Streamlit.
+        # --- Phase 1: Build ticker list ---
+        status = st.status("Building ticker list...", expanded=True)
 
-    # Build the full job list: (ticker, timeframe, group)
-    jobs: list[tuple[str, str, str]] = []
+        # Fixed tickers
+        all_tickers_with_group: list[tuple[str, str]] = [(t, "fixed") for t in FIXED_TICKERS]
 
-    for ticker, group in all_tickers_with_group:
-        for tf in ALL_TIMEFRAMES:
-            jobs.append((ticker, tf, group))
-
-    total_jobs = len(jobs)
-    status.write(
-        f"📋 Total: {len(set(t for t, _, _ in jobs))} tickers × {len(ALL_TIMEFRAMES)} timeframes = {total_jobs} checks"
-    )
-
-    # --- Phase 2: Run comparisons ---
-    # yfinance uses a REST API — no persistent connection or credentials needed.
-    status.update(label="Running validation...", state="running")
-    progress_bar = st.progress(0, text="Starting...")
-
-    # Cache stock metadata per ticker (fetched once, reused across timeframes)
-    meta_cache: dict[str, StockMeta] = {}
-
-    for idx, (ticker, tf, group) in enumerate(jobs):
-        progress_pct = (idx + 1) / total_jobs
-        progress_bar.progress(progress_pct, text=f"[{idx + 1}/{total_jobs}] {ticker} ({tf})...")
-
-        val_logger.info("=== [%d/%d] %s / %s (group=%s) ===", idx + 1, total_jobs, ticker, tf, group)
-
-        # Fetch metadata (once per ticker)
-        if ticker not in meta_cache:
-            try:
-                meta_cache[ticker] = _run_async(fetch_stock_metadata(ticker))
-            except Exception:
-                meta_cache[ticker] = StockMeta()
-        meta = meta_cache[ticker]
-
+        # Random tickers
+        random_tickers: list[str] = []
         try:
-            # Fetch our data
-            our_df = _run_async(fetch_our_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252)))
+            random_tickers = _run_async(sample_random_tickers(10))
+            all_tickers_with_group.extend((t, "random") for t in random_tickers)
+            status.write(
+                f"✅ Sampled {len(random_tickers)} random tickers: {', '.join(random_tickers)}"
+            )
+        except Exception as e:
+            random_tickers = []
+            status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
 
-            if our_df is None or our_df.empty:
-                val_logger.warning("  No data in our DB for %s (%s)", ticker, tf)
+        # TODO: Re-check previously failed tickers automatically.
+        # Disabled for now — retry logic will be enabled once the failure
+        # persistence layer is validated end-to-end across CLI + Streamlit.
+
+        # Build the full job list: (ticker, timeframe, group)
+        jobs: list[tuple[str, str, str]] = []
+
+        for ticker, group in all_tickers_with_group:
+            for tf in ALL_TIMEFRAMES:
+                jobs.append((ticker, tf, group))
+
+        total_jobs = len(jobs)
+        status.write(
+            f"📋 Total: {len(set(t for t, _, _ in jobs))} tickers × {len(ALL_TIMEFRAMES)} timeframes = {total_jobs} checks"
+        )
+
+        # --- Phase 2: Run comparisons ---
+        # yfinance uses a REST API — no persistent connection or credentials needed.
+        status.update(label="Running validation...", state="running")
+        progress_bar = st.progress(0, text="Starting...")
+
+        # Cache stock metadata per ticker (fetched once, reused across timeframes)
+        meta_cache: dict[str, StockMeta] = {}
+
+        for idx, (ticker, tf, group) in enumerate(jobs):
+            progress_pct = (idx + 1) / total_jobs
+            progress_bar.progress(progress_pct, text=f"[{idx + 1}/{total_jobs}] {ticker} ({tf})...")
+
+            val_logger.info(
+                "=== [%d/%d] %s / %s (group=%s) ===", idx + 1, total_jobs, ticker, tf, group
+            )
+
+            # Fetch metadata (once per ticker)
+            if ticker not in meta_cache:
+                try:
+                    meta_cache[ticker] = _run_async(fetch_stock_metadata(ticker))
+                except Exception:
+                    meta_cache[ticker] = StockMeta()
+            meta = meta_cache[ticker]
+
+            try:
+                # Fetch our data
+                our_df = _run_async(fetch_our_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252)))
+
+                if our_df is None or our_df.empty:
+                    val_logger.warning("  No data in our DB for %s (%s)", ticker, tf)
+                    results.append(
+                        ValidationResult(
+                            ticker=ticker,
+                            timeframe=tf,
+                            our_bar_count=0,
+                            ref_bar_count=0,
+                            overlapping_bars=0,
+                            group=group,
+                            error="No data in our DB",
+                            meta=meta,
+                        )
+                    )
+                    continue
+
+                val_logger.info("  Our DB: %d bars", len(our_df))
+
+                # Fetch Yahoo Finance data
+                ref_df = fetch_yf_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252))
+
+                if ref_df is None or ref_df.empty:
+                    val_logger.warning("  Not found on Yahoo Finance for %s (%s)", ticker, tf)
+                    results.append(
+                        ValidationResult(
+                            ticker=ticker,
+                            timeframe=tf,
+                            our_bar_count=len(our_df),
+                            ref_bar_count=0,
+                            overlapping_bars=0,
+                            group=group,
+                            error="Not found on Yahoo Finance",
+                            meta=meta,
+                        )
+                    )
+                    continue
+
+                val_logger.info("  YF: %d bars", len(ref_df))
+
+                # Compare
+                result = compare_candles(ticker, tf, our_df, ref_df, group=group)
+                result.meta = meta
+                val_logger.info(
+                    "  Result: %s  overlap=%d  mismatches=%d  match=%.1f%%",
+                    result.status,
+                    result.overlapping_bars,
+                    result.mismatch_count,
+                    result.match_pct,
+                )
+                if result.error:
+                    val_logger.warning("  Error: %s", result.error)
+                results.append(result)
+
+            except Exception as e:
+                val_logger.error("  EXCEPTION for %s (%s): %s", ticker, tf, e, exc_info=True)
                 results.append(
                     ValidationResult(
                         ticker=ticker,
@@ -214,224 +268,176 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         ref_bar_count=0,
                         overlapping_bars=0,
                         group=group,
-                        error="No data in our DB",
+                        error=str(e),
                         meta=meta,
                     )
                 )
-                continue
 
-            val_logger.info("  Our DB: %d bars", len(our_df))
+            # Gentle rate limit for Yahoo Finance
+            if idx < total_jobs - 1:
+                time.sleep(1.5)
 
-            # Fetch Yahoo Finance data
-            ref_df = fetch_yf_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252))
+        progress_bar.progress(1.0, text="✅ Validation complete!")
+        status.update(label="Validation complete!", state="complete")
 
-            if ref_df is None or ref_df.empty:
-                val_logger.warning("  Not found on Yahoo Finance for %s (%s)", ticker, tf)
-                results.append(
-                    ValidationResult(
-                        ticker=ticker,
-                        timeframe=tf,
-                        our_bar_count=len(our_df),
-                        ref_bar_count=0,
-                        overlapping_bars=0,
-                        group=group,
-                        error="Not found on Yahoo Finance",
-                        meta=meta,
-                    )
-                )
-                continue
+        # --- Phase 4: Save failures ---
+        save_failures(results, random_tickers)
 
-            val_logger.info("  YF: %d bars", len(ref_df))
+        # --- Phase 4b: Save & display log ---
+        log_handler.flush()
+        log_contents = log_stream.getvalue()
 
-            # Compare
-            result = compare_candles(ticker, tf, our_df, ref_df, group=group)
-            result.meta = meta
-            val_logger.info(
-                "  Result: %s  overlap=%d  mismatches=%d  match=%.1f%%",
-                result.status,
-                result.overlapping_bars,
-                result.mismatch_count,
-                result.match_pct,
-            )
-            if result.error:
-                val_logger.warning("  Error: %s", result.error)
-            results.append(result)
+        # Write to file
+        with open(log_file_path, "w") as lf:
+            lf.write(log_contents)
 
-        except Exception as e:
-            val_logger.error("  EXCEPTION for %s (%s): %s", ticker, tf, e, exc_info=True)
-            results.append(
-                ValidationResult(
-                    ticker=ticker,
-                    timeframe=tf,
-                    our_bar_count=0,
-                    ref_bar_count=0,
-                    overlapping_bars=0,
-                    group=group,
-                    error=str(e),
-                    meta=meta,
-                )
+        st.divider()
+        st.subheader("📝 Run Log")
+        st.caption(f"Log saved to `{log_file_path}`")
+        with st.expander("Show full log", expanded=False):
+            st.code(log_contents, language="log")
+        st.download_button(
+            "📥 Download Log File",
+            log_contents,
+            file_name=log_file_path.name,
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+        # --- Phase 5: Display results ---
+        st.divider()
+
+        # Summary metrics
+        summary = compute_summary(results)
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Checks", summary["total_combinations"])
+        col2.metric("✅ Passed", summary["passed"])
+        col3.metric("⚠️ Mismatches", summary["failed"])
+        col4.metric("Overall Match", f"{summary['overall_match_pct']:.1f}%")
+
+        if summary["errors"] > 0:
+            st.warning(
+                f"❗ {summary['errors']} check(s) had errors (ticker not found, Yahoo Finance unavailable, etc.)"
             )
 
-        # Gentle rate limit for Yahoo Finance
-        if idx < total_jobs - 1:
-            time.sleep(1.5)
+        if summary["failed"] == 0 and summary["errors"] == 0:
+            st.success("🎉 **All data matches Yahoo Finance within tolerance!**")
+        elif summary["failed"] > 0:
+            st.warning(
+                f"⚠️ **{summary['total_mismatches']} field mismatch(es)** found across "
+                f"{summary['failed']} ticker/timeframe combination(s). "
+                "Failures have been saved for review."
+            )
 
-    progress_bar.progress(1.0, text="✅ Validation complete!")
-    status.update(label="Validation complete!", state="complete")
+        # Results table
+        st.subheader("📊 Results")
 
-    # --- Phase 4: Save failures ---
-    save_failures(results, random_tickers)
+        table_data = []
+        for r in results:
+            m = r.meta
+            table_data.append(
+                {
+                    "Status": r.status,
+                    "Ticker": r.ticker,
+                    "Type": m.type_label if m else "—",
+                    "Avg Vol (90d)": f"{m.avg_volume_90d:,}" if m else "—",
+                    "Group": r.group.title(),
+                    "Timeframe": r.timeframe.title(),
+                    "Our Bars": r.our_bar_count,
+                    "YF Bars": r.ref_bar_count,
+                    "Overlap": r.overlapping_bars,
+                    "Match %": f"{r.match_pct:.1f}%" if not r.error else "—",
+                    "Mismatches": r.mismatch_count if not r.error else "—",
+                    "Worst Diff": r.worst_diff if not r.error else r.error,
+                    "Note": r.note,
+                }
+            )
 
-    # --- Phase 4b: Save & display log ---
-    val_logger.removeHandler(log_handler)
-    root_logger.removeHandler(log_handler)
-    log_handler.flush()
-    log_contents = log_stream.getvalue()
-
-    # Write to file
-    with open(log_file_path, "w") as lf:
-        lf.write(log_contents)
-
-    st.divider()
-    st.subheader("📝 Run Log")
-    st.caption(f"Log saved to `{log_file_path}`")
-    with st.expander("Show full log", expanded=False):
-        st.code(log_contents, language="log")
-    st.download_button(
-        "📥 Download Log File",
-        log_contents,
-        file_name=log_file_path.name,
-        mime="text/plain",
-        use_container_width=True,
-    )
-
-    # --- Phase 5: Display results ---
-    st.divider()
-
-    # Summary metrics
-    summary = compute_summary(results)
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Checks", summary["total_combinations"])
-    col2.metric("✅ Passed", summary["passed"])
-    col3.metric("⚠️ Mismatches", summary["failed"])
-    col4.metric("Overall Match", f"{summary['overall_match_pct']:.1f}%")
-
-    if summary["errors"] > 0:
-        st.warning(
-            f"❗ {summary['errors']} check(s) had errors (ticker not found, Yahoo Finance unavailable, etc.)"
+        results_df = pd.DataFrame(table_data)
+        st.dataframe(
+            results_df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Status": st.column_config.TextColumn(width="small"),
+                "Type": st.column_config.TextColumn(width="small"),
+                "Avg Vol (90d)": st.column_config.TextColumn(width="small"),
+                "Match %": st.column_config.TextColumn(width="small"),
+                "Note": st.column_config.TextColumn(width="medium"),
+            },
         )
 
-    if summary["failed"] == 0 and summary["errors"] == 0:
-        st.success("🎉 **All data matches Yahoo Finance within tolerance!**")
-    elif summary["failed"] > 0:
-        st.warning(
-            f"⚠️ **{summary['total_mismatches']} field mismatch(es)** found across "
-            f"{summary['failed']} ticker/timeframe combination(s). "
-            "Failures have been saved and will be re-checked next run."
-        )
+        # Detailed mismatches (expandable)
+        mismatched_results = [r for r in results if r.mismatch_count > 0]
+        if mismatched_results:
+            st.subheader("🔎 Mismatch Details")
+            for r in mismatched_results:
+                with st.expander(f"{r.ticker} / {r.timeframe} — {r.mismatch_count} mismatch(es)"):
+                    mismatch_data = []
+                    for m in sorted(r.mismatches, key=lambda x: abs(x.pct_diff), reverse=True):
+                        if m.is_significant:
+                            mismatch_data.append(
+                                {
+                                    "Date": m.date,
+                                    "Field": m.field,
+                                    "Our Value": f"{m.our_value:.4f}",
+                                    "YF Value": f"{m.ref_value:.4f}",
+                                    "Diff %": f"{m.pct_diff:+.2f}%",
+                                }
+                            )
+                    if mismatch_data:
+                        st.dataframe(
+                            pd.DataFrame(mismatch_data),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
 
-    # Results table
-    st.subheader("📊 Results")
-
-    table_data = []
-    for r in results:
-        m = r.meta
-        table_data.append(
-            {
-                "Status": r.status,
-                "Ticker": r.ticker,
-                "Type": m.type_label if m else "—",
-                "Avg Vol (90d)": f"{m.avg_volume_90d:,}" if m else "—",
-                "Group": r.group.title(),
-                "Timeframe": r.timeframe.title(),
-                "Our Bars": r.our_bar_count,
-                "YF Bars": r.ref_bar_count,
-                "Overlap": r.overlapping_bars,
-                "Match %": f"{r.match_pct:.1f}%" if not r.error else "—",
-                "Mismatches": r.mismatch_count if not r.error else "—",
-                "Worst Diff": r.worst_diff if not r.error else r.error,
-                "Note": r.note,
-            }
-        )
-
-    results_df = pd.DataFrame(table_data)
-    st.dataframe(
-        results_df,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Status": st.column_config.TextColumn(width="small"),
-            "Type": st.column_config.TextColumn(width="small"),
-            "Avg Vol (90d)": st.column_config.TextColumn(width="small"),
-            "Match %": st.column_config.TextColumn(width="small"),
-            "Note": st.column_config.TextColumn(width="medium"),
-        },
-    )
-
-    # Detailed mismatches (expandable)
-    mismatched_results = [r for r in results if r.mismatch_count > 0]
-    if mismatched_results:
-        st.subheader("🔎 Mismatch Details")
-        for r in mismatched_results:
-            with st.expander(f"{r.ticker} / {r.timeframe} — {r.mismatch_count} mismatch(es)"):
-                mismatch_data = []
-                for m in sorted(r.mismatches, key=lambda x: abs(x.pct_diff), reverse=True):
-                    if m.is_significant:
-                        mismatch_data.append(
+        # CSV download
+        if results:
+            csv_rows = []
+            for r in results:
+                if r.mismatches:
+                    for m in r.mismatches:
+                        csv_rows.append(
                             {
-                                "Date": m.date,
-                                "Field": m.field,
-                                "Our Value": f"{m.our_value:.4f}",
-                                "YF Value": f"{m.ref_value:.4f}",
-                                "Diff %": f"{m.pct_diff:+.2f}%",
+                                "ticker": m.ticker,
+                                "timeframe": m.timeframe,
+                                "date": m.date,
+                                "field": m.field,
+                                "our_value": m.our_value,
+                                "yf_value": m.ref_value,
+                                "pct_diff": m.pct_diff,
+                                "significant": m.is_significant,
+                                "group": r.group,
                             }
                         )
-                if mismatch_data:
-                    st.dataframe(
-                        pd.DataFrame(mismatch_data),
-                        use_container_width=True,
-                        hide_index=True,
-                    )
-
-    # CSV download
-    if results:
-        csv_rows = []
-        for r in results:
-            if r.mismatches:
-                for m in r.mismatches:
+                else:
                     csv_rows.append(
                         {
-                            "ticker": m.ticker,
-                            "timeframe": m.timeframe,
-                            "date": m.date,
-                            "field": m.field,
-                            "our_value": m.our_value,
-                            "yf_value": m.ref_value,
-                            "pct_diff": m.pct_diff,
-                            "significant": m.is_significant,
+                            "ticker": r.ticker,
+                            "timeframe": r.timeframe,
+                            "date": "—",
+                            "field": "ALL OK" if not r.error else "ERROR",
+                            "our_value": r.our_bar_count,
+                            "yf_value": r.ref_bar_count,
+                            "pct_diff": 0,
+                            "significant": False,
                             "group": r.group,
                         }
                     )
-            else:
-                csv_rows.append(
-                    {
-                        "ticker": r.ticker,
-                        "timeframe": r.timeframe,
-                        "date": "—",
-                        "field": "ALL OK" if not r.error else "ERROR",
-                        "our_value": r.our_bar_count,
-                        "yf_value": r.ref_bar_count,
-                        "pct_diff": 0,
-                        "significant": False,
-                        "group": r.group,
-                    }
-                )
 
-        csv_df = pd.DataFrame(csv_rows)
-        st.download_button(
-            "📥 Download Full Report (CSV)",
-            csv_df.to_csv(index=False),
-            file_name="validation_report.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
+            csv_df = pd.DataFrame(csv_rows)
+            st.download_button(
+                "📥 Download Full Report (CSV)",
+                csv_df.to_csv(index=False),
+                file_name="validation_report.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+    finally:
+        # Always detach log handlers to prevent duplicates on next rerun
+        val_logger.removeHandler(log_handler)
+        root_logger.removeHandler(log_handler)
+        log_handler.flush()
+        log_stream.close()

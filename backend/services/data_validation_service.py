@@ -347,27 +347,40 @@ def compare_candles(
         ours_col = f"{field_name}_ours"
         ref_col = f"{field_name}_ref"
 
-        for _, row in merged.iterrows():
+        # Vectorized percentage-difference computation (avoids slow iterrows)
+        our_vals = merged[ours_col].astype(float)
+        ref_vals = merged[ref_col].astype(float)
+
+        pct_diff = (our_vals - ref_vals).abs() / ref_vals.abs()
+
+        # Handle ref == 0: both zero → 0% diff; only ref zero → 100% diff
+        ref_zero = ref_vals == 0
+        both_zero = ref_zero & (our_vals == 0)
+        pct_diff = pct_diff.mask(ref_zero & ~both_zero, 1.0)
+        pct_diff = pct_diff.mask(both_zero, 0.0)
+
+        mismatches_mask = pct_diff > tolerance
+        if not mismatches_mask.any():
+            continue
+
+        for row_idx in merged.loc[mismatches_mask].index:
+            row = merged.loc[row_idx]
             our_val = float(row[ours_col])
             ref_val = float(row[ref_col])
+            pct_val = float(pct_diff.loc[row_idx])
 
-            if ref_val == 0 and our_val == 0:
-                continue
-            pct_diff = 1.0 if ref_val == 0 else abs(our_val - ref_val) / abs(ref_val)
-
-            if pct_diff > tolerance:
-                result.mismatches.append(
-                    CandleMismatch(
-                        ticker=ticker,
-                        timeframe=timeframe,
-                        date=str(row["date"]),
-                        field=field_name,
-                        our_value=our_val,
-                        ref_value=ref_val,
-                        pct_diff=round(pct_diff * 100, 4),
-                        tolerance=tolerance,
-                    )
+            result.mismatches.append(
+                CandleMismatch(
+                    ticker=ticker,
+                    timeframe=timeframe,
+                    date=str(row["date"]),
+                    field=field_name,
+                    our_value=our_val,
+                    ref_value=ref_val,
+                    pct_diff=round(pct_val * 100, 4),
+                    tolerance=tolerance,
                 )
+            )
 
     return result
 

@@ -73,7 +73,7 @@
 - [x] Trading Journal — Streamlit UI (trade list, entry form, detail view, PDF download, what-if display) — Session 23
 - [x] Split-adjusted chart prices (smooth continuous charts, toggle adjusted/raw) — Session 28
 - [x] Split-adjusted weekly/monthly/quarterly candles (re-aggregate from adjusted daily data) — Session 28b
-- [x] Data validation (service, Streamlit UI, 43 tests, hardened: 10% volume tolerance, log capture) — Session 28d
+- [x] Data validation (service, Streamlit UI, 43 tests, hardened: 10% volume tolerance, log capture) — Sessions 28d/28g
 - [ ] Watchlist management backend
 - [ ] Watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)

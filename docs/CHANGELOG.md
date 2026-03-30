@@ -28,7 +28,7 @@
 - **Expanded fixed ticker set to 10** — AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI.
 - **Extended validation windows** — daily: 2520 bars (~10yr), weekly: 520, monthly: 120, quarterly: 40.
 
-### Changed
+### Changed (continued — data validation details)
 - **Data Validation service** (`backend/services/data_validation_service.py`) — backend service for comparing OHLCV data (daily, weekly, monthly, quarterly) between PraxiAlpha's database and Yahoo Finance. Includes bar-by-bar comparison with configurable tolerances (1% price, 10% volume), quarterly aggregation from YF monthly data, failure persistence (JSON), and summary computation.
 - **43 validation tests** (`backend/tests/test_data_validation.py`, 494 total) — all tests pass with no changes to test logic (tests exercise comparison/aggregation/persistence, not the fetch layer).
 - **Volume tolerance at 10%** — `DEFAULT_VOLUME_TOLERANCE` accounts for data provider consolidation differences (exchange-only vs dark-pool-inclusive volumes).

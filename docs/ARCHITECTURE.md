@@ -259,7 +259,7 @@ We validate our EODHD-sourced OHLCV data against **Yahoo Finance** (an independe
 |--------|---------|
 | **Service** | `backend/services/data_validation_service.py` |
 | **Streamlit UI** | `streamlit_app/pages/validation.py` |
-| **Tickers** | 5 fixed split-test tickers (AAPL, MSFT, NVDA, SMH, TSLA) |
+| **Tickers** | 10 fixed split-test tickers (AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI) + 10 random |
 | **Timeframes** | Daily, weekly, monthly, quarterly |
 | **Tolerances** | Price: 1%, Volume: 10% |
 | **Quarterly** | Yahoo Finance doesn't provide quarterly — we fetch monthly and aggregate |

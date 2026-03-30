@@ -4,8 +4,8 @@ Quick debug script to verify yfinance works without a subscription
 and produces the same data shapes the validation page expects.
 
 Usage:
-    python3 scripts/debug_yfinance.py
-    python3 scripts/debug_yfinance.py --tickers AAPL MSFT --timeframes daily weekly
+    PYTHONPATH=. python3 scripts/debug_yfinance.py
+    PYTHONPATH=. python3 scripts/debug_yfinance.py --tickers AAPL MSFT --timeframes daily weekly
 """
 
 from __future__ import annotations
@@ -21,102 +21,13 @@ except ImportError:
     print("❌ yfinance not installed. Run: pip install yfinance")
     sys.exit(1)
 
-import pandas as pd
-
-# Replicate the exact constants from the validation service
-FIXED_TICKERS = ["AAPL", "MSFT", "NVDA", "SMH", "TSLA"]
-ALL_TIMEFRAMES = ["daily", "weekly", "monthly", "quarterly"]
-TIMEFRAME_BARS = {
-    "daily": 252,
-    "weekly": 104,
-    "monthly": 60,
-    "quarterly": 20,
-}
-_YF_INTERVALS = {
-    "daily": "1d",
-    "weekly": "1wk",
-    "monthly": "1mo",
-}
-_YF_PERIODS = {
-    "daily": "2y",
-    "weekly": "5y",
-    "monthly": "10y",
-}
-
-
-def fetch_yf_candles(ticker: str, timeframe: str, n_bars: int) -> pd.DataFrame | None:
-    """
-    Exact replica of the service's fetch_yf_candles() for local testing.
-    """
-    if timeframe == "quarterly":
-        monthly_df = fetch_yf_candles(ticker, "monthly", n_bars * 3)
-        if monthly_df is None:
-            return None
-        return _aggregate_monthly_to_quarterly(monthly_df)
-
-    interval = _YF_INTERVALS.get(timeframe)
-    if interval is None:
-        print(f"  ⚠️  Timeframe {timeframe} not supported")
-        return None
-
-    period = _YF_PERIODS.get(timeframe, "2y")
-
-    try:
-        yticker = yf.Ticker(ticker)
-        df = yticker.history(period=period, interval=interval, auto_adjust=True)
-    except Exception as e:
-        print(f"  ❌ yfinance error: {e}")
-        return None
-
-    if df is None or df.empty:
-        print("  ⚠️  No data returned")
-        return None
-
-    df = df.reset_index()
-
-    # Normalise date column
-    date_col = "Date" if "Date" in df.columns else "Datetime"
-    if date_col not in df.columns:
-        date_col = df.columns[0]
-
-    df["date"] = pd.to_datetime(df[date_col]).dt.date
-
-    # Rename title-case → lowercase
-    col_map = {
-        "Open": "open",
-        "High": "high",
-        "Low": "low",
-        "Close": "close",
-        "Volume": "volume",
-    }
-    df = df.rename(columns=col_map)
-
-    required = {"date", "open", "high", "low", "close", "volume"}
-    if not required.issubset(set(df.columns)):
-        print(f"  ⚠️  Missing columns. Got: {list(df.columns)}")
-        return None
-
-    result = df[["date", "open", "high", "low", "close", "volume"]].copy()
-    if len(result) > n_bars:
-        result = result.tail(n_bars).reset_index(drop=True)
-
-    return result
-
-
-def _aggregate_monthly_to_quarterly(monthly_df: pd.DataFrame) -> pd.DataFrame:
-    if monthly_df is None or monthly_df.empty:
-        return pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume"])
-    df = monthly_df.copy()
-    df["date"] = pd.to_datetime(df["date"])
-    df = df.set_index("date").sort_index()
-    quarterly = (
-        df.resample("QS")
-        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
-        .dropna()
-    )
-    quarterly = quarterly.reset_index()
-    quarterly["date"] = quarterly["date"].dt.date
-    return quarterly
+# Import constants and fetcher from the canonical service to stay in sync
+from backend.services.data_validation_service import (  # noqa: E402
+    ALL_TIMEFRAMES,
+    FIXED_TICKERS,
+    TIMEFRAME_BARS,
+    fetch_yf_candles,
+)
 
 
 def main() -> None:
@@ -125,7 +36,7 @@ def main() -> None:
         "--tickers",
         nargs="+",
         default=FIXED_TICKERS,
-        help="Tickers to test (default: AAPL MSFT NVDA SMH TSLA)",
+        help="Tickers to test (default: FIXED_TICKERS from service)",
     )
     parser.add_argument(
         "--timeframes",
