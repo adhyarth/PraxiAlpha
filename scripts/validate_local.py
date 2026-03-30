@@ -24,14 +24,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 # Disable SQLAlchemy echo before any backend imports
 os.environ.setdefault("APP_DEBUG", "false")
 
-# Suppress noisy SQLAlchemy / connection pool logs
+# Suppress noisy SQLAlchemy / connection pool logs.
+# Done once before imports, and once after, because the SQLAlchemy engine
+# creates new handlers at import time that override the first suppression.
 logging.basicConfig(level=logging.WARNING)
-for _name in ("sqlalchemy", "sqlalchemy.engine", "sqlalchemy.pool"):
-    logging.getLogger(_name).setLevel(logging.WARNING)
-    logging.getLogger(_name).handlers.clear()
-    logging.getLogger(_name).propagate = False
 
-import pandas as pd
+
+def _suppress_sqlalchemy_logs() -> None:
+    """Silence SQLAlchemy INFO/DEBUG chatter."""
+    for name in ("sqlalchemy", "sqlalchemy.engine", "sqlalchemy.pool"):
+        lg = logging.getLogger(name)
+        lg.setLevel(logging.WARNING)
+        lg.handlers.clear()
+        lg.propagate = False
+
+
+_suppress_sqlalchemy_logs()
 
 from backend.services.data_validation_service import (
     ALL_TIMEFRAMES,
@@ -42,14 +50,11 @@ from backend.services.data_validation_service import (
     fetch_our_candles,
     fetch_yf_candles,
     sample_random_tickers,
+    save_failures,
 )
 
-# Suppress SQLAlchemy echo=True output (engine creates handlers at import time)
-for _name in ("sqlalchemy", "sqlalchemy.engine", "sqlalchemy.pool"):
-    _logger = logging.getLogger(_name)
-    _logger.setLevel(logging.WARNING)
-    _logger.handlers.clear()
-    _logger.propagate = False
+# Re-suppress after backend imports (engine creates handlers at import time)
+_suppress_sqlalchemy_logs()
 
 
 # ------------------------------------------------------------------ #
@@ -241,19 +246,12 @@ async def main() -> None:
                     f"diff={m.pct_diff:+.2f}%"
                 )
 
+    # ---- Persist failures to JSON (same file Streamlit reads) ----
+    save_failures(all_results, random_tickers)
+
     print(f"\n{'=' * 78}")
     print(f"  Done! ({elapsed:.1f}s)")
     print(f"{'=' * 78}\n")
-
-
-def _print_tail(df: pd.DataFrame, n: int = 3) -> None:
-    """Print the last n rows of a candle DataFrame."""
-    tail = df.tail(n)
-    for _, row in tail.iterrows():
-        print(
-            f"    {row['date']}  O={row['open']:>10.4f}  H={row['high']:>10.4f}  "
-            f"L={row['low']:>10.4f}  C={row['close']:>10.4f}  V={int(row['volume']):>14,}"
-        )
 
 
 if __name__ == "__main__":

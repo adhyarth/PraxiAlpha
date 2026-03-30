@@ -285,9 +285,16 @@ def _last_completed_period_cutoff(timeframe: str, today: date | None = None) -> 
         # Monday of the current (incomplete) week
         return today - timedelta(days=today.weekday())
 
-    if timeframe in ("monthly", "quarterly"):
+    if timeframe == "monthly":
         # 1st of the current month — any bar in this month is incomplete
         return today.replace(day=1)
+
+    if timeframe == "quarterly":
+        # 1st of the current quarter — Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct.
+        # Any bar whose normalised date falls in the current quarter is
+        # incomplete and should be excluded.
+        quarter_start_month = ((today.month - 1) // 3) * 3 + 1
+        return today.replace(month=quarter_start_month, day=1)
 
     return None
 
@@ -614,6 +621,15 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
 
     Distribution: 3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs.
     Excludes the fixed tickers to avoid duplicates.
+
+    Filters:
+    - ``asset_type = 'Common Stock'`` (or 'ETF' for the ETF bucket)
+    - Ticker must not contain ``-``, ``+``, or end in ``W``/``U``/``R`` —
+      these are typically preferred shares, warrants, units, or rights
+      that have unreliable volume data across providers.
+    - 90-day average daily volume >= 10,000 shares to exclude ultra-
+      low-liquidity names where EODHD and Yahoo Finance routinely
+      disagree by 50-100%.
     """
     from sqlalchemy import text
 
@@ -622,14 +638,28 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
     exclude = set(FIXED_TICKERS)
     sampled: list[str] = []
 
+    # Subquery: only tickers with meaningful recent volume and no
+    # exotic suffixes (warrants -W, units -U, rights -R, preferred -P*).
+    common_stock_filter = (
+        "asset_type = 'Common Stock' "
+        "AND ticker !~ '[\\-\\+]' "
+        "AND ticker !~ '[WURP]$' "
+        "AND EXISTS ( "
+        "  SELECT 1 FROM daily_ohlcv d "
+        "  WHERE d.stock_id = stocks.id "
+        "    AND d.date > CURRENT_DATE - 90 "
+        "  GROUP BY d.stock_id "
+        "  HAVING AVG(d.volume) >= 10000 "
+        ") "
+    )
+
     async with async_session_factory() as session:
         # Sample from each exchange
         for exchange, count in RANDOM_SAMPLE_CONFIG.items():
             result = await session.execute(
                 text(
                     "SELECT ticker FROM stocks "
-                    "WHERE exchange = :exchange "
-                    "AND asset_type = 'Common Stock' "
+                    f"WHERE exchange = :exchange AND {common_stock_filter}"
                     "AND ticker != ALL(:exclude) "
                     "ORDER BY random() LIMIT :limit"
                 ),
@@ -639,11 +669,12 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
             sampled.extend(tickers)
             exclude.update(tickers)
 
-        # Sample ETFs from any exchange
+        # Sample ETFs from any exchange (ETFs generally have good volume)
         result = await session.execute(
             text(
                 "SELECT ticker FROM stocks "
                 "WHERE asset_type = 'ETF' "
+                "AND ticker !~ '[\\-\\+]' "
                 "AND ticker != ALL(:exclude) "
                 "ORDER BY random() LIMIT :limit"
             ),

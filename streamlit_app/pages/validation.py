@@ -95,22 +95,24 @@ if not YF_AVAILABLE:
     st.stop()
 
 
-def _get_persistent_loop() -> asyncio.AbstractEventLoop:
-    """Return a single long-lived event loop running in a daemon thread.
+# Module-level persistent event loop — asyncpg connections are bound to
+# the event loop that created them.  If we call ``asyncio.run()`` for
+# every DB query we get a *new* loop each time and the old connections
+# die with ``TCPTransport closed``.  Keeping one persistent loop avoids that.
+_PERSISTENT_LOOP: asyncio.AbstractEventLoop | None = None
 
-    asyncpg connections are bound to the event loop that created them.
-    If we call ``asyncio.run()`` for every DB query we get a *new* loop
-    each time and the old connections die with ``TCPTransport closed``.
-    Keeping one persistent loop avoids that.
-    """
-    if not hasattr(_get_persistent_loop, "_loop"):
+
+def _get_persistent_loop() -> asyncio.AbstractEventLoop:
+    """Return a single long-lived event loop running in a daemon thread."""
+    global _PERSISTENT_LOOP  # noqa: PLW0603
+    if _PERSISTENT_LOOP is None:
         import threading
 
         loop = asyncio.new_event_loop()
         thread = threading.Thread(target=loop.run_forever, daemon=True)
         thread.start()
-        _get_persistent_loop._loop = loop
-    return _get_persistent_loop._loop
+        _PERSISTENT_LOOP = loop
+    return _PERSISTENT_LOOP
 
 
 def _run_async(coro):
@@ -160,19 +162,9 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         random_tickers = []
         status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
 
-    # Retry tickers from previous failures (disabled for now)
-    retry_pairs: list[tuple[str, str]] = []
-    # retry_pairs = get_retry_tickers_from_failures()
-    # retry_tickers_set = set()
-    # for ticker, _tf in retry_pairs:
-    #     # Only add if not already in the ticker list
-    #     if ticker not in {t for t, _ in all_tickers_with_group}:
-    #         retry_tickers_set.add(ticker)
-    # for t in retry_tickers_set:
-    #     all_tickers_with_group.append((t, "retry"))
-
-    # if retry_pairs:
-    #     status.write(f"🔄 Re-checking {len(retry_pairs)} previously failed combination(s)")
+    # TODO: Re-check previously failed tickers automatically.
+    # Disabled for now — retry logic will be enabled once the failure
+    # persistence layer is validated end-to-end across CLI + Streamlit.
 
     # Build the full job list: (ticker, timeframe, group)
     jobs: list[tuple[str, str, str]] = []

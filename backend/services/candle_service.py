@@ -23,8 +23,11 @@ default behavior (Yahoo Finance, Bloomberg, etc.).
 The adjustment factor is computed from the ``stock_splits`` table:
 for each candle, we compute the cumulative product of all split ratios
 that occur *after* that date.  For example, if SMH had a 2:1 split on
-2023-05-05, all pre-split candles get factor = 0.5 (prices halved, volume
-doubled).  Post-split candles get factor = 1.0 (no change).
+2023-05-05, all pre-split candles get factor = 0.5 (prices halved).
+Post-split candles get factor = 1.0 (no change).
+
+**Volume is NOT adjusted** — EODHD already returns split-adjusted volume
+in its API responses, so applying the factor again would double-adjust.
 
 This approach was chosen over the EODHD ``adjusted_close`` column because
 ``adjusted_close`` includes *both* split and dividend adjustments.  Dividend

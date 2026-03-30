@@ -9,6 +9,7 @@ WITHOUT requiring a Yahoo Finance connection or yfinance library.
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -17,6 +18,7 @@ import pytest
 from backend.services.data_validation_service import (
     CandleMismatch,
     ValidationResult,
+    _last_completed_period_cutoff,
     aggregate_monthly_to_quarterly,
     compare_candles,
     compute_summary,
@@ -77,7 +79,7 @@ class TestCandleMismatch:
             ref_value=48_000_000,
             pct_diff=4.0,
         )
-        # 4% < 5% volume tolerance → not significant
+        # 4% < 10% volume tolerance → not significant
         assert not m.is_significant
 
     def test_volume_above_tolerance(self):
@@ -90,7 +92,7 @@ class TestCandleMismatch:
             ref_value=45_000_000,
             pct_diff=11.1,
         )
-        assert m.is_significant  # 11.1% > 5%
+        assert m.is_significant  # 11.1% > 10%
 
 
 # ------------------------------------------------------------------ #
@@ -239,7 +241,7 @@ class TestCompareCandles:
         assert result.mismatch_count == 0
 
     def test_volume_tolerance_applied(self):
-        """Volume uses 5% tolerance, not 1%."""
+        """Volume uses 10% tolerance, not 1%."""
         our_data = [
             {
                 "date": "2026-01-15",
@@ -260,7 +262,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        # 4% volume diff — within 5% tolerance
+        # 4% volume diff — within 10% tolerance
         result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.mismatch_count == 0
 
@@ -458,6 +460,235 @@ class TestCompareCandles:
             },
         ]
         result = compare_candles("AAPL", "daily", _make_df(our_data), _make_df(ref_data))
+        assert result.mismatch_count == 0
+
+
+# ------------------------------------------------------------------ #
+#  _last_completed_period_cutoff tests                                 #
+# ------------------------------------------------------------------ #
+
+
+class TestLastCompletedPeriodCutoff:
+    """Tests for the incomplete-period cutoff calculation."""
+
+    def test_daily_returns_none(self):
+        """Daily bars are always complete — no cutoff needed."""
+        assert _last_completed_period_cutoff("daily", today=date(2026, 3, 25)) is None
+
+    def test_weekly_returns_monday(self):
+        """Weekly cutoff should be the Monday of the current week."""
+        # Wednesday 2026-03-25 → Monday 2026-03-23
+        assert _last_completed_period_cutoff("weekly", today=date(2026, 3, 25)) == date(2026, 3, 23)
+
+    def test_weekly_on_monday(self):
+        """On Monday itself, cutoff is that same Monday."""
+        assert _last_completed_period_cutoff("weekly", today=date(2026, 3, 23)) == date(2026, 3, 23)
+
+    def test_monthly_returns_first_of_month(self):
+        """Monthly cutoff should be the 1st of the current month."""
+        assert _last_completed_period_cutoff("monthly", today=date(2026, 3, 25)) == date(2026, 3, 1)
+
+    def test_monthly_on_first(self):
+        """On the 1st, cutoff is that same date."""
+        assert _last_completed_period_cutoff("monthly", today=date(2026, 3, 1)) == date(2026, 3, 1)
+
+    def test_quarterly_returns_first_of_quarter(self):
+        """Quarterly cutoff should be the 1st of the current quarter, not month."""
+        # March 25 → Q1 → Jan 1
+        assert _last_completed_period_cutoff("quarterly", today=date(2026, 3, 25)) == date(
+            2026, 1, 1
+        )
+
+    def test_quarterly_q2(self):
+        """April 15 → Q2 → Apr 1."""
+        assert _last_completed_period_cutoff("quarterly", today=date(2026, 4, 15)) == date(
+            2026, 4, 1
+        )
+
+    def test_quarterly_q3(self):
+        """August 1 → Q3 → Jul 1."""
+        assert _last_completed_period_cutoff("quarterly", today=date(2026, 8, 1)) == date(
+            2026, 7, 1
+        )
+
+    def test_quarterly_q4(self):
+        """November 30 → Q4 → Oct 1."""
+        assert _last_completed_period_cutoff("quarterly", today=date(2026, 11, 30)) == date(
+            2026, 10, 1
+        )
+
+    def test_unknown_timeframe(self):
+        """Unsupported timeframe returns None."""
+        assert _last_completed_period_cutoff("hourly") is None
+
+
+# ------------------------------------------------------------------ #
+#  Incomplete-period exclusion in compare_candles()                    #
+# ------------------------------------------------------------------ #
+
+
+class TestIncompletePeriodExclusion:
+    """Test that compare_candles() excludes the current incomplete period."""
+
+    def test_weekly_excludes_current_week(self):
+        """Bars in the current (incomplete) week should be excluded."""
+        # Both sources agree perfectly — but the bar is in the current week
+        # so it should be silently dropped, not compared.
+        # Use today=2026-03-30 (Monday) → cutoff=2026-03-30
+        # A bar dated 2026-03-30 should be excluded.
+        our_data = [
+            {
+                "date": "2026-03-23",
+                "open": 100,
+                "high": 105,
+                "low": 99,
+                "close": 103,
+                "volume": 1_000_000,
+            },
+            {
+                "date": "2026-03-30",
+                "open": 103,
+                "high": 108,
+                "low": 102,
+                "close": 107,
+                "volume": 500_000,
+            },
+        ]
+        # Ref has different volume for the current-week bar — should NOT be flagged
+        ref_data = [
+            {
+                "date": "2026-03-23",
+                "open": 100,
+                "high": 105,
+                "low": 99,
+                "close": 103,
+                "volume": 1_000_000,
+            },
+            {
+                "date": "2026-03-30",
+                "open": 103,
+                "high": 108,
+                "low": 102,
+                "close": 107,
+                "volume": 999_999,
+            },
+        ]
+        result = compare_candles("TEST", "weekly", _make_df(our_data), _make_df(ref_data))
+        # Only 1 bar should be compared (the completed week), not 2
+        assert result.overlapping_bars == 1
+        assert result.mismatch_count == 0
+
+    def test_monthly_excludes_current_month(self):
+        """Bars in the current month should be excluded."""
+        our_data = [
+            {
+                "date": "2026-02-01",
+                "open": 100,
+                "high": 105,
+                "low": 99,
+                "close": 103,
+                "volume": 1_000_000,
+            },
+            {
+                "date": "2026-03-01",
+                "open": 110,
+                "high": 115,
+                "low": 108,
+                "close": 112,
+                "volume": 800_000,
+            },
+        ]
+        ref_data = [
+            {
+                "date": "2026-02-01",
+                "open": 100,
+                "high": 105,
+                "low": 99,
+                "close": 103,
+                "volume": 1_000_000,
+            },
+            {
+                "date": "2026-03-01",
+                "open": 110,
+                "high": 115,
+                "low": 108,
+                "close": 112,
+                "volume": 500_000,
+            },
+        ]
+        result = compare_candles("TEST", "monthly", _make_df(our_data), _make_df(ref_data))
+        # March bar should be excluded — only Feb remains
+        assert result.overlapping_bars == 1
+        assert result.mismatch_count == 0
+
+    def test_quarterly_excludes_current_quarter(self):
+        """Bars in the current quarter should be excluded."""
+        # Today is 2026-03-30 → Q1 cutoff = 2026-01-01
+        our_data = [
+            {
+                "date": "2025-10-01",
+                "open": 90,
+                "high": 100,
+                "low": 88,
+                "close": 95,
+                "volume": 5_000_000,
+            },
+            {
+                "date": "2026-01-01",
+                "open": 100,
+                "high": 110,
+                "low": 98,
+                "close": 105,
+                "volume": 3_000_000,
+            },
+        ]
+        ref_data = [
+            {
+                "date": "2025-10-01",
+                "open": 90,
+                "high": 100,
+                "low": 88,
+                "close": 95,
+                "volume": 5_000_000,
+            },
+            {
+                "date": "2026-01-01",
+                "open": 100,
+                "high": 110,
+                "low": 98,
+                "close": 105,
+                "volume": 1_000_000,
+            },
+        ]
+        result = compare_candles("TEST", "quarterly", _make_df(our_data), _make_df(ref_data))
+        # Q1 2026 bar should be excluded — only Q4 2025 remains
+        assert result.overlapping_bars == 1
+        assert result.mismatch_count == 0
+
+    def test_daily_does_not_exclude(self):
+        """Daily candles should NOT have any period exclusion."""
+        our_data = [
+            {
+                "date": "2026-03-30",
+                "open": 100,
+                "high": 105,
+                "low": 99,
+                "close": 103,
+                "volume": 1_000_000,
+            },
+        ]
+        ref_data = [
+            {
+                "date": "2026-03-30",
+                "open": 100,
+                "high": 105,
+                "low": 99,
+                "close": 103,
+                "volume": 1_000_000,
+            },
+        ]
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
+        assert result.overlapping_bars == 1
         assert result.mismatch_count == 0
 
 
