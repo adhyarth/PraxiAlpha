@@ -181,8 +181,8 @@ discontinuities, indicators in expected ranges, controls behaving as intended).
 > visual defect.
 >
 > **If verification passes:** Note the result in the session's BUILD_LOG
-> entry (e.g., "GUI verified: SMH weekly chart with 200-SMA matches
-> TradingView, no split discontinuities"). Then proceed to Step 7.
+> entry (e.g., "GUI verified: SMH weekly chart with 200-SMA looks correct,
+> no split discontinuities"). Then proceed to Step 7.
 
 ### Step 7: Update All Documentation
 

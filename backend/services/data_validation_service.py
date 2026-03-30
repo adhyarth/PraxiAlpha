@@ -32,7 +32,7 @@ try:
 except ImportError:
     YF_AVAILABLE = False
 
-logger = logging.getLogger("tv_validate")
+logger = logging.getLogger("data_validate")
 
 
 # ------------------------------------------------------------------ #
@@ -64,7 +64,7 @@ DEFAULT_PRICE_TOLERANCE = 0.01
 DEFAULT_VOLUME_TOLERANCE = 0.10
 
 # Failure persistence file
-FAILURES_PATH = Path("data/tv_validation_failures.json")
+FAILURES_PATH = Path("data/data_validation_failures.json")
 
 # Random ticker sampling — exchange distribution
 RANDOM_SAMPLE_CONFIG = {

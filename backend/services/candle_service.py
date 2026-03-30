@@ -17,8 +17,8 @@ $124 (post-split).  Rebuilding from adjusted dailies eliminates this.
 Split adjustment (split-only, no dividend adjustment)
 -----------------------------------------------------
 When ``adjusted=True`` (the default), OHLC prices are retroactively adjusted
-for stock splits **only** — not dividends.  This matches TradingView's
-default behavior.
+for stock splits **only** — not dividends.  This matches the industry-standard
+default behavior (Yahoo Finance, Bloomberg, etc.).
 
 The adjustment factor is computed from the ``stock_splits`` table:
 for each candle, we compute the cumulative product of all split ratios
@@ -29,7 +29,7 @@ doubled).  Post-split candles get factor = 1.0 (no change).
 This approach was chosen over the EODHD ``adjusted_close`` column because
 ``adjusted_close`` includes *both* split and dividend adjustments.  Dividend
 adjustment pulls historical prices down by ~1-2% per year of cumulative
-dividends, causing our charts to diverge from TradingView, Yahoo Finance,
+dividends, causing our charts to diverge from Yahoo Finance,
 and Bloomberg (which all default to split-only adjustment).
 
 For non-daily timeframes (weekly, monthly, quarterly), when ``adjusted=True``
@@ -188,7 +188,7 @@ class CandleService:
             adjusted: If True (default), apply **split-only** adjustment to
                 OHLC prices using the cumulative split factor computed from
                 the ``stock_splits`` table.  Dividends are NOT included —
-                this matches TradingView / Yahoo / Bloomberg defaults.
+                this matches Yahoo Finance / Bloomberg defaults.
                 For daily candles, each row is adjusted individually.  For
                 non-daily timeframes, **adjusted daily candles are fetched
                 and re-aggregated in Python** using pandas ``resample()``

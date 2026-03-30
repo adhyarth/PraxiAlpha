@@ -102,7 +102,7 @@ with st.sidebar:
         help=(
             "When enabled, historical prices are adjusted for stock splits "
             "only (no dividend adjustment), producing a smooth continuous "
-            "chart matching TradingView. For weekly/monthly/quarterly charts, "
+            "chart matching industry-standard charting platforms. For weekly/monthly/quarterly charts, "
             "adjusted daily candles are re-aggregated so splits mid-period are "
             "handled correctly. Disable to see raw historical prices."
         ),

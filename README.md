@@ -19,7 +19,7 @@ A modular, cloud-hosted, systematic trading and education platform for retail in
 | **Backend** | Python 3.11+, FastAPI, Celery + Redis |
 | **Database** | PostgreSQL + TimescaleDB |
 | **Data Providers** | EODHD (market data), FRED (macro data) |
-| **Data Validation** | TradingView Premium (via `tvdatafeed`) |
+| **Data Validation** | Yahoo Finance (via `yfinance`) |
 | **Dashboard (MVP)** | Streamlit |
 | **Frontend (Production)** | React + TypeScript + TailwindCSS |
 | **Infrastructure** | Docker, AWS ECS (Fargate) |
@@ -106,7 +106,7 @@ PraxiAlpha/
 │   ├── models/           # SQLAlchemy ORM models
 │   ├── services/         # Business logic
 │   │   ├── candle_service.py        # Split-adjusted OHLCV
-│   │   ├── tv_validation_service.py # TradingView data validation
+│   │   ├── data_validation_service.py # Second-source data validation
 │   │   ├── data_pipeline/           # EODHD & FRED fetchers
 │   │   ├── analysis/                # Technical analysis
 │   │   ├── trading/                 # Strategy & execution
@@ -117,8 +117,7 @@ PraxiAlpha/
 ├── streamlit_app/        # Streamlit MVP dashboard
 │   └── pages/            # Charts, Journal, Validation
 ├── scripts/              # Utility scripts
-│   ├── validate_tradingview.py  # CLI data validation
-│   └── debug_aapl_volume.py     # Volume investigation
+│   └── ...
 ├── data/migrations/      # Alembic DB migrations
 ├── education_content/    # Curriculum content
 ├── notebooks/            # Jupyter exploration
@@ -148,10 +147,10 @@ Once the server is running, visit:
 ## Data Coverage
 
 - **~49,000+ US stocks & ETFs** (NYSE, NASDAQ, AMEX)
-- **58M+ daily OHLCV records** with split-adjusted prices matching TradingView
+- **58M+ daily OHLCV records** with split-adjusted prices
 - **Weekly, monthly, quarterly candle aggregates** (TimescaleDB continuous aggregates)
 - **14 macroeconomic indicators** from FRED (Treasury yields, VIX, DXY, oil, inflation expectations, etc.)
-- **Data validation** — cross-checked against TradingView Premium (1% price, 10% volume tolerance)
+- **Data validation** — cross-checked against Yahoo Finance as an independent second source (1% price, 10% volume tolerance)
 
 ---
 

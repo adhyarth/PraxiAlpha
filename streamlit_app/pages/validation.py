@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from backend.services.tv_validation_service import (
+from backend.services.data_validation_service import (
     ALL_TIMEFRAMES,
     FIXED_TICKERS,
     TIMEFRAME_BARS,
@@ -88,9 +88,7 @@ Monthly ({TIMEFRAME_BARS["monthly"]}), Quarterly ({TIMEFRAME_BARS["quarterly"]})
 # ============================================================
 
 if not YF_AVAILABLE:
-    st.error(
-        '❌ **yfinance is not installed.** Install with: `pip install "praxialpha[validate]"`'
-    )
+    st.error('❌ **yfinance is not installed.** Install with: `pip install "praxialpha[validate]"`')
     st.stop()
 
 
@@ -120,8 +118,8 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     log_handler.setFormatter(
         logging.Formatter("%(asctime)s  %(name)-20s  %(levelname)-7s  %(message)s")
     )
-    # Attach to the tv_validate logger and root logger
-    tv_logger = logging.getLogger("tv_validate")
+    # Attach to the data_validate logger and root logger
+    tv_logger = logging.getLogger("data_validate")
     tv_logger.setLevel(logging.DEBUG)
     tv_logger.addHandler(log_handler)
     root_logger = logging.getLogger()
@@ -130,7 +128,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     LOG_DIR = Path("data")
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = LOG_DIR / f"tv_validation_{run_ts}.log"
+    log_file_path = LOG_DIR / f"data_validation_{run_ts}.log"
 
     # --- Phase 1: Build ticker list ---
     status = st.status("Building ticker list...", expanded=True)
@@ -402,8 +400,9 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                             "ticker": m.ticker,
                             "timeframe": m.timeframe,
                             "date": m.date,
-                            "field": m.field,                        "our_value": m.our_value,
-                        "yf_value": m.tv_value,
+                            "field": m.field,
+                            "our_value": m.our_value,
+                            "yf_value": m.tv_value,
                             "pct_diff": m.pct_diff,
                             "significant": m.is_significant,
                             "group": r.group,
@@ -415,8 +414,9 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         "ticker": r.ticker,
                         "timeframe": r.timeframe,
                         "date": "—",
-                        "field": "ALL OK" if not r.error else "ERROR",                    "our_value": r.our_bar_count,
-                    "yf_value": r.tv_bar_count,
+                        "field": "ALL OK" if not r.error else "ERROR",
+                        "our_value": r.our_bar_count,
+                        "yf_value": r.tv_bar_count,
                         "pct_diff": 0,
                         "significant": False,
                         "group": r.group,

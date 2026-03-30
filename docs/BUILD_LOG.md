@@ -2259,12 +2259,12 @@ Addressed all 6 Copilot review comments on PR #27:
 - When swapping a data fetch layer, if the rest of the architecture (service layer, comparison logic, tests, UI) is provider-agnostic, the migration is minimal — just the fetch function and the import.
 
 #### Files Changed
-- `backend/services/tv_validation_service.py` — replaced TV fetcher with yfinance, updated imports/comments/docstrings
+- `backend/services/tv_validation_service.py` → renamed to `data_validation_service.py` — replaced TV fetcher with yfinance, updated imports/comments/docstrings
 - `streamlit_app/pages/validation.py` — updated imports, labels, removed TV client logic
 - `backend/config.py` — removed `tv_username`, `tv_password`
 - `.env.example` — removed TV credential placeholders
 - `pyproject.toml` — swapped `tv-validate` → `validate` dep group (yfinance)
-- `backend/tests/test_tv_validation.py` — updated docstring and error strings
+- `backend/tests/test_tv_validation.py` → renamed to `test_data_validation.py` — updated imports, docstring and error strings
 - `scripts/validate_tradingview.py` — **deleted**
 - `scripts/debug_aapl_volume.py` — **deleted**
 - `scripts/debug_volume_multi.py` — **deleted**

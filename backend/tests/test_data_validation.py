@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from backend.services.tv_validation_service import (
+from backend.services.data_validation_service import (
     CandleMismatch,
     ValidationResult,
     aggregate_monthly_to_quarterly,
@@ -664,8 +664,8 @@ class TestFailurePersistence:
 
     def test_save_and_load_failures(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """Saving failures and loading them round-trips correctly."""
-        failure_path = tmp_path / "tv_validation_failures.json"
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        failure_path = tmp_path / "data_validation_failures.json"
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
 
         results = [
             ValidationResult(
@@ -701,10 +701,10 @@ class TestFailurePersistence:
 
     def test_all_pass_deletes_failure_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """When all results pass, the failure file should be deleted."""
-        failure_path = tmp_path / "tv_validation_failures.json"
+        failure_path = tmp_path / "data_validation_failures.json"
         # Create a pre-existing failure file
         failure_path.write_text('{"failures": []}')
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
 
         results = [
             ValidationResult(
@@ -723,19 +723,19 @@ class TestFailurePersistence:
     def test_load_nonexistent_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """Loading from a non-existent path should return None."""
         failure_path = tmp_path / "does_not_exist.json"
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
         assert load_previous_failures() is None
 
     def test_load_corrupt_json(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """Loading corrupt JSON should return None, not crash."""
         failure_path = tmp_path / "bad.json"
         failure_path.write_text("NOT VALID JSON{{{")
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
         assert load_previous_failures() is None
 
     def test_get_retry_tickers(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """get_retry_tickers_from_failures returns (ticker, timeframe) pairs."""
-        failure_path = tmp_path / "tv_validation_failures.json"
+        failure_path = tmp_path / "data_validation_failures.json"
         data = {
             "timestamp": "2025-01-01T00:00:00",
             "failures": [
@@ -761,7 +761,7 @@ class TestFailurePersistence:
             "random_tickers": [],
         }
         failure_path.write_text(json.dumps(data))
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
 
         retries = get_retry_tickers_from_failures()
         assert retries == [("AAPL", "daily"), ("NVDA", "weekly")]
@@ -769,13 +769,13 @@ class TestFailurePersistence:
     def test_get_retry_tickers_no_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """No failure file should return empty list."""
         failure_path = tmp_path / "none.json"
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
         assert get_retry_tickers_from_failures() == []
 
     def test_save_error_results(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        """Error results (e.g. TV unavailable) should also be persisted."""
-        failure_path = tmp_path / "tv_validation_failures.json"
-        monkeypatch.setattr("backend.services.tv_validation_service.FAILURES_PATH", failure_path)
+        """Error results (e.g. second source unavailable) should also be persisted."""
+        failure_path = tmp_path / "data_validation_failures.json"
+        monkeypatch.setattr("backend.services.data_validation_service.FAILURES_PATH", failure_path)
 
         results = [
             ValidationResult(

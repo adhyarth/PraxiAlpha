@@ -371,7 +371,7 @@ class TestSplitAdjustment:
 
     Adjustment now uses the ``stock_splits`` table to compute cumulative
     split factors — NOT the EODHD ``adjusted_close`` column (which
-    includes dividend adjustments that TradingView does not apply by
+    includes dividend adjustments that most charting platforms do not apply by
     default).
     """
 
