@@ -34,6 +34,7 @@ from backend.services.data_validation_service import (
     fetch_stock_metadata,
     fetch_yf_candles,
     load_previous_failures,
+    sample_random_tickers,
     save_failures,
 )
 
@@ -69,10 +70,12 @@ if prev_failures:
 
 with st.expander("ℹ️ What gets validated?"):
     st.markdown(f"""
-**{len(FIXED_TICKERS)} tickers** across **4 timeframes** = up to **{len(FIXED_TICKERS) * 4} comparisons**
+**{len(FIXED_TICKERS)} fixed tickers + 10 random** across **4 timeframes** = up to **{(len(FIXED_TICKERS) + 10) * 4} comparisons**
 
 **Fixed stress-test tickers:**
 {", ".join(f"`{t}`" for t in FIXED_TICKERS)}
+
+**+ 10 random tickers** sampled from our DB (3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs)
 
 **Timeframes:** Daily ({TIMEFRAME_BARS["daily"]} bars), Weekly ({TIMEFRAME_BARS["weekly"]}),
 Monthly ({TIMEFRAME_BARS["monthly"]}), Quarterly ({TIMEFRAME_BARS["quarterly"]})
@@ -145,19 +148,19 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     # Fixed tickers
     all_tickers_with_group: list[tuple[str, str]] = [(t, "fixed") for t in FIXED_TICKERS]
 
-    # Random tickers (disabled for now — re-enable after stable)
+    # Random tickers
     random_tickers: list[str] = []
-    # try:
-    #     random_tickers = _run_async(sample_random_tickers(10))
-    #     all_tickers_with_group.extend((t, "random") for t in random_tickers)
-    #     status.write(
-    #         f"✅ Sampled {len(random_tickers)} random tickers: {', '.join(random_tickers)}"
-    #     )
-    # except Exception as e:
-    #     random_tickers = []
-    #     status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
+    try:
+        random_tickers = _run_async(sample_random_tickers(10))
+        all_tickers_with_group.extend((t, "random") for t in random_tickers)
+        status.write(
+            f"✅ Sampled {len(random_tickers)} random tickers: {', '.join(random_tickers)}"
+        )
+    except Exception as e:
+        random_tickers = []
+        status.write(f"⚠️ Could not sample random tickers (DB unavailable?): {e}")
 
-    # Retry tickers from previous failures (disabled for now — re-enable after stable)
+    # Retry tickers from previous failures (disabled for now)
     retry_pairs: list[tuple[str, str]] = []
     # retry_pairs = get_retry_tickers_from_failures()
     # retry_tickers_set = set()
