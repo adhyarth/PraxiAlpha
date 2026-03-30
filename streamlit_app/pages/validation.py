@@ -119,9 +119,9 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         logging.Formatter("%(asctime)s  %(name)-20s  %(levelname)-7s  %(message)s")
     )
     # Attach to the data_validate logger and root logger
-    tv_logger = logging.getLogger("data_validate")
-    tv_logger.setLevel(logging.DEBUG)
-    tv_logger.addHandler(log_handler)
+    val_logger = logging.getLogger("data_validate")
+    val_logger.setLevel(logging.DEBUG)
+    val_logger.addHandler(log_handler)
     root_logger = logging.getLogger()
     root_logger.addHandler(log_handler)
 
@@ -186,7 +186,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         progress_pct = (idx + 1) / total_jobs
         progress_bar.progress(progress_pct, text=f"[{idx + 1}/{total_jobs}] {ticker} ({tf})...")
 
-        tv_logger.info("=== [%d/%d] %s / %s (group=%s) ===", idx + 1, total_jobs, ticker, tf, group)
+        val_logger.info("=== [%d/%d] %s / %s (group=%s) ===", idx + 1, total_jobs, ticker, tf, group)
 
         # Fetch metadata (once per ticker)
         if ticker not in meta_cache:
@@ -201,13 +201,13 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
             our_df = _run_async(fetch_our_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252)))
 
             if our_df is None or our_df.empty:
-                tv_logger.warning("  No data in our DB for %s (%s)", ticker, tf)
+                val_logger.warning("  No data in our DB for %s (%s)", ticker, tf)
                 results.append(
                     ValidationResult(
                         ticker=ticker,
                         timeframe=tf,
                         our_bar_count=0,
-                        tv_bar_count=0,
+                        ref_bar_count=0,
                         overlapping_bars=0,
                         group=group,
                         error="No data in our DB",
@@ -216,19 +216,19 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 )
                 continue
 
-            tv_logger.info("  Our DB: %d bars", len(our_df))
+            val_logger.info("  Our DB: %d bars", len(our_df))
 
             # Fetch Yahoo Finance data
-            tv_df = fetch_yf_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252))
+            ref_df = fetch_yf_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252))
 
-            if tv_df is None or tv_df.empty:
-                tv_logger.warning("  Not found on Yahoo Finance for %s (%s)", ticker, tf)
+            if ref_df is None or ref_df.empty:
+                val_logger.warning("  Not found on Yahoo Finance for %s (%s)", ticker, tf)
                 results.append(
                     ValidationResult(
                         ticker=ticker,
                         timeframe=tf,
                         our_bar_count=len(our_df),
-                        tv_bar_count=0,
+                        ref_bar_count=0,
                         overlapping_bars=0,
                         group=group,
                         error="Not found on Yahoo Finance",
@@ -237,12 +237,12 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 )
                 continue
 
-            tv_logger.info("  YF: %d bars", len(tv_df))
+            val_logger.info("  YF: %d bars", len(ref_df))
 
             # Compare
-            result = compare_candles(ticker, tf, our_df, tv_df, group=group)
+            result = compare_candles(ticker, tf, our_df, ref_df, group=group)
             result.meta = meta
-            tv_logger.info(
+            val_logger.info(
                 "  Result: %s  overlap=%d  mismatches=%d  match=%.1f%%",
                 result.status,
                 result.overlapping_bars,
@@ -250,17 +250,17 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 result.match_pct,
             )
             if result.error:
-                tv_logger.warning("  Error: %s", result.error)
+                val_logger.warning("  Error: %s", result.error)
             results.append(result)
 
         except Exception as e:
-            tv_logger.error("  EXCEPTION for %s (%s): %s", ticker, tf, e, exc_info=True)
+            val_logger.error("  EXCEPTION for %s (%s): %s", ticker, tf, e, exc_info=True)
             results.append(
                 ValidationResult(
                     ticker=ticker,
                     timeframe=tf,
                     our_bar_count=0,
-                    tv_bar_count=0,
+                    ref_bar_count=0,
                     overlapping_bars=0,
                     group=group,
                     error=str(e),
@@ -279,7 +279,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     save_failures(results, random_tickers)
 
     # --- Phase 4b: Save & display log ---
-    tv_logger.removeHandler(log_handler)
+    val_logger.removeHandler(log_handler)
     root_logger.removeHandler(log_handler)
     log_handler.flush()
     log_contents = log_stream.getvalue()
@@ -341,7 +341,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 "Group": r.group.title(),
                 "Timeframe": r.timeframe.title(),
                 "Our Bars": r.our_bar_count,
-                "YF Bars": r.tv_bar_count,
+                "YF Bars": r.ref_bar_count,
                 "Overlap": r.overlapping_bars,
                 "Match %": f"{r.match_pct:.1f}%" if not r.error else "—",
                 "Mismatches": r.mismatch_count if not r.error else "—",
@@ -378,7 +378,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                                 "Date": m.date,
                                 "Field": m.field,
                                 "Our Value": f"{m.our_value:.4f}",
-                                "YF Value": f"{m.tv_value:.4f}",
+                                "YF Value": f"{m.ref_value:.4f}",
                                 "Diff %": f"{m.pct_diff:+.2f}%",
                             }
                         )
@@ -402,7 +402,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                             "date": m.date,
                             "field": m.field,
                             "our_value": m.our_value,
-                            "yf_value": m.tv_value,
+                            "yf_value": m.ref_value,
                             "pct_diff": m.pct_diff,
                             "significant": m.is_significant,
                             "group": r.group,
@@ -416,7 +416,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         "date": "—",
                         "field": "ALL OK" if not r.error else "ERROR",
                         "our_value": r.our_bar_count,
-                        "yf_value": r.tv_bar_count,
+                        "yf_value": r.ref_bar_count,
                         "pct_diff": 0,
                         "significant": False,
                         "group": r.group,

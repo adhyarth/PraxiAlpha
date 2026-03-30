@@ -91,7 +91,7 @@ class CandleMismatch:
     date: str
     field: str  # open, high, low, close, volume
     our_value: float
-    tv_value: float
+    ref_value: float
     pct_diff: float  # stored as percentage (e.g. 1.35 = 1.35%)
     tolerance: float | None = None  # effective tolerance ratio used when created
 
@@ -157,7 +157,7 @@ class ValidationResult:
     ticker: str
     timeframe: str
     our_bar_count: int
-    tv_bar_count: int
+    ref_bar_count: int
     overlapping_bars: int
     group: str = "fixed"  # "fixed", "random", or "retry"
     mismatches: list[CandleMismatch] = field(default_factory=list)
@@ -216,7 +216,7 @@ class ValidationResult:
 
 def _normalize_dates_for_merge(
     our_df: pd.DataFrame,
-    tv_df: pd.DataFrame,
+    ref_df: pd.DataFrame,
     timeframe: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -233,17 +233,17 @@ def _normalize_dates_for_merge(
     - **quarterly**: same month-start logic but at quarter boundaries.
     """
     if timeframe == "daily":
-        return our_df, tv_df
+        return our_df, ref_df
 
     our = our_df.copy()
-    tv = tv_df.copy()
+    ref = ref_df.copy()
 
     if timeframe == "weekly":
         # Map each date to the Monday of that ISO week
         our["date"] = pd.to_datetime(our["date"]).apply(
             lambda d: (d - pd.Timedelta(days=d.weekday())).date()
         )
-        tv["date"] = pd.to_datetime(tv["date"]).apply(
+        ref["date"] = pd.to_datetime(ref["date"]).apply(
             lambda d: (d - pd.Timedelta(days=d.weekday())).date()
         )
     elif timeframe in ("monthly", "quarterly"):
@@ -251,18 +251,18 @@ def _normalize_dates_for_merge(
         our["date"] = pd.to_datetime(our["date"]).apply(
             lambda d: d.replace(day=1).date() if hasattr(d, "replace") else d
         )
-        tv["date"] = pd.to_datetime(tv["date"]).apply(
+        ref["date"] = pd.to_datetime(ref["date"]).apply(
             lambda d: d.replace(day=1).date() if hasattr(d, "replace") else d
         )
 
-    return our, tv
+    return our, ref
 
 
 def compare_candles(
     ticker: str,
     timeframe: str,
     our_df: pd.DataFrame,
-    tv_df: pd.DataFrame,
+    ref_df: pd.DataFrame,
     price_tolerance: float = DEFAULT_PRICE_TOLERANCE,
     volume_tolerance: float = DEFAULT_VOLUME_TOLERANCE,
     group: str = "fixed",
@@ -273,14 +273,14 @@ def compare_candles(
     Joins on date, compares OHLCV fields, and returns a ValidationResult
     with any mismatches.
     """
-    our_norm, tv_norm = _normalize_dates_for_merge(our_df, tv_df, timeframe)
-    merged = our_norm.merge(tv_norm, on="date", suffixes=("_ours", "_tv"), how="inner")
+    our_norm, ref_norm = _normalize_dates_for_merge(our_df, ref_df, timeframe)
+    merged = our_norm.merge(ref_norm, on="date", suffixes=("_ours", "_ref"), how="inner")
 
     result = ValidationResult(
         ticker=ticker,
         timeframe=timeframe,
         our_bar_count=len(our_df),
-        tv_bar_count=len(tv_df),
+        ref_bar_count=len(ref_df),
         overlapping_bars=len(merged),
         group=group,
     )
@@ -293,15 +293,15 @@ def compare_candles(
         tolerance = volume_tolerance if field_name == "volume" else price_tolerance
 
         ours_col = f"{field_name}_ours"
-        tv_col = f"{field_name}_tv"
+        ref_col = f"{field_name}_ref"
 
         for _, row in merged.iterrows():
             our_val = float(row[ours_col])
-            tv_val = float(row[tv_col])
+            ref_val = float(row[ref_col])
 
-            if tv_val == 0 and our_val == 0:
+            if ref_val == 0 and our_val == 0:
                 continue
-            pct_diff = 1.0 if tv_val == 0 else abs(our_val - tv_val) / abs(tv_val)
+            pct_diff = 1.0 if ref_val == 0 else abs(our_val - ref_val) / abs(ref_val)
 
             if pct_diff > tolerance:
                 result.mismatches.append(
@@ -311,7 +311,7 @@ def compare_candles(
                         date=str(row["date"]),
                         field=field_name,
                         our_value=our_val,
-                        tv_value=tv_val,
+                        ref_value=ref_val,
                         pct_diff=round(pct_diff * 100, 4),
                         tolerance=tolerance,
                     )
@@ -408,7 +408,11 @@ def fetch_yf_candles(
 
     try:
         yticker = yf.Ticker(ticker)
-        df = yticker.history(period=period, interval=interval, auto_adjust=True)
+        # auto_adjust=False returns split-adjusted OHLC without dividend
+        # adjustment, matching our DB's split-only adjustment.
+        # (auto_adjust=True would also apply cumulative dividend drag,
+        # causing ~1-3% divergence on older bars.)
+        df = yticker.history(period=period, interval=interval, auto_adjust=False)
     except Exception as e:
         logger.warning("yfinance error for %s (%s): %s", ticker, timeframe, e)
         return None

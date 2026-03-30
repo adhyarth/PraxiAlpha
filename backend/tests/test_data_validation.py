@@ -50,7 +50,7 @@ class TestCandleMismatch:
             date="2026-01-15",
             field="close",
             our_value=150.0,
-            tv_value=148.0,
+            ref_value=148.0,
             pct_diff=1.35,
         )
         assert m.is_significant  # 1.35% > 1% default tolerance
@@ -62,7 +62,7 @@ class TestCandleMismatch:
             date="2026-01-15",
             field="close",
             our_value=150.0,
-            tv_value=149.90,
+            ref_value=149.90,
             pct_diff=0.07,
         )
         assert not m.is_significant  # 0.07% < 1%
@@ -74,7 +74,7 @@ class TestCandleMismatch:
             date="2026-01-15",
             field="volume",
             our_value=50_000_000,
-            tv_value=48_000_000,
+            ref_value=48_000_000,
             pct_diff=4.0,
         )
         # 4% < 5% volume tolerance → not significant
@@ -87,7 +87,7 @@ class TestCandleMismatch:
             date="2026-01-15",
             field="volume",
             our_value=50_000_000,
-            tv_value=45_000_000,
+            ref_value=45_000_000,
             pct_diff=11.1,
         )
         assert m.is_significant  # 11.1% > 5%
@@ -104,7 +104,7 @@ class TestValidationResult:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
         )
         assert r.mismatch_count == 0
@@ -115,7 +115,7 @@ class TestValidationResult:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
             mismatches=[
                 CandleMismatch(
@@ -135,7 +135,7 @@ class TestValidationResult:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=0,
         )
         assert r.match_pct == 0.0
@@ -176,9 +176,9 @@ class TestCompareCandles:
             },
         ]
         our_df = _make_df(data)
-        tv_df = _make_df(data)
+        ref_df = _make_df(data)
 
-        result = compare_candles("TEST", "daily", our_df, tv_df)
+        result = compare_candles("TEST", "daily", our_df, ref_df)
 
         assert result.overlapping_bars == 3
         assert result.mismatch_count == 0
@@ -197,7 +197,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-15",
                 "open": 100,
@@ -207,7 +207,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
 
         assert result.mismatch_count == 1
         assert result.mismatches[0].field == "close"
@@ -225,7 +225,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-15",
                 "open": 100.0,
@@ -235,7 +235,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.mismatch_count == 0
 
     def test_volume_tolerance_applied(self):
@@ -250,7 +250,7 @@ class TestCompareCandles:
                 "volume": 1_040_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-15",
                 "open": 100,
@@ -261,7 +261,7 @@ class TestCompareCandles:
             },
         ]
         # 4% volume diff — within 5% tolerance
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.mismatch_count == 0
 
     def test_volume_mismatch_detected(self):
@@ -276,7 +276,7 @@ class TestCompareCandles:
                 "volume": 1_150_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-15",
                 "open": 100,
@@ -286,7 +286,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.mismatch_count == 1
         assert result.mismatches[0].field == "volume"
 
@@ -302,7 +302,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-02-15",
                 "open": 100,
@@ -312,7 +312,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.overlapping_bars == 0
         assert result.error == "No overlapping dates found"
 
@@ -344,7 +344,7 @@ class TestCompareCandles:
                 "volume": 900_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-14",
                 "open": 103,
@@ -362,9 +362,9 @@ class TestCompareCandles:
                 "volume": 900_000,
             },
         ]
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.our_bar_count == 3
-        assert result.tv_bar_count == 2
+        assert result.ref_bar_count == 2
         assert result.overlapping_bars == 2
         assert result.mismatch_count == 0
 
@@ -380,7 +380,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-15",
                 "open": 100,
@@ -391,7 +391,7 @@ class TestCompareCandles:
             },
         ]
         # With default 1% tolerance → 0.5% diff is fine
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.mismatch_count == 0
 
         # With stricter 0.1% tolerance → 0.5% diff is flagged
@@ -399,7 +399,7 @@ class TestCompareCandles:
             "TEST",
             "daily",
             _make_df(our_data),
-            _make_df(tv_data),
+            _make_df(ref_data),
             price_tolerance=0.001,
         )
         assert result.mismatch_count == 1
@@ -416,7 +416,7 @@ class TestCompareCandles:
                 "volume": 2_000_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2026-01-15",
                 "open": 100,
@@ -426,7 +426,7 @@ class TestCompareCandles:
                 "volume": 1_000_000,
             },
         ]
-        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("TEST", "daily", _make_df(our_data), _make_df(ref_data))
         # All 5 fields should differ significantly
         assert result.mismatch_count == 5
 
@@ -447,7 +447,7 @@ class TestCompareCandles:
                 "volume": 200_000_000,
             },
         ]
-        tv_data = [
+        ref_data = [
             {
                 "date": "2020-08-28",
                 "open": 125.0,
@@ -457,7 +457,7 @@ class TestCompareCandles:
                 "volume": 200_000_000,
             },
         ]
-        result = compare_candles("AAPL", "daily", _make_df(our_data), _make_df(tv_data))
+        result = compare_candles("AAPL", "daily", _make_df(our_data), _make_df(ref_data))
         assert result.mismatch_count == 0
 
 
@@ -472,7 +472,7 @@ class TestReportStructure:
             ticker="XYZ",
             timeframe="daily",
             our_bar_count=0,
-            tv_bar_count=0,
+            ref_bar_count=0,
             overlapping_bars=0,
             error="Ticker not found",
         )
@@ -487,7 +487,7 @@ class TestReportStructure:
             date="2026-01-15",
             field="close",
             our_value=102.0,
-            tv_value=100.0,
+            ref_value=100.0,
             pct_diff=2.0,
         )
         # pct_diff is stored as a percentage (2.0 means 2%)
@@ -672,7 +672,7 @@ class TestFailurePersistence:
                 ticker="AAPL",
                 timeframe="daily",
                 our_bar_count=100,
-                tv_bar_count=100,
+                ref_bar_count=100,
                 overlapping_bars=100,
                 group="fixed",
                 mismatches=[
@@ -683,7 +683,7 @@ class TestFailurePersistence:
                 ticker="MSFT",
                 timeframe="weekly",
                 our_bar_count=50,
-                tv_bar_count=50,
+                ref_bar_count=50,
                 overlapping_bars=50,
                 group="fixed",
             ),  # This one passes — no mismatches
@@ -711,7 +711,7 @@ class TestFailurePersistence:
                 ticker="AAPL",
                 timeframe="daily",
                 our_bar_count=100,
-                tv_bar_count=100,
+                ref_bar_count=100,
                 overlapping_bars=100,
                 group="fixed",
             ),
@@ -782,7 +782,7 @@ class TestFailurePersistence:
                 ticker="XYZ",
                 timeframe="daily",
                 our_bar_count=0,
-                tv_bar_count=0,
+                ref_bar_count=0,
                 overlapping_bars=0,
                 group="random",
                 error="Not found on Yahoo Finance",
@@ -811,7 +811,7 @@ class TestComputeSummary:
                 ticker="AAPL",
                 timeframe="daily",
                 our_bar_count=100,
-                tv_bar_count=100,
+                ref_bar_count=100,
                 overlapping_bars=100,
                 group="fixed",
             ),
@@ -819,7 +819,7 @@ class TestComputeSummary:
                 ticker="MSFT",
                 timeframe="daily",
                 our_bar_count=50,
-                tv_bar_count=50,
+                ref_bar_count=50,
                 overlapping_bars=50,
                 group="fixed",
             ),
@@ -837,7 +837,7 @@ class TestComputeSummary:
                 ticker="AAPL",
                 timeframe="daily",
                 our_bar_count=100,
-                tv_bar_count=100,
+                ref_bar_count=100,
                 overlapping_bars=100,
                 group="fixed",
                 mismatches=[
@@ -858,7 +858,7 @@ class TestComputeSummary:
                 ticker="BAD",
                 timeframe="daily",
                 our_bar_count=0,
-                tv_bar_count=0,
+                ref_bar_count=0,
                 overlapping_bars=0,
                 group="fixed",
                 error="Not found",
@@ -876,7 +876,7 @@ class TestComputeSummary:
                 ticker="AAPL",
                 timeframe="daily",
                 our_bar_count=100,
-                tv_bar_count=100,
+                ref_bar_count=100,
                 overlapping_bars=100,
                 group="fixed",
             ),  # pass
@@ -884,7 +884,7 @@ class TestComputeSummary:
                 ticker="NVDA",
                 timeframe="daily",
                 our_bar_count=100,
-                tv_bar_count=100,
+                ref_bar_count=100,
                 overlapping_bars=100,
                 group="fixed",
                 mismatches=[
@@ -895,7 +895,7 @@ class TestComputeSummary:
                 ticker="XYZ",
                 timeframe="daily",
                 our_bar_count=0,
-                tv_bar_count=0,
+                ref_bar_count=0,
                 overlapping_bars=0,
                 group="random",
                 error="Not found",
@@ -927,7 +927,7 @@ class TestValidationResultProperties:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
         )
         assert r.status == "✅"
@@ -937,7 +937,7 @@ class TestValidationResultProperties:
             ticker="XYZ",
             timeframe="daily",
             our_bar_count=0,
-            tv_bar_count=0,
+            ref_bar_count=0,
             overlapping_bars=0,
             error="Not found",
         )
@@ -948,7 +948,7 @@ class TestValidationResultProperties:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
             mismatches=[
                 CandleMismatch("AAPL", "daily", "2026-01-15", "close", 150.0, 148.0, 1.35),
@@ -961,7 +961,7 @@ class TestValidationResultProperties:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
         )
         assert r.worst_diff == "—"
@@ -971,7 +971,7 @@ class TestValidationResultProperties:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
             mismatches=[
                 CandleMismatch("AAPL", "daily", "2026-01-15", "close", 150.0, 148.0, 1.35),
@@ -986,7 +986,7 @@ class TestValidationResultProperties:
             ticker="AAPL",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
         )
         assert r.group == "fixed"
@@ -996,7 +996,7 @@ class TestValidationResultProperties:
             ticker="XYZ",
             timeframe="daily",
             our_bar_count=100,
-            tv_bar_count=100,
+            ref_bar_count=100,
             overlapping_bars=100,
             group="random",
         )
