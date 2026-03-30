@@ -46,11 +46,11 @@ FIXED_TICKERS = [
     "NVDA",  # 10:1 split (2024)
     "SMH",  # 2:1 split — the bug that started Session 28
     "TSLA",  # 5:1 (2020) + 3:1 (2022) splits
-    "QQQ",   # Mega-cap tech ETF, heavy volume
-    "SPY",   # S&P 500 ETF, most-traded equity
-    "GLD",   # Gold ETF, commodity exposure
+    "QQQ",  # Mega-cap tech ETF, heavy volume
+    "SPY",  # S&P 500 ETF, most-traded equity
+    "GLD",  # Gold ETF, commodity exposure
     "CVNA",  # High-volatility growth stock
-    "XBI",   # Biotech ETF, sector rotation proxy
+    "XBI",  # Biotech ETF, sector rotation proxy
 ]
 
 ALL_TIMEFRAMES = ["daily", "weekly", "monthly", "quarterly"]
@@ -468,15 +468,24 @@ def fetch_yf_candles(
         except Exception as e:
             logger.warning(
                 "yfinance attempt %d/%d for %s (%s): %s",
-                attempt, max_retries, ticker, timeframe, e,
+                attempt,
+                max_retries,
+                ticker,
+                timeframe,
+                e,
             )
             if attempt < max_retries:
-                _time.sleep(2 ** attempt)  # 2s, 4s back-off
+                _time.sleep(2**attempt)  # 2s, 4s back-off
             else:
                 return None
 
     if df is None or df.empty:
-        logger.warning("No data from Yahoo Finance for %s (%s) after %d attempts", ticker, timeframe, max_retries)
+        logger.warning(
+            "No data from Yahoo Finance for %s (%s) after %d attempts",
+            ticker,
+            timeframe,
+            max_retries,
+        )
         return None
 
     df = df.reset_index()

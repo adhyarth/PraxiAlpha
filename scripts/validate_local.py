@@ -168,8 +168,10 @@ async def main() -> None:
             jobs.append((t, tf, "random"))
 
     total = len(jobs)
-    print(f"\n📋 Total: {len(FIXED_TICKERS)} fixed + {len(random_tickers)} random = "
-          f"{len(FIXED_TICKERS) + len(random_tickers)} tickers × {len(ALL_TIMEFRAMES)} TF = {total} checks\n")
+    print(
+        f"\n📋 Total: {len(FIXED_TICKERS)} fixed + {len(random_tickers)} random = "
+        f"{len(FIXED_TICKERS) + len(random_tickers)} tickers × {len(ALL_TIMEFRAMES)} TF = {total} checks\n"
+    )
 
     # ---- Run all comparisons ----
     summary_rows: list[SummaryRow] = []
@@ -204,7 +206,9 @@ async def main() -> None:
     warned = sum(1 for r in summary_rows if r.status == "⚠️")
     failed = sum(1 for r in summary_rows if r.status == "❌")
 
-    print(f"  ✅ Passed: {passed}   ⚠️ Mismatches: {warned}   ❌ Errors: {failed}   Total: {total}\n")
+    print(
+        f"  ✅ Passed: {passed}   ⚠️ Mismatches: {warned}   ❌ Errors: {failed}   Total: {total}\n"
+    )
 
     # Print table header
     hdr = (
@@ -225,7 +229,7 @@ async def main() -> None:
     warned_results = [r for r in all_results if r.mismatch_count > 0]
     if warned_results:
         print(f"\n\n{'=' * 78}")
-        print(f"  MISMATCH DETAILS (top 3 per ticker/tf)")
+        print("  MISMATCH DETAILS (top 3 per ticker/tf)")
         print(f"{'=' * 78}")
         for r in warned_results:
             sig = [m for m in r.mismatches if m.is_significant]
