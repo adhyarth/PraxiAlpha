@@ -1,9 +1,9 @@
 """
-Tests for TradingView data validation service.
+Tests for data validation service (second-source comparison).
 
 These tests exercise the compare_candles() function, data structures,
 quarterly aggregation, failure persistence, and summary computation
-WITHOUT requiring a TradingView connection or tvdatafeed library.
+WITHOUT requiring a Yahoo Finance connection or yfinance library.
 """
 
 from __future__ import annotations
@@ -785,7 +785,7 @@ class TestFailurePersistence:
                 tv_bar_count=0,
                 overlapping_bars=0,
                 group="random",
-                error="Not found on TradingView",
+                error="Not found on Yahoo Finance",
             ),
         ]
 
@@ -794,7 +794,7 @@ class TestFailurePersistence:
         loaded = load_previous_failures()
         assert loaded is not None
         assert len(loaded["failures"]) == 1
-        assert loaded["failures"][0]["error"] == "Not found on TradingView"
+        assert loaded["failures"][0]["error"] == "Not found on Yahoo Finance"
 
 
 # ------------------------------------------------------------------ #

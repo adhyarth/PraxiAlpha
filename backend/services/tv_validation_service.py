@@ -1,15 +1,15 @@
 """
-PraxiAlpha — TradingView Data Validation Service
+PraxiAlpha — Data Validation Service (Second-Source Comparison)
 
-Core logic for comparing OHLCV data between our database and TradingView.
+Core logic for comparing OHLCV data between our database and Yahoo Finance.
 Used by the Streamlit "Data Validation" page.
 
 Provides:
 - compare_candles() — bar-by-bar comparison with tolerance thresholds
-- fetch_tv_candles() — TradingView data fetcher via tvdatafeed
+- fetch_yf_candles() — Yahoo Finance data fetcher via yfinance
 - fetch_our_candles() — DB data fetcher via CandleService
 - sample_random_tickers() — random cross-index ticker sampling
-- aggregate_monthly_to_quarterly() — derive quarterly from TV monthly
+- aggregate_monthly_to_quarterly() — derive quarterly from YF monthly
 - load_previous_failures() / save_failures() — persistence for failed checks
 """
 
@@ -24,13 +24,13 @@ from typing import Any
 
 import pandas as pd
 
-# Lazy import tvdatafeed (not installed in CI)
+# Lazy import yfinance (not installed in CI)
 try:
-    from tvDatafeed import Interval, TvDatafeed
+    import yfinance as yf
 
-    TV_AVAILABLE = True
+    YF_AVAILABLE = True
 except ImportError:
-    TV_AVAILABLE = False
+    YF_AVAILABLE = False
 
 logger = logging.getLogger("tv_validate")
 
@@ -60,7 +60,7 @@ TIMEFRAME_BARS: dict[str, int] = {
 DEFAULT_PRICE_TOLERANCE = 0.01
 # Volume tolerance is higher because data providers report different
 # consolidated volumes (exchange-only vs. dark-pool-inclusive).  EODHD
-# vs TradingView regularly differ by 5-8% on the most recent dates.
+# vs Yahoo Finance regularly differ by 5-8% on the most recent dates.
 DEFAULT_VOLUME_TOLERANCE = 0.10
 
 # Failure persistence file
@@ -84,7 +84,7 @@ RANDOM_TOTAL = 10
 
 @dataclass
 class CandleMismatch:
-    """A single price/volume mismatch between our data and TradingView."""
+    """A single price/volume mismatch between our data and the second source."""
 
     ticker: str
     timeframe: str
@@ -220,14 +220,14 @@ def _normalize_dates_for_merge(
     timeframe: str,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Normalize dates so our DB and TradingView candles can be joined.
+    Normalize dates so our DB and second-source candles can be joined.
 
     - **daily**: exact date match (no change needed).
     - **weekly**: both sources use Monday-start weeks, but our pandas ``W-SUN``
-      resample labels the bucket on the **Saturday before** the week while TV
+      resample labels the bucket on the **Saturday before** the week while YF
       labels on Monday.  Normalise to ISO year-week so the same trading week
       always matches.
-    - **monthly**: our DB uses 1st-of-month (``MS`` resample), TV uses the
+    - **monthly**: our DB uses 1st-of-month (``MS`` resample), YF uses the
       first *trading* day (e.g. 2025-11-03 for November).  Normalise to
       year-month.
     - **quarterly**: same month-start logic but at quarter boundaries.
@@ -268,7 +268,7 @@ def compare_candles(
     group: str = "fixed",
 ) -> ValidationResult:
     """
-    Compare our candles against TradingView's candles bar-by-bar.
+    Compare our candles against a second source's candles bar-by-bar.
 
     Joins on date, compares OHLCV fields, and returns a ValidationResult
     with any mismatches.
@@ -321,13 +321,12 @@ def compare_candles(
 
 
 # ------------------------------------------------------------------ #
-#  Quarterly aggregation from monthly TV data                          #
+#  Quarterly aggregation from monthly data                             #
 # ------------------------------------------------------------------ #
 
 
 def aggregate_monthly_to_quarterly(monthly_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Aggregate monthly OHLCV data into quarterly bars.
+    """Aggregate monthly OHLCV data into quarterly bars.
 
     Uses calendar quarter starts (QS) matching our DB convention.
     """
@@ -358,150 +357,102 @@ def aggregate_monthly_to_quarterly(monthly_df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ------------------------------------------------------------------ #
-#  TradingView data fetcher                                            #
+#  Yahoo Finance data fetcher                                          #
 # ------------------------------------------------------------------ #
 
+# yfinance interval strings for each timeframe
+_YF_INTERVALS: dict[str, str] = {
+    "daily": "1d",
+    "weekly": "1wk",
+    "monthly": "1mo",
+    # quarterly is derived from monthly — no native YF interval
+}
 
-def get_tv_client() -> Any:
-    """Create an authenticated TvDatafeed client from .env credentials."""
-    if not TV_AVAILABLE:
-        raise RuntimeError(
-            'tvdatafeed is not installed. Run: pip install "praxialpha[tv-validate]"'
-        )
-
-    from backend.config import get_settings
-
-    settings = get_settings()
-    if not settings.tv_username or not settings.tv_password:
-        raise RuntimeError(
-            "TV_USERNAME and TV_PASSWORD must be set in .env. See .env.example for details."
-        )
-
-    logger.info("Connecting to TradingView as %s...", settings.tv_username)
-    tv = TvDatafeed(settings.tv_username, settings.tv_password)
-    logger.info("TradingView connection established.")
-    return tv
+# Approximate lookback periods per timeframe
+_YF_PERIODS: dict[str, str] = {
+    "daily": "2y",   # ~500 trading days
+    "weekly": "5y",  # ~260 weeks
+    "monthly": "10y",  # ~120 months
+}
 
 
-def _get_tv_intervals() -> dict[str, Any]:
-    """Return timeframe → tvdatafeed Interval mapping."""
-    if not TV_AVAILABLE:
-        return {}
-    return {
-        "daily": Interval.in_daily,
-        "weekly": Interval.in_weekly,
-        "monthly": Interval.in_monthly,
-        # quarterly is derived from monthly — no native TV interval
-    }
-
-
-def fetch_tv_candles(
-    tv: Any,
+def fetch_yf_candles(
     ticker: str,
     timeframe: str,
     n_bars: int,
-    *,
-    _max_retries: int = 2,
 ) -> pd.DataFrame | None:
     """
-    Fetch OHLCV data from TradingView for a ticker + timeframe.
+    Fetch OHLCV data from Yahoo Finance for a ticker + timeframe.
 
-    For quarterly: fetches monthly (with a **fresh** TV client) and aggregates.
+    For quarterly: fetches monthly and aggregates.
     Returns DataFrame with: date, open, high, low, close, volume.
 
-    Includes automatic retry with a fresh client on TCPTransport / websocket
-    errors that tvdatafeed is prone to.
+    No authentication required — yfinance uses a free REST API.
     """
-    import time as _time
+    if not YF_AVAILABLE:
+        raise RuntimeError(
+            'yfinance is not installed. Run: pip install "praxialpha[validate]"'
+        )
 
-    intervals = _get_tv_intervals()
-
-    # Quarterly: fetch monthly from TV with a FRESH client, then aggregate
+    # Quarterly: fetch monthly from YF, then aggregate
     if timeframe == "quarterly":
-        fresh_tv = get_tv_client()
-        _time.sleep(1)
-        monthly_df = fetch_tv_candles(fresh_tv, ticker, "monthly", n_bars * 3)
+        monthly_df = fetch_yf_candles(ticker, "monthly", n_bars * 3)
         if monthly_df is None:
             return None
         return aggregate_monthly_to_quarterly(monthly_df)
 
-    interval = intervals.get(timeframe)
+    interval = _YF_INTERVALS.get(timeframe)
     if interval is None:
-        logger.warning("Timeframe %s not supported by tvdatafeed", timeframe)
+        logger.warning("Timeframe %s not supported by yfinance", timeframe)
         return None
 
-    exchanges = ["NASDAQ", "NYSE", "AMEX"]
+    period = _YF_PERIODS.get(timeframe, "2y")
 
-    for attempt in range(_max_retries + 1):
-        # On retry, create a fresh client and wait a bit
-        if attempt > 0:
-            logger.info(
-                "Retry %d/%d for %s (%s) — creating fresh TV client",
-                attempt,
-                _max_retries,
-                ticker,
-                timeframe,
-            )
-            _time.sleep(2)
-            try:
-                tv = get_tv_client()
-            except Exception:
-                logger.warning("Could not create fresh TV client on retry")
-                continue
-
-        df = None
-        tcp_error = False
-
-        for exchange in exchanges:
-            try:
-                df = tv.get_hist(
-                    symbol=ticker,
-                    exchange=exchange,
-                    interval=interval,
-                    n_bars=n_bars,
-                )
-                if df is not None and not df.empty:
-                    break
-            except Exception as e:
-                err_str = str(e).lower()
-                if "tcptransport" in err_str or "handler is closed" in err_str:
-                    logger.debug(
-                        "TCPTransport error for %s on %s (attempt %d): %s",
-                        ticker,
-                        exchange,
-                        attempt,
-                        e,
-                    )
-                    tcp_error = True
-                    break  # Don't try other exchanges — need a fresh client
-                logger.debug("Failed to fetch %s from %s: %s", ticker, exchange, e)
-                continue
-
-        # If we hit a TCP error, retry with a fresh client
-        if tcp_error:
-            continue
-
-        # Got data (or exhausted exchanges) — stop retrying
-        if df is not None and not df.empty:
-            break
+    try:
+        yticker = yf.Ticker(ticker)
+        df = yticker.history(period=period, interval=interval, auto_adjust=True)
+    except Exception as e:
+        logger.warning("yfinance error for %s (%s): %s", ticker, timeframe, e)
+        return None
 
     if df is None or df.empty:
-        logger.warning("Could not fetch %s from TradingView", ticker)
+        logger.warning("No data from Yahoo Finance for %s (%s)", ticker, timeframe)
         return None
 
     df = df.reset_index()
 
-    if "datetime" in df.columns:
-        df["date"] = pd.to_datetime(df["datetime"]).dt.date
-    elif df.index.name == "datetime":
-        df["date"] = pd.to_datetime(df.index).date
-        df = df.reset_index(drop=True)
+    # yfinance returns "Date" (daily) or "Date" column — normalise
+    date_col = "Date" if "Date" in df.columns else "Datetime"
+    if date_col not in df.columns:
+        # Fallback: first column
+        date_col = df.columns[0]
+
+    df["date"] = pd.to_datetime(df[date_col]).dt.date
+
+    # yfinance uses title-case columns: Open, High, Low, Close, Volume
+    col_map = {
+        "Open": "open",
+        "High": "high",
+        "Low": "low",
+        "Close": "close",
+        "Volume": "volume",
+    }
+    df = df.rename(columns=col_map)
 
     required = {"date", "open", "high", "low", "close", "volume"}
     if not required.issubset(set(df.columns)):
+        logger.warning(
+            "Missing columns for %s (%s). Got: %s", ticker, timeframe, list(df.columns)
+        )
         return None
 
-    return df[["date", "open", "high", "low", "close", "volume"]]
+    result = df[["date", "open", "high", "low", "close", "volume"]].copy()
+
+    # Trim to requested bar count (most recent n_bars)
+    if len(result) > n_bars:
+        result = result.tail(n_bars).reset_index(drop=True)
+
+    return result
 
 
 # ------------------------------------------------------------------ #

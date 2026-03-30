@@ -68,10 +68,9 @@ dev = [
     "ipykernel>=6.29,<7",
     "jupyter>=1.0,<2",
 ]
-# TradingView data validation (install from GitHub, not on PyPI)
-# Usage: pip install "praxialpha[tv-validate]"
-tv-validate = [
-    "tvdatafeed @ git+https://github.com/rongardF/tvdatafeed.git",
+# Second-source data validation (Yahoo Finance via yfinance)
+validate = [
+    "yfinance>=0.2.36,<1",
 ]
 
 [tool.setuptools.packages.find]

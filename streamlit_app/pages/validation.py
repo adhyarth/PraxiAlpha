@@ -2,8 +2,8 @@
 PraxiAlpha — Data Validation Page
 
 Streamlit page for manually triggering OHLCV data validation
-against TradingView Premium. Compares 20 tickers (10 fixed +
-10 random) across all timeframes (daily, weekly, monthly, quarterly).
+against Yahoo Finance (second source). Compares fixed tickers
+across all timeframes (daily, weekly, monthly, quarterly).
 
 Shows results in a table with match percentages, mismatch details,
 and failure persistence for re-checking on the next run.
@@ -25,15 +25,14 @@ from backend.services.tv_validation_service import (
     ALL_TIMEFRAMES,
     FIXED_TICKERS,
     TIMEFRAME_BARS,
-    TV_AVAILABLE,
+    YF_AVAILABLE,
     StockMeta,
     ValidationResult,
     compare_candles,
     compute_summary,
     fetch_our_candles,
     fetch_stock_metadata,
-    fetch_tv_candles,
-    get_tv_client,
+    fetch_yf_candles,
     load_previous_failures,
     save_failures,
 )
@@ -45,7 +44,7 @@ from backend.services.tv_validation_service import (
 st.header("🔍 Data Validation")
 st.markdown(
     "Compare OHLCV data in PraxiAlpha's database against "
-    "**TradingView Premium** — the gold standard for split-adjusted prices."
+    "**Yahoo Finance** — an independent second source for split-adjusted prices."
 )
 
 # ============================================================
@@ -70,30 +69,27 @@ if prev_failures:
 
 with st.expander("ℹ️ What gets validated?"):
     st.markdown(f"""
-**20 tickers** across **4 timeframes** = up to **80 comparisons**
+**{len(FIXED_TICKERS)} tickers** across **4 timeframes** = up to **{len(FIXED_TICKERS) * 4} comparisons**
 
-**Group A — Fixed (10 split/dividend stress-test tickers):**
+**Fixed stress-test tickers:**
 {", ".join(f"`{t}`" for t in FIXED_TICKERS)}
-
-**Group B — Random (10 tickers sampled from your DB each run):**
-3 NYSE large caps, 3 NASDAQ, 2 AMEX, 2 ETFs — different every run
-for broad spot-check coverage across your 23K+ ticker universe.
 
 **Timeframes:** Daily ({TIMEFRAME_BARS["daily"]} bars), Weekly ({TIMEFRAME_BARS["weekly"]}),
 Monthly ({TIMEFRAME_BARS["monthly"]}), Quarterly ({TIMEFRAME_BARS["quarterly"]})
 
-**Tolerances:** Price: 1%, Volume: 5%
+**Tolerances:** Price: 1%, Volume: 10%
 
-*Quarterly data is derived by aggregating TradingView monthly → quarterly in pandas.*
+*Quarterly data is derived by aggregating Yahoo Finance monthly → quarterly in pandas.*
+*Yahoo Finance provides split-adjusted OHLCV via a free REST API — no login required.*
     """)
 
 # ============================================================
 # Run validation button
 # ============================================================
 
-if not TV_AVAILABLE:
+if not YF_AVAILABLE:
     st.error(
-        '❌ **tvdatafeed is not installed.** Install with: `pip install "praxialpha[tv-validate]"`'
+        '❌ **yfinance is not installed.** Install with: `pip install "praxialpha[validate]"`'
     )
     st.stop()
 
@@ -179,20 +175,9 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
     status.write(
         f"📋 Total: {len(set(t for t, _, _ in jobs))} tickers × {len(ALL_TIMEFRAMES)} timeframes = {total_jobs} checks"
     )
-    status.update(label="Connecting to TradingView...", state="running")
 
-    # --- Phase 2: Verify TradingView credentials ---
-    try:
-        tv = get_tv_client()
-        status.write("✅ TradingView credentials verified")
-    except Exception as e:
-        status.update(label="Connection failed", state="error")
-        st.error(f"❌ Could not connect to TradingView: {e}")
-        st.stop()
-
-    # --- Phase 3: Run comparisons ---
-    # Create a fresh TvDatafeed client for EVERY request to avoid
-    # websocket "TCPTransport closed" errors.
+    # --- Phase 2: Run comparisons ---
+    # yfinance uses a REST API — no persistent connection or credentials needed.
     status.update(label="Running validation...", state="running")
     progress_bar = st.progress(0, text="Starting...")
 
@@ -214,9 +199,6 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         meta = meta_cache[ticker]
 
         try:
-            # Fresh TV client for each request
-            tv = get_tv_client()
-
             # Fetch our data
             our_df = _run_async(fetch_our_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252)))
 
@@ -238,11 +220,11 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
 
             tv_logger.info("  Our DB: %d bars", len(our_df))
 
-            # Fetch TV data
-            tv_df = fetch_tv_candles(tv, ticker, tf, TIMEFRAME_BARS.get(tf, 252))
+            # Fetch Yahoo Finance data
+            tv_df = fetch_yf_candles(ticker, tf, TIMEFRAME_BARS.get(tf, 252))
 
             if tv_df is None or tv_df.empty:
-                tv_logger.warning("  Not found on TradingView for %s (%s)", ticker, tf)
+                tv_logger.warning("  Not found on Yahoo Finance for %s (%s)", ticker, tf)
                 results.append(
                     ValidationResult(
                         ticker=ticker,
@@ -251,13 +233,13 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         tv_bar_count=0,
                         overlapping_bars=0,
                         group=group,
-                        error="Not found on TradingView",
+                        error="Not found on Yahoo Finance",
                         meta=meta,
                     )
                 )
                 continue
 
-            tv_logger.info("  TV: %d bars", len(tv_df))
+            tv_logger.info("  YF: %d bars", len(tv_df))
 
             # Compare
             result = compare_candles(ticker, tf, our_df, tv_df, group=group)
@@ -288,9 +270,9 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 )
             )
 
-        # Rate limit — fresh client per request needs a small cooldown
+        # Gentle rate limit for Yahoo Finance
         if idx < total_jobs - 1:
-            time.sleep(2)
+            time.sleep(0.5)
 
     progress_bar.progress(1.0, text="✅ Validation complete!")
     status.update(label="Validation complete!", state="complete")
@@ -334,11 +316,11 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
 
     if summary["errors"] > 0:
         st.warning(
-            f"❗ {summary['errors']} check(s) had errors (ticker not found, TV unavailable, etc.)"
+            f"❗ {summary['errors']} check(s) had errors (ticker not found, Yahoo Finance unavailable, etc.)"
         )
 
     if summary["failed"] == 0 and summary["errors"] == 0:
-        st.success("🎉 **All data matches TradingView within tolerance!**")
+        st.success("🎉 **All data matches Yahoo Finance within tolerance!**")
     elif summary["failed"] > 0:
         st.warning(
             f"⚠️ **{summary['total_mismatches']} field mismatch(es)** found across "
@@ -361,7 +343,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                 "Group": r.group.title(),
                 "Timeframe": r.timeframe.title(),
                 "Our Bars": r.our_bar_count,
-                "TV Bars": r.tv_bar_count,
+                "YF Bars": r.tv_bar_count,
                 "Overlap": r.overlapping_bars,
                 "Match %": f"{r.match_pct:.1f}%" if not r.error else "—",
                 "Mismatches": r.mismatch_count if not r.error else "—",
@@ -398,7 +380,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                                 "Date": m.date,
                                 "Field": m.field,
                                 "Our Value": f"{m.our_value:.4f}",
-                                "TV Value": f"{m.tv_value:.4f}",
+                                "YF Value": f"{m.tv_value:.4f}",
                                 "Diff %": f"{m.pct_diff:+.2f}%",
                             }
                         )
@@ -420,9 +402,8 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                             "ticker": m.ticker,
                             "timeframe": m.timeframe,
                             "date": m.date,
-                            "field": m.field,
-                            "our_value": m.our_value,
-                            "tv_value": m.tv_value,
+                            "field": m.field,                        "our_value": m.our_value,
+                        "yf_value": m.tv_value,
                             "pct_diff": m.pct_diff,
                             "significant": m.is_significant,
                             "group": r.group,
@@ -434,9 +415,8 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
                         "ticker": r.ticker,
                         "timeframe": r.timeframe,
                         "date": "—",
-                        "field": "ALL OK" if not r.error else "ERROR",
-                        "our_value": r.our_bar_count,
-                        "tv_value": r.tv_bar_count,
+                        "field": "ALL OK" if not r.error else "ERROR",                    "our_value": r.our_bar_count,
+                    "yf_value": r.tv_bar_count,
                         "pct_diff": 0,
                         "significant": False,
                         "group": r.group,
@@ -447,7 +427,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
         st.download_button(
             "📥 Download Full Report (CSV)",
             csv_df.to_csv(index=False),
-            file_name="tv_validation_report.csv",
+            file_name="validation_report.csv",
             mime="text/csv",
             use_container_width=True,
         )

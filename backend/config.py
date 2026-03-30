@@ -50,10 +50,6 @@ class Settings(BaseSettings):
     fred_api_key: str = ""
     te_api_key: str = ""  # TradingEconomics API key (optional, falls back to guest:guest)
 
-    # ---- TradingView (data validation) ----
-    tv_username: str = ""  # TradingView Premium username for data validation
-    tv_password: str = ""  # TradingView Premium password for data validation
-
     # ---- User Isolation (Trading Journal) ----
     praxialpha_user_id: str = "default"  # Set per-user in .env for trade privacy
 
