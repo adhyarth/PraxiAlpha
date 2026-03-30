@@ -370,7 +370,7 @@ _YF_INTERVALS: dict[str, str] = {
 
 # Approximate lookback periods per timeframe
 _YF_PERIODS: dict[str, str] = {
-    "daily": "2y",   # ~500 trading days
+    "daily": "2y",  # ~500 trading days
     "weekly": "5y",  # ~260 weeks
     "monthly": "10y",  # ~120 months
 }
@@ -390,9 +390,7 @@ def fetch_yf_candles(
     No authentication required — yfinance uses a free REST API.
     """
     if not YF_AVAILABLE:
-        raise RuntimeError(
-            'yfinance is not installed. Run: pip install "praxialpha[validate]"'
-        )
+        raise RuntimeError('yfinance is not installed. Run: pip install "praxialpha[validate]"')
 
     # Quarterly: fetch monthly from YF, then aggregate
     if timeframe == "quarterly":
@@ -441,9 +439,7 @@ def fetch_yf_candles(
 
     required = {"date", "open", "high", "low", "close", "volume"}
     if not required.issubset(set(df.columns)):
-        logger.warning(
-            "Missing columns for %s (%s). Got: %s", ticker, timeframe, list(df.columns)
-        )
+        logger.warning("Missing columns for %s (%s). Got: %s", ticker, timeframe, list(df.columns))
         return None
 
     result = df[["date", "open", "high", "low", "close", "volume"]].copy()
