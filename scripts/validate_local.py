@@ -191,7 +191,7 @@ async def main() -> None:
 
         # Gentle rate limit for YF
         if idx < total - 1:
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(1.0)
 
     # ---- Summary table ----
     elapsed = time.time() - t0

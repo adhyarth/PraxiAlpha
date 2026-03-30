@@ -92,20 +92,29 @@ if not YF_AVAILABLE:
     st.stop()
 
 
+def _get_persistent_loop() -> asyncio.AbstractEventLoop:
+    """Return a single long-lived event loop running in a daemon thread.
+
+    asyncpg connections are bound to the event loop that created them.
+    If we call ``asyncio.run()`` for every DB query we get a *new* loop
+    each time and the old connections die with ``TCPTransport closed``.
+    Keeping one persistent loop avoids that.
+    """
+    if not hasattr(_get_persistent_loop, "_loop"):
+        import threading
+
+        loop = asyncio.new_event_loop()
+        thread = threading.Thread(target=loop.run_forever, daemon=True)
+        thread.start()
+        _get_persistent_loop._loop = loop
+    return _get_persistent_loop._loop
+
+
 def _run_async(coro):
-    """Run an async coroutine from sync Streamlit context."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        import concurrent.futures
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            return pool.submit(asyncio.run, coro).result()
-    else:
-        return asyncio.run(coro)
+    """Run an async coroutine on the persistent background loop."""
+    loop = _get_persistent_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result(timeout=120)  # generous timeout
 
 
 if st.button("🚀 Run Validation", type="primary", use_container_width=True):
@@ -270,7 +279,7 @@ if st.button("🚀 Run Validation", type="primary", use_container_width=True):
 
         # Gentle rate limit for Yahoo Finance
         if idx < total_jobs - 1:
-            time.sleep(0.5)
+            time.sleep(1.5)
 
     progress_bar.progress(1.0, text="✅ Validation complete!")
     status.update(label="Validation complete!", state="complete")

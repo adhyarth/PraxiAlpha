@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time as _time
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -450,19 +451,32 @@ def fetch_yf_candles(
 
     period = _YF_PERIODS.get(timeframe, "2y")
 
-    try:
-        yticker = yf.Ticker(ticker)
-        # auto_adjust=False returns split-adjusted OHLC without dividend
-        # adjustment, matching our DB's split-only adjustment.
-        # (auto_adjust=True would also apply cumulative dividend drag,
-        # causing ~1-3% divergence on older bars.)
-        df = yticker.history(period=period, interval=interval, auto_adjust=False)
-    except Exception as e:
-        logger.warning("yfinance error for %s (%s): %s", ticker, timeframe, e)
-        return None
+    # Retry with exponential back-off — Yahoo Finance aggressively
+    # rate-limits and drops TCP connections when hit too fast.
+    max_retries = 3
+    df = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            yticker = yf.Ticker(ticker)
+            # auto_adjust=False returns split-adjusted OHLC without dividend
+            # adjustment, matching our DB's split-only adjustment.
+            # (auto_adjust=True would also apply cumulative dividend drag,
+            # causing ~1-3% divergence on older bars.)
+            df = yticker.history(period=period, interval=interval, auto_adjust=False)
+            if df is not None and not df.empty:
+                break  # success
+        except Exception as e:
+            logger.warning(
+                "yfinance attempt %d/%d for %s (%s): %s",
+                attempt, max_retries, ticker, timeframe, e,
+            )
+            if attempt < max_retries:
+                _time.sleep(2 ** attempt)  # 2s, 4s back-off
+            else:
+                return None
 
     if df is None or df.empty:
-        logger.warning("No data from Yahoo Finance for %s (%s)", ticker, timeframe)
+        logger.warning("No data from Yahoo Finance for %s (%s) after %d attempts", ticker, timeframe, max_retries)
         return None
 
     df = df.reset_index()
