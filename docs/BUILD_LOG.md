@@ -2231,3 +2231,42 @@ Addressed all 6 Copilot review comments on PR #27:
 ##### Files Changed (docs only)
 - `docs/PROGRESS.md`, `docs/CHANGELOG.md`, `WORKFLOW.md` — updated with decision
 - No code changes yet — migration is next session's work
+
+### Session 28f (continued) — 2026-03-29: Migrate Validation from tvdatafeed to yfinance (Phase 2)
+
+**Goal:** Replace the unmaintained tvdatafeed websocket scraper (~50% TCP failure rate) with yfinance (stable PyPI REST API) for OHLCV data validation.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+1. **Replaced `fetch_tv_candles()` + `get_tv_client()` with `fetch_yf_candles()`** — new function uses `yfinance.Ticker.history()` with `auto_adjust=True` to fetch split-adjusted OHLCV. No authentication, no websocket, no TCP errors. Supports daily (2yr), weekly (5yr), monthly (10yr), and quarterly (via monthly aggregation). Title-case columns from yfinance (`Open`, `High`, etc.) mapped to lowercase.
+2. **Removed tvdatafeed dependency** — `pyproject.toml` optional dep group renamed from `tv-validate` (GitHub install) to `validate` (yfinance from PyPI). Lazy import changed from `tvDatafeed` to `yfinance`, availability flag renamed `TV_AVAILABLE` → `YF_AVAILABLE`.
+3. **Removed TV credentials** — deleted `tv_username`/`tv_password` from `backend/config.py` and `.env.example`. yfinance needs no auth.
+4. **Deleted 3 obsolete tvdatafeed scripts** — `scripts/validate_tradingview.py` (old CLI tool), `scripts/debug_aapl_volume.py` (TV volume debug), `scripts/debug_volume_multi.py` (TV multi-ticker debug). All were specific to tvdatafeed's websocket issues.
+5. **Updated Streamlit validation page** — all user-facing text changed from "TradingView Premium" to "Yahoo Finance". Removed TV credential verification step. Removed `get_tv_client()` import and per-request client creation. Reduced rate-limit sleep from 2s to 0.5s (REST vs websocket). Column headers updated ("TV Bars" → "YF Bars", "TV Value" → "YF Value" in CSV/detail).
+6. **Updated service docstrings and comments** — all references to "TradingView" replaced with provider-agnostic or "Yahoo Finance" language.
+7. **Updated tests** — module docstring and error string references updated. No logic changes needed — all 43 validation tests exercise comparison/aggregation/persistence, not the fetch layer.
+8. **CI verification** — ruff lint ✅, ruff format ✅ (1 auto-fix), mypy ✅, pytest 494/494 ✅.
+
+#### Key Design Decisions
+- **Kept internal field names (`tv_value`, `tv_bar_count`)** — renaming these in data structures would require 100+ changes across tests and Streamlit page with zero functional benefit. Only user-facing column headers and labels were updated.
+- **yfinance `auto_adjust=True`** — returns split-adjusted prices by default, matching our DB's adjusted candle data. No manual split adjustment needed.
+- **Period-based lookback** — `fetch_yf_candles()` uses `period="2y"` / `"5y"` / `"10y"` instead of calculating exact start dates, then trims to `n_bars`. Simpler and avoids timezone/date edge cases.
+- **0.5s rate limit** — yfinance uses REST API with reasonable rate limits, no websocket keepalive issues. 20 checks complete in ~10s vs ~40s with tvdatafeed.
+
+#### Lessons Learned
+- Sometimes the right fix is to remove the broken dependency, not to patch it. tvdatafeed was causing 50% of our validation runs to fail due to websocket instability that no amount of retry logic could fully solve.
+- When swapping a data fetch layer, if the rest of the architecture (service layer, comparison logic, tests, UI) is provider-agnostic, the migration is minimal — just the fetch function and the import.
+
+#### Files Changed
+- `backend/services/tv_validation_service.py` — replaced TV fetcher with yfinance, updated imports/comments/docstrings
+- `streamlit_app/pages/validation.py` — updated imports, labels, removed TV client logic
+- `backend/config.py` — removed `tv_username`, `tv_password`
+- `.env.example` — removed TV credential placeholders
+- `pyproject.toml` — swapped `tv-validate` → `validate` dep group (yfinance)
+- `backend/tests/test_tv_validation.py` — updated docstring and error strings
+- `scripts/validate_tradingview.py` — **deleted**
+- `scripts/debug_aapl_volume.py` — **deleted**
+- `scripts/debug_volume_multi.py` — **deleted**
+
+#### Test Count: 494 (unchanged — no new tests needed, fetch layer not unit-tested)
