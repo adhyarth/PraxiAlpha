@@ -17,8 +17,8 @@
 |-|-|
 | **Session** | 28f — Migrate Validation to yfinance |
 | **Date** | 2026-03-29 |
-| **PR** | #34 |
-| **What was done** | Investigated tvdatafeed TCPTransport connection failures during Streamlit validation runs. Determined root cause: tvdatafeed is an unmaintained (4yr) library that scrapes TradingView's internal websocket protocol — no official API exists. Decided to replace with `yfinance` (stable PyPI package, REST API, actively maintained). All existing validation logic (comparison, metadata enrichment, Streamlit UI, tests) is preserved — only the data-fetch layer needs swapping. |
+| **PR** | #34 (updated) |
+| **What was done** | Replaced tvdatafeed (unmaintained websocket scraper, ~50% TCP failure rate) with yfinance (stable PyPI REST API). Swapped `fetch_tv_candles()` + `get_tv_client()` → `fetch_yf_candles()`. Removed TV credentials from config. Deleted 3 obsolete tvdatafeed scripts. Updated Streamlit UI labels. All 494 tests pass, CI green. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -26,11 +26,11 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 28f — Migrate Validation from tvdatafeed to yfinance |
-| **Scope** | Replace `fetch_tv_candles()` + `get_tv_client()` with yfinance equivalents. Remove tvdatafeed dependency from pyproject.toml, add yfinance. Update Streamlit page (rename references from "TradingView" to "Yahoo Finance" or generic "second source"). Re-run validation in Streamlit to verify all daily/weekly/monthly/quarterly checks pass without TCP errors. Update tests if needed. CI must stay green. |
-| **Key files** | `backend/services/tv_validation_service.py` (swap fetch layer), `streamlit_app/pages/validation.py` (UI label updates), `pyproject.toml` (swap dep), `backend/tests/test_tv_validation.py` (update if needed) |
-| **Depends on** | Session 28e (metadata enrichment, all committed) |
-| **Why** | `tvdatafeed` is unmaintained (last commit 4yr ago, not on PyPI), scrapes TradingView's internal websocket, and suffers constant `TCPTransport closed` errors causing ~50% of validation requests to fail. `yfinance` is a stable, maintained PyPI package using REST API — same split-adjusted OHLCV data, 100% reliable. |
+| **Session** | 29 — Watchlist Backend |
+| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`), Alembic migration, tests. |
+| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration |
+| **Depends on** | Session 16 (Journal backend, provides CRUD service pattern) |
+| **Why** | Watchlist management is the last major backend feature before Phase 2 dashboard polish. |
 
 > **After Session 28f:** Session 29 builds the Watchlist backend — model, service, API, tests.
 

@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-29 (Session 28f — Migrate Validation to yfinance)
+> **Last updated:** 2026-03-29 (Session 28f — Migrate Validation to yfinance — complete)
 
 ---
 
@@ -15,8 +15,8 @@
 |-|-|
 | **Session** | 28f — Migrate Validation from tvdatafeed to yfinance |
 | **Branch** | `feat/tradingview-data-validation` |
-| **Status** | Decision made, docs committed. Code changes pending (next chat). |
-| **Last checkpoint** | Investigated tvdatafeed TCPTransport failures — library is unmaintained (4yr, no PyPI, websocket scraping). Decided to replace with `yfinance` (stable REST API, 12K+ stars, actively maintained). All existing code (service, Streamlit UI, tests, metadata enrichment) works — only the TV fetch layer needs swapping. Next: replace `fetch_tv_candles()` + `get_tv_client()` with yfinance equivalents, update pyproject.toml, re-run validation in Streamlit, update tests if needed. |
+| **Status** | Code complete, CI green, PR pending update. |
+| **Last checkpoint** | Replaced tvdatafeed with yfinance. Swapped `fetch_tv_candles()` + `get_tv_client()` → `fetch_yf_candles()`. Removed TV credentials from config. Deleted 3 obsolete tvdatafeed scripts. Updated Streamlit UI labels from "TradingView" to "Yahoo Finance". All 494 tests pass. Code committed and pushed. Docs update in progress. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -39,7 +39,7 @@
 | **Stock Search** | ✅ Working | Typeahead search by ticker prefix + company name substring, ranked results, API + Streamlit widget |
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
-| **Data Validation** | 🟡 Migrating | EODHD vs second-source comparison: 5 fixed tickers × 4 timeframes. Volume tolerance 10%. **Metadata enrichment** — results table shows stock type, 90-day avg volume, and contextual notes. **Migrating from tvdatafeed (unmaintained websocket scraping) to yfinance (stable REST API)**. Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. 43 tests. |
+| **Data Validation** | ✅ Working | EODHD vs Yahoo Finance comparison: 5 fixed tickers × 4 timeframes. Volume tolerance 10%. **Metadata enrichment** — results table shows stock type, 90-day avg volume, and contextual notes. **Migrated from tvdatafeed to yfinance** (stable REST API, no auth required). Streamlit UI with progress bar, results table, log capture, failure persistence, CSV export. 43 tests. |
 | **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (494 tests) |
 | **Tests** | ✅ 494 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, TV data validation |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS |
@@ -117,6 +117,7 @@
 | 28 | 2026-03-25 | Split-adjusted chart prices: candle service applies `adjusted_close / close` ratio to OHLCV at query time, `adjusted` API param, Streamlit sidebar toggle, 9 new tests (446 total). | PR #31 |
 | 28b | 2026-03-28 | Weekly aggregate split adjustment: non-daily candles re-aggregated from adjusted daily data via pandas resample, 200-week SMA matches TradingView, Streamlit toggle for all timeframes, 4 new tests (450 total). | PR #33 |
 | 28d | 2026-03-29 | TradingView data validation: service layer (compare, TV fetch, quarterly aggregation, failure persistence), Streamlit UI page (run button, progress, results table, CSV export), 43 new tests (494 total). Hardened: volume tolerance 5%→10%, date normalization for weekly/monthly, auto-retry on TCPTransport errors, per-run log capture, debug & CLI scripts. | PR #34 |
+| 28f | 2026-03-29 | Migrated validation from tvdatafeed to yfinance: replaced fetch layer (`fetch_tv_candles` → `fetch_yf_candles`), removed TV credentials, deleted 3 obsolete scripts, updated UI labels, swapped pyproject.toml dep. 494 tests pass, CI green. | PR #34 (updated) |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 
