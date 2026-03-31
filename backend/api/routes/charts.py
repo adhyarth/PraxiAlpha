@@ -32,7 +32,7 @@ async def get_candles(
         description=(
             "If true (default), return split-only adjusted OHLCV prices "
             "(no dividend adjustment). "
-            "Produces a smooth, continuous chart like TradingView — no jumps at "
+            "Produces a smooth, continuous chart — no jumps at "
             "split boundaries. For non-daily timeframes (weekly, monthly, quarterly), "
             "adjusted daily candles are re-aggregated in Python so that splits "
             "occurring mid-week/month are handled correctly. "

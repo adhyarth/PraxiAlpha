@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-28 (Session 28c — Split-Only Adjustment)
+> **Last updated:** 2026-03-30 (Session 28h — PR review fixes, docs update)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28c — Split-Only Adjustment |
-| **Date** | 2026-03-28 |
-| **PR** | #33 (Split-Only Adjustment — no dividend adjustment) |
-| **What was done** | Refactored candle service to use split-only adjustment for all timeframes, matching TradingView behavior. Replaced EODHD `adjusted_close` (split+dividend) with cumulative split factors computed from `stock_splits` table. Added `_get_split_factors` and `_compute_cumulative_split_factor` helpers. Overhauled test suite for split-only logic. 451 tests total (1 new). |
+| **Session** | 28h — PR Review Fixes |
+| **Date** | 2026-03-30 |
+| **PR** | #34 (final) |
+| **What was done** | Addressed all 11 Copilot PR review comments: vectorized `compare_candles()`, `@st.cache_resource` event loop, `try/finally` log handler cleanup, sidebar emoji fix, misleading auto-retry banner fix, debug script DRY imports, doc accuracy updates. Self-review: added 14 new tests, dead code removal, docstrings, cutoff logic hardening. Created CHEATSHEET.md. All 508 tests pass, CI green. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
@@ -27,11 +27,12 @@
 | | |
 |-|-|
 | **Session** | 29 — Watchlist Backend |
-| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`). Migration. Tests for model, service, API. |
-| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py` |
-| **Depends on** | Session 16 (Trading Journal Backend) |
+| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`), Alembic migration, tests. |
+| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration |
+| **Depends on** | Session 16 (Journal backend, provides CRUD service pattern) |
+| **Why** | Watchlist management is the last major backend feature before Phase 2 dashboard polish. |
 
-> **After Session 28c:** Session 29 builds the Watchlist backend — model, service, API, tests.
+> **After Session 28h:** Session 29 builds the Watchlist backend — model, service, API, tests.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 
@@ -165,8 +166,11 @@ docker compose up -d
 # 2. Wait for API health
 curl -sf http://localhost:8000/health
 
-# 3. Launch Streamlit
-streamlit run streamlit_app/app.py
+# 3. Configure DB connection for Streamlit (runs outside Docker; uses localhost)
+export DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha"
+
+# 4. Launch Streamlit (PYTHONPATH=. is required for internal imports)
+PYTHONPATH=. streamlit run streamlit_app/app.py
 ```
 
 Then perform the relevant visual checks. **No manual computation is needed** —
@@ -179,8 +183,8 @@ discontinuities, indicators in expected ranges, controls behaving as intended).
 > visual defect.
 >
 > **If verification passes:** Note the result in the session's BUILD_LOG
-> entry (e.g., "GUI verified: SMH weekly chart with 200-SMA matches
-> TradingView, no split discontinuities"). Then proceed to Step 7.
+> entry (e.g., "GUI verified: SMH weekly chart with 200-SMA looks correct,
+> no split discontinuities"). Then proceed to Step 7.
 
 ### Step 7: Update All Documentation
 
@@ -542,7 +546,7 @@ After the API call succeeds, remind the user:
 
 > ✅ Trade logged. To verify in the Streamlit Journal UI:
 > ```bash
-> streamlit run streamlit_app/app.py
+> PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" streamlit run streamlit_app/app.py
 > ```
 > Navigate to the **📝 Trading Journal** page → your trade should appear
 > in the table with the correct status and PnL.

@@ -68,6 +68,10 @@ dev = [
     "ipykernel>=6.29,<7",
     "jupyter>=1.0,<2",
 ]
+# Second-source data validation (Yahoo Finance via yfinance)
+validate = [
+    "yfinance>=0.2.36,<1",
+]
 
 [tool.setuptools.packages.find]
 include = ["backend*"]

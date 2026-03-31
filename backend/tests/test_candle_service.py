@@ -371,7 +371,7 @@ class TestSplitAdjustment:
 
     Adjustment now uses the ``stock_splits`` table to compute cumulative
     split factors — NOT the EODHD ``adjusted_close`` column (which
-    includes dividend adjustments that TradingView does not apply by
+    includes dividend adjustments that most charting platforms do not apply by
     default).
     """
 
@@ -411,8 +411,8 @@ class TestSplitAdjustment:
         assert c["open"] == round(790.0 * 0.1, 4)  # 79.0
         assert c["high"] == round(810.0 * 0.1, 4)  # 81.0
         assert c["low"] == round(785.0 * 0.1, 4)  # 78.5
-        # Volume should be scaled inversely: 50M / 0.1 = 500M
-        assert c["volume"] == int(50_000_000 / 0.1)
+        # Volume is NOT adjusted — EODHD already returns split-adjusted volume
+        assert c["volume"] == 50_000_000
 
     @pytest.mark.asyncio
     async def test_unadjusted_returns_raw_prices(self, service, mock_session):

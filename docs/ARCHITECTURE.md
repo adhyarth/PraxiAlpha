@@ -98,6 +98,7 @@ We're in **Phase 2** — building charting and dashboard features on top of the 
 | **Alembic** | Migration tool | Tracks database schema changes over time | Version control for the database |
 | **EODHD** | Data provider API | 30+ years of US stock data, good value | Our stock data supplier |
 | **FRED** | Federal Reserve API | Free macro data (interest rates, inflation, etc.) | Our economics data supplier |
+| **Yahoo Finance** | Data provider | Independent second-source OHLCV data for validation (via `yfinance`) | Quality-check reference |
 
 ---
 
@@ -250,6 +251,21 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 | 2. Test | `--test` | Backfills 10 blue-chip stocks (AAPL, MSFT, etc.) as a smoke test | ✅ Done (67,919 records) |
 | 3. Full | `--all` | Backfills ALL 49,225 tickers (~75M+ rows, takes hours) | ⬜ After test |
 
+### Data Validation (Second-Source Cross-Check)
+
+We validate our EODHD-sourced OHLCV data against **Yahoo Finance** (an independent second source) to catch data pipeline bugs, split adjustment errors, and provider quality issues.
+
+| Aspect | Details |
+|--------|---------|
+| **Service** | `backend/services/data_validation_service.py` |
+| **Streamlit UI** | `streamlit_app/pages/validation.py` |
+| **Tickers** | 10 fixed split-test tickers (AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI) + 10 random |
+| **Timeframes** | Daily, weekly, monthly, quarterly |
+| **Tolerances** | Price: 1%, Volume: 10% |
+| **Quarterly** | Yahoo Finance doesn't provide quarterly — we fetch monthly and aggregate |
+| **Known issue** | Volume on most-recent 1-2 bars differs 5-8% between EODHD and YF due to data provider consolidation lag (not a code bug) |
+| **Logging** | Each run saves a timestamped log to `data/data_validation_YYYYMMDD_HHMMSS.log` |
+
 ---
 
 ## 🗄️ Database Design
@@ -295,7 +311,7 @@ Step 1: POPULATE                Step 2: BACKFILL              Step 3: DAILY AUTO
 └────────────────┴──────────────────────────────┘
 ```
 
-**Why "adjusted close"?** When a stock splits (e.g., 4:1), the price drops to 1/4 overnight, but you didn't lose money. The `adjusted_close` column from EODHD accounts for both splits and dividends, but our candle service applies **split-only adjustment** (computed from the `stock_splits` table) to match TradingView's default behavior. Dividend adjustments are intentionally excluded.
+**Why "adjusted close"?** When a stock splits (e.g., 4:1), the price drops to 1/4 overnight, but you didn't lose money. The `adjusted_close` column from EODHD accounts for both splits and dividends, but our candle service applies **split-only adjustment** (computed from the `stock_splits` table) to match the industry-standard default behavior (Yahoo Finance, Bloomberg, etc.). Dividend adjustments are intentionally excluded.
 
 **Why TimescaleDB hypertable?** Regular PostgreSQL stores all rows in one big pile. TimescaleDB automatically partitions rows by time (e.g., one chunk per month). Queries like "get AAPL's price for the last 90 days" become 10-100x faster because it only scans 3 chunks instead of millions of rows.
 
@@ -600,6 +616,8 @@ PraxiAlpha/
 │   │       └── ... (stubs)   ← Future: charts, screener, etc.
 │   │
 │   ├── 📁 services/          ← Business logic
+│   │   ├── candle_service.py     ← Split-adjusted OHLCV for all timeframes
+│   │   ├── data_validation_service.py ← Second-source data validation
 │   │   └── data_pipeline/
 │   │       ├── eodhd_fetcher.py  ← Talks to EODHD API
 │   │       ├── fred_fetcher.py   ← Talks to FRED API
@@ -617,7 +635,7 @@ PraxiAlpha/
 │
 ├── 📁 data/migrations/       ← Alembic database migrations
 ├── 📁 docs/                  ← 📖 You are here!
-├── 📁 streamlit_app/         ← MVP dashboard (future)
+├── 📁 streamlit_app/         ← MVP dashboard (charts, journal, validation)
 ├── 📁 education_content/     ← Learning materials (future)
 └── 📁 notebooks/             ← Jupyter notebooks for exploration
 ```
@@ -646,4 +664,4 @@ PraxiAlpha/
 
 ---
 
-*Last updated: 2026-03-22 — Phase 2 (added user_id column for trade isolation, trade_snapshots schema for post-close "what-if" tracking)*
+*Last updated: 2026-03-29 — Phase 2 (data validation subsection, Yahoo Finance in tech stack, validation files in project structure)*

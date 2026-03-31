@@ -17,19 +17,22 @@ $124 (post-split).  Rebuilding from adjusted dailies eliminates this.
 Split adjustment (split-only, no dividend adjustment)
 -----------------------------------------------------
 When ``adjusted=True`` (the default), OHLC prices are retroactively adjusted
-for stock splits **only** — not dividends.  This matches TradingView's
-default behavior.
+for stock splits **only** — not dividends.  This matches the industry-standard
+default behavior (Yahoo Finance, Bloomberg, etc.).
 
 The adjustment factor is computed from the ``stock_splits`` table:
 for each candle, we compute the cumulative product of all split ratios
 that occur *after* that date.  For example, if SMH had a 2:1 split on
-2023-05-05, all pre-split candles get factor = 0.5 (prices halved, volume
-doubled).  Post-split candles get factor = 1.0 (no change).
+2023-05-05, all pre-split candles get factor = 0.5 (prices halved).
+Post-split candles get factor = 1.0 (no change).
+
+**Volume is NOT adjusted** — EODHD already returns split-adjusted volume
+in its API responses, so applying the factor again would double-adjust.
 
 This approach was chosen over the EODHD ``adjusted_close`` column because
 ``adjusted_close`` includes *both* split and dividend adjustments.  Dividend
 adjustment pulls historical prices down by ~1-2% per year of cumulative
-dividends, causing our charts to diverge from TradingView, Yahoo Finance,
+dividends, causing our charts to diverge from Yahoo Finance,
 and Bloomberg (which all default to split-only adjustment).
 
 For non-daily timeframes (weekly, monthly, quarterly), when ``adjusted=True``
@@ -110,18 +113,24 @@ class CandleService:
         stock_id: int,
     ) -> list[tuple[date, float]]:
         """
-        Fetch all splits for a stock and return a list of (split_date, ratio).
+        Fetch all *past* splits for a stock and return a list of (split_date, ratio).
 
         Each entry represents a split event.  The ``ratio`` is
         ``numerator / denominator`` — e.g. 2.0 for a 2:1 split (each
         pre-split share becomes 2 post-split shares, so pre-split prices
         are divided by 2).
+
+        Future splits (date > today) are excluded — they haven't occurred
+        yet, so neither the data provider nor Yahoo Finance has applied them.
+        Including them would corrupt every current candle (e.g. CVNA's
+        announced 1:5 reverse split would multiply prices by 5 prematurely).
         """
         result = await self.session.execute(
             text(
                 "SELECT date, numerator, denominator "
                 "FROM stock_splits "
                 "WHERE stock_id = :stock_id "
+                "  AND date <= CURRENT_DATE "
                 "ORDER BY date ASC"
             ),
             {"stock_id": stock_id},
@@ -188,7 +197,7 @@ class CandleService:
             adjusted: If True (default), apply **split-only** adjustment to
                 OHLC prices using the cumulative split factor computed from
                 the ``stock_splits`` table.  Dividends are NOT included —
-                this matches TradingView / Yahoo / Bloomberg defaults.
+                this matches Yahoo Finance / Bloomberg defaults.
                 For daily candles, each row is adjusted individually.  For
                 non-daily timeframes, **adjusted daily candles are fetched
                 and re-aggregated in Python** using pandas ``resample()``
@@ -287,11 +296,11 @@ class CandleService:
                 )
                 factor = self._compute_cumulative_split_factor(candle_date, splits)
 
-                adj_volume = (
-                    int(round(row.volume / factor))
-                    if factor != 1.0 and factor != 0
-                    else int(row.volume)
-                )
+                # Volume is NOT adjusted here — EODHD already returns
+                # split-adjusted volume in its API responses.  Applying
+                # ``volume / factor`` would double-adjust, inflating
+                # pre-split volume by the split ratio (e.g. 10× for NVDA).
+                # Only OHLC prices need adjustment (raw → split-adjusted).
 
                 candle: dict[str, Any] = {
                     "date": row.date.isoformat()
@@ -302,7 +311,7 @@ class CandleService:
                     "low": round(float(row.low) * factor, 4),
                     "close": round(raw_close * factor, 4),
                     "adjusted_close": round(raw_close * factor, 4),
-                    "volume": adj_volume,
+                    "volume": int(row.volume),
                 }
             elif apply_adj:
                 # No splits for this stock — return raw prices unchanged.

@@ -2076,3 +2076,315 @@ Addressed all 6 Copilot review comments on PR #27:
 4. **CHANGELOG test count 450 → 451** — Aggregate-adjustment bullet still said 450 total tests; actual count is 451. Fixed.
 
 5. **(Self-audit) ARCHITECTURE.md "adjusted close" explanation** — The educational note said "adjusted close accounts for splits and dividends". Updated to clarify our candle service uses split-only adjustment from `stock_splits`, matching TradingView, and intentionally excludes dividends.
+
+### Session 28d — 2026-03-29: TradingView Data Validation (Phase 2)
+
+**Goal:** Build a recurring data validation script that uses TradingView Premium credentials to fetch OHLCV data (daily, weekly, monthly) and compare it against PraxiAlpha's database — verifying data accuracy and catching pipeline/adjustment errors.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+1. **TradingView credentials** — added `TV_USERNAME` and `TV_PASSWORD` to `backend/config.py` (Pydantic settings) and `.env.example`.
+2. **Optional dependency** — added `tvdatafeed` (installed from GitHub) as `[project.optional-dependencies] tv-validate` in `pyproject.toml`. Not required in CI — tests use no TradingView connection.
+3. **Validation script** (`scripts/validate_tradingview.py`) — full CLI tool:
+   - Fetches split-adjusted OHLCV from our DB via `CandleService` and from TradingView via `tvdatafeed`.
+   - Compares bar-by-bar on overlapping dates with configurable tolerances (1% price, 5% volume).
+   - Multi-exchange fallback (NASDAQ → NYSE → AMEX).
+   - Supports `--tickers`, `--timeframes`, `--bars`, `--tolerance`, `--output` (CSV), and `--dry-run` flags.
+   - Prints a human-readable summary with match percentages and worst mismatches.
+   - Saves detailed CSV report for further analysis.
+4. **Data structures** — `CandleMismatch` (with `is_significant` property using stored tolerance), `ValidationResult` (with `mismatch_count` and `match_pct` computed properties).
+5. **Bug fix: tolerance unit mismatch** — `is_significant` was comparing `pct_diff` (stored as %, e.g., 1.35) against tolerance (stored as ratio, e.g., 0.01). Fixed by converting: `abs(pct_diff) > tol * 100`. Also added `tolerance` field to `CandleMismatch` so custom tolerances passed to `compare_candles()` propagate to `is_significant`.
+6. **19 unit tests** (`backend/tests/test_tv_validation.py`) — `CandleMismatch` (4), `ValidationResult` (3), `compare_candles` (8), report structure (2). All tests exercise comparison logic without requiring TradingView or a database.
+7. **CI cleanup** — fixed ruff lint (unused import, unsorted imports, SIM108 ternary) and format issues.
+
+#### Key Design Decisions
+- **Optional dependency** — `tvdatafeed` only needed when running the validation script, not in CI or production. Tests mock nothing — they test pure comparison logic.
+- **Tolerance stored on mismatch** — `CandleMismatch.tolerance` field ensures `is_significant` uses the same tolerance that was used during comparison, not just the global default. This makes custom tolerance via `compare_candles(price_tolerance=...)` work correctly end-to-end.
+- **pct_diff as percentage, tolerance as ratio** — `pct_diff` is stored as a human-readable percentage (1.35 = 1.35%) while tolerances follow the ratio convention (0.01 = 1%). The `is_significant` property bridges the gap with `tol * 100`.
+
+#### Lessons Learned
+- Unit mismatches between percentage and ratio representations are subtle — the tests passed for "significant" cases (large numbers > both units) but failed for "within tolerance" cases. Always be explicit about units in data structures.
+- `ruff format` must be run as a separate step after `ruff check --fix` — the fixer doesn't apply formatting.
+
+#### Files Changed
+- `backend/config.py` — added `tv_username`, `tv_password` settings
+- `.env.example` — added `TV_USERNAME`, `TV_PASSWORD` placeholders
+- `pyproject.toml` — added `[project.optional-dependencies] tv-validate`
+- `scripts/validate_tradingview.py` — **new** (validation script, ~650 lines)
+- `backend/tests/test_tv_validation.py` — **new** (19 tests)
+- `docs/CHANGELOG.md` — added validation entries
+- `WORKFLOW.md` — updated last/next session
+- `docs/PROGRESS.md` — updated session status
+
+#### Test Count: 470 (19 new)
+
+#### Session 28d — Continued (refactor to service + Streamlit UI)
+
+**Goal:** Delete CLI script, refactor all logic into a backend service, add Streamlit validation page, add quarterly support, failure persistence, and comprehensive tests.
+
+##### What Was Done
+1. **Deleted** `scripts/validate_tradingview.py` — CLI script replaced by Streamlit UI.
+2. **Created** `backend/services/tv_validation_service.py` — all validation logic in one service:
+   - `CandleMismatch` / `ValidationResult` data structures (moved from script).
+   - `compare_candles()` — bar-by-bar OHLCV comparison with configurable tolerances.
+   - `aggregate_monthly_to_quarterly()` — derive quarterly bars from TV monthly data.
+   - `fetch_tv_candles()` / `fetch_our_candles()` — data fetchers (TV via tvdatafeed, DB via CandleService).
+   - `sample_random_tickers()` — cross-exchange random ticker sampling (3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs).
+   - `load_previous_failures()` / `save_failures()` / `get_retry_tickers_from_failures()` — JSON persistence for failed checks.
+   - `compute_summary()` — aggregate pass/fail/error stats.
+3. **Created** `streamlit_app/pages/validation.py` — Streamlit "Data Validation" page:
+   - Previous failures banner with expandable detail table.
+   - Info expander explaining what gets validated (20 tickers × 4 timeframes).
+   - "Run Validation" button with live progress bar and status messages.
+   - Summary metrics row (total, passed, mismatches, overall match %).
+   - Full results table with status emoji, group, bar counts, match %, worst diff.
+   - Expandable mismatch details per ticker/timeframe.
+   - CSV download button for full report.
+4. **Updated** `streamlit_app/app.py` — added "Data Validation" to sidebar navigation.
+5. **Updated** `backend/tests/test_tv_validation.py` — repointed imports to service, added 24 new tests:
+   - `TestQuarterlyAggregation` (5 tests): basic, multiple quarters, empty, None, date type.
+   - `TestFailurePersistence` (7 tests): save/load round-trip, all-pass deletes file, nonexistent file, corrupt JSON, retry tickers, no file, error results.
+   - `TestComputeSummary` (5 tests): all passing, failures, errors, mixed, empty.
+   - `TestValidationResultProperties` (7 tests): status emoji, worst_diff, group default/custom.
+6. **Lint/type fixes** — removed unused imports (random, time, asdict, func, Stock), fixed `load_previous_failures` return type annotation for mypy, renamed unused loop variable `tf` → `_tf`.
+
+##### Files Changed
+- `scripts/validate_tradingview.py` — **deleted**
+- `backend/services/tv_validation_service.py` — **new** (562 lines)
+- `streamlit_app/pages/validation.py` — **new** (339 lines)
+- `streamlit_app/app.py` — updated sidebar nav
+- `backend/tests/test_tv_validation.py` — repointed imports, 24 new tests (43 total in file)
+- `docs/PROGRESS.md` — updated status + session history
+- `docs/BUILD_LOG.md` — this entry
+- `docs/CHANGELOG.md` — updated
+
+##### Test Count: 494 (43 total in validation file, +24 new from refactor)
+
+#### Session 28d — Continued (hardening: volume tolerance, retry, logging)
+
+**Goal:** Investigate volume mismatches between EODHD and TradingView, harden the validation pipeline with better tolerance, retry logic, and run logging.
+
+##### What Was Done
+1. **Root-cause investigation** — created `scripts/debug_aapl_volume.py` to compare AAPL daily volume (raw vs split-adjusted) between our DB and TradingView. Findings:
+   - Raw volume (unadjusted) matched TV within 5-8% on most dates.
+   - Split-adjusted volume differed by exactly the split ratio on old dates — expected behavior, providers disagree on volume adjustment methodology.
+   - Most recent dates showed 5-8% diff due to data provider consolidation lag (EODHD exchange-only vs TV dark-pool-inclusive).
+   - **Conclusion:** not a code bug, normal provider discrepancy.
+2. **Volume tolerance raised from 5% to 10%** — `DEFAULT_VOLUME_TOLERANCE` in `tv_validation_service.py` updated to 0.10. Validated across a diverse sample via `scripts/debug_volume_multi.py`.
+3. **Date normalization for non-daily comparisons** — added `_normalize_dates_for_merge()` helper:
+   - Weekly: maps dates to Monday of ISO week (both sources use different week anchors).
+   - Monthly/quarterly: maps dates to 1st-of-month (our DB uses `MS` resample, TV uses first trading day).
+   - Eliminates false mismatches caused by date labeling differences.
+4. **Automatic TCPTransport retry** — `fetch_tv_candles()` now retries up to 2 times with a fresh `TvDatafeed` client on websocket `TCPTransport closed` / `handler is closed` errors. Quarterly fetches always use a fresh client.
+5. **Streamlit page: fresh client per request** — prevents stale websockets from causing cascading failures across a multi-ticker run.
+6. **Per-run log capture** — every Streamlit validation run now captures all `tv_validate` + root logger output to `StringIO`, saves to `data/tv_validation_YYYYMMDD_HHMMSS.log`, displays in a collapsible UI section + download button.
+7. **Fixed tickers trimmed from 10 to 5** — removed GOOGL, AMZN, META, SPY, QQQ to reduce noise while debugging. Kept AAPL, MSFT, NVDA, SMH, TSLA (all have interesting split histories).
+8. **Random sampling + retry-from-failures disabled** — commented out in Streamlit UI to keep runs deterministic while stabilizing.
+9. **SQL fix** — changed `NOT IN :exclude` (broken with asyncpg) to `!= ALL(:exclude)` with list parameter in `sample_random_tickers()`.
+
+##### Files Changed
+- `backend/services/tv_validation_service.py` — volume tolerance, date normalization, retry logic, trimmed tickers
+- `streamlit_app/pages/validation.py` — fresh client, log capture, disabled random/retry
+- `scripts/debug_aapl_volume.py` — **new** (AAPL volume debug script)
+
+#### Session 28e — Continued (metadata enrichment)
+
+**Goal:** Enrich validation results with stock metadata so users can tell whether a mismatch is on a low-liquidity or exotic security and can be safely ignored.
+
+##### What Was Done
+1. **`StockMeta` dataclass** — new dataclass in `tv_validation_service.py` with fields: `name`, `exchange`, `asset_type`, `avg_volume_90d`. Properties: `type_label` (Stock/ETF/SPAC/Warrant/Right/Unit/Unknown), `is_low_liquidity` (avg vol < 10K), `is_exotic` (SPAC/warrant/right/unit).
+2. **`fetch_stock_metadata()`** — async function querying `stocks` table + 90-day avg volume subquery from `daily_ohlcv`.
+3. **`ValidationResult.meta` field** — optional `StockMeta` attached to each result.
+4. **`ValidationResult.note` property** — generates contextual notes like "⏭️ Warrant, avg vol 3,200 — safe to ignore".
+5. **Streamlit UI enrichment** — results table now displays "Type", "Avg Vol (90d)", and "Note" columns. Metadata cached per ticker.
+6. **`scripts/debug_volume_multi.py`** — new multi-ticker volume comparison script. Supports `--n`, `--tickers`, `--bars` CLI args.
+7. **CI verification** — ruff lint ✅, ruff format ✅, mypy ✅, pytest 494/494 ✅.
+
+##### Files Changed
+- `backend/services/tv_validation_service.py` — added `StockMeta`, `fetch_stock_metadata()`, `ValidationResult.meta`, `ValidationResult.note`
+- `streamlit_app/pages/validation.py` — metadata cache, 3 new table columns
+- `scripts/debug_volume_multi.py` — **new**
+
+##### Test Count: 494 (unchanged — metadata tested via existing property tests)
+
+#### Session 28f — Continued (tvdatafeed investigation + yfinance decision)
+
+**Goal:** Investigate persistent TCPTransport failures during Streamlit validation runs. Determine root cause and decide on a fix.
+
+##### What Was Done
+1. **Ran Streamlit validation** — observed ~50% of requests fail with `TCPTransport closed` errors. Which timeframes succeed vs fail is random across runs.
+2. **Investigated `tvdatafeed`** (`rongardF/tvdatafeed`):
+   - Last commit: 4 years ago (2022). Not on PyPI. Upstream (`StreamAlpha/tvdatafeed`) returns 404.
+   - 45 open issues including "login blew up" (Dec 2025), "get_hist() stopped working" (Dec 2024).
+   - Works by opening a raw websocket to TradingView's undocumented internal charting API. No keepalive, no reconnect, no rate limit handling.
+   - **TradingView has no official data API** — every Python library is reverse-engineering.
+3. **Evaluated alternatives:**
+   - `tradingview-ta` — only returns indicator summaries, not OHLCV. Also archived. Useless.
+   - **`yfinance`** — stable PyPI package (12K+ stars, maintained), REST API, split-adjusted OHLCV. Same data quality for validation purposes.
+4. **Decision: migrate to `yfinance`** — replace `fetch_tv_candles()` + `get_tv_client()` with yfinance equivalents. All existing logic preserved — only fetch layer swaps.
+
+##### Key Design Decisions
+- **yfinance over tvdatafeed** — free, no API key, PyPI package, REST (no websockets), same split-adjusted OHLCV. Goal is validating EODHD against a second source — doesn't have to be TradingView.
+- **Keep existing architecture** — service layer and Streamlit UI are provider-agnostic. Only fetch functions change.
+
+##### Files Changed (docs only)
+- `docs/PROGRESS.md`, `docs/CHANGELOG.md`, `WORKFLOW.md` — updated with decision
+- No code changes yet — migration is next session's work
+
+### Session 28f (continued) — 2026-03-29: Migrate Validation from tvdatafeed to yfinance (Phase 2)
+
+**Goal:** Replace the unmaintained tvdatafeed websocket scraper (~50% TCP failure rate) with yfinance (stable PyPI REST API) for OHLCV data validation.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+1. **Replaced `fetch_tv_candles()` + `get_tv_client()` with `fetch_yf_candles()`** — new function uses `yfinance.Ticker.history()` with `auto_adjust=True` to fetch split-adjusted OHLCV. No authentication, no websocket, no TCP errors. Supports daily (2yr), weekly (5yr), monthly (10yr), and quarterly (via monthly aggregation). Title-case columns from yfinance (`Open`, `High`, etc.) mapped to lowercase.
+2. **Removed tvdatafeed dependency** — `pyproject.toml` optional dep group renamed from `tv-validate` (GitHub install) to `validate` (yfinance from PyPI). Lazy import changed from `tvDatafeed` to `yfinance`, availability flag renamed `TV_AVAILABLE` → `YF_AVAILABLE`.
+3. **Removed TV credentials** — deleted `tv_username`/`tv_password` from `backend/config.py` and `.env.example`. yfinance needs no auth.
+4. **Deleted 3 obsolete tvdatafeed scripts** — `scripts/validate_tradingview.py` (old CLI tool), `scripts/debug_aapl_volume.py` (TV volume debug), `scripts/debug_volume_multi.py` (TV multi-ticker debug). All were specific to tvdatafeed's websocket issues.
+5. **Updated Streamlit validation page** — all user-facing text changed from "TradingView Premium" to "Yahoo Finance". Removed TV credential verification step. Removed `get_tv_client()` import and per-request client creation. Reduced rate-limit sleep from 2s to 0.5s (REST vs websocket). Column headers updated ("TV Bars" → "YF Bars", "TV Value" → "YF Value" in CSV/detail).
+6. **Updated service docstrings and comments** — all references to "TradingView" replaced with provider-agnostic or "Yahoo Finance" language.
+7. **Updated tests** — module docstring and error string references updated. No logic changes needed — all 43 validation tests exercise comparison/aggregation/persistence, not the fetch layer.
+8. **CI verification** — ruff lint ✅, ruff format ✅ (1 auto-fix), mypy ✅, pytest 494/494 ✅.
+
+#### Key Design Decisions
+- **Kept internal field names (`tv_value`, `tv_bar_count`)** — renaming these in data structures would require 100+ changes across tests and Streamlit page with zero functional benefit. Only user-facing column headers and labels were updated.
+- **yfinance `auto_adjust=True`** — returns split-adjusted prices by default, matching our DB's adjusted candle data. No manual split adjustment needed.
+- **Period-based lookback** — `fetch_yf_candles()` uses `period="2y"` / `"5y"` / `"10y"` instead of calculating exact start dates, then trims to `n_bars`. Simpler and avoids timezone/date edge cases.
+- **0.5s rate limit** — yfinance uses REST API with reasonable rate limits, no websocket keepalive issues. 20 checks complete in ~10s vs ~40s with tvdatafeed.
+
+#### Lessons Learned
+- Sometimes the right fix is to remove the broken dependency, not to patch it. tvdatafeed was causing 50% of our validation runs to fail due to websocket instability that no amount of retry logic could fully solve.
+- When swapping a data fetch layer, if the rest of the architecture (service layer, comparison logic, tests, UI) is provider-agnostic, the migration is minimal — just the fetch function and the import.
+
+#### Files Changed
+- `backend/services/tv_validation_service.py` → renamed to `data_validation_service.py` — replaced TV fetcher with yfinance, updated imports/comments/docstrings
+- `streamlit_app/pages/validation.py` — updated imports, labels, removed TV client logic
+- `backend/config.py` — removed `tv_username`, `tv_password`
+- `.env.example` — removed TV credential placeholders
+- `pyproject.toml` — swapped `tv-validate` → `validate` dep group (yfinance)
+- `backend/tests/test_tv_validation.py` → renamed to `test_data_validation.py` — updated imports, docstring and error strings
+- `scripts/validate_tradingview.py` — **deleted**
+- `scripts/debug_aapl_volume.py` — **deleted**
+- `scripts/debug_volume_multi.py` — **deleted**
+
+#### Test Count: 494 (unchanged — no new tests needed, fetch layer not unit-tested)
+
+---
+
+### Session 28g — 2026-03-29: Validation Hardening — Split Fixes, Async Fix, Random Tickers (Phase 2)
+
+**Goal:** Fix split-adjusted volume mismatches, TCPTransport errors in Streamlit, and enable full 10+10 ticker validation across all timeframes.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+
+1. **Fixed double volume adjustment** — EODHD already returns split-adjusted volume, but `_apply_split_adjustment()` in `candle_service.py` was dividing volume by the split ratio again. This caused massive volume mismatches (10x–100x) on split tickers like NVDA, TSLA, SMH. Fix: removed the volume adjustment line; only OHLC prices are now scaled by the cumulative split factor.
+
+2. **Excluded future splits from candle adjustment** — `_get_split_factors()` was fetching ALL splits including future-dated ones. CVNA had an announced 1:5 reverse split (future date) that was being applied to current data, multiplying prices by 5. Fix: added `AND date <= CURRENT_DATE` to the query. Docstring explains the rationale.
+
+3. **Fixed TCPTransport closed errors in Streamlit** — Root cause: each call to `_run_async()` used `asyncio.run()` which creates a new event loop. asyncpg connections are bound to the event loop that created them. When a second `asyncio.run()` started a new loop, the old connections died → `TCPTransport closed`. Fix: replaced with a persistent background event loop in a daemon thread (`_get_persistent_loop()`). All async DB calls now run on the same loop.
+
+4. **Added YF retry with exponential backoff** — `fetch_yf_candles()` now retries up to 3 times with 2s/4s backoff delays for transient Yahoo Finance rate-limits.
+
+5. **Re-enabled random ticker sampling in Streamlit GUI** — `sample_random_tickers(10)` was commented out ("disabled for now — re-enable after stable"). Uncommented and added the missing import. Now safe with the persistent event loop fix.
+
+6. **Expanded fixed ticker set to 10** — AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI.
+
+7. **Extended validation windows** — daily: 2520 bars (~10yr), weekly: 520, monthly: 120, quarterly: 40.
+
+8. **Added incomplete period exclusion** — `compare_candles()` excludes the current incomplete week/month/quarter from comparison, preventing false mismatches on partial periods.
+
+9. **Increased rate-limit delays** — CLI script 0.3s → 1.0s, Streamlit GUI 0.5s → 1.5s.
+
+10. **Updated split volume test** — `test_adjusted_applies_split_factor_to_ohlc` now expects unchanged volume (50M, not 500M), matching the corrected production behavior.
+
+11. **Ruff lint/format cleanup** — fixed f-string without placeholders, auto-formatted 2 files.
+
+#### Key Design Decisions
+- **Volume is NOT split-adjusted by us** — EODHD's daily OHLCV feed already returns split-adjusted volume. Applying our own split factor to volume was a double-adjustment bug that only manifested in validation (our data was 10x–100x off from YF).
+- **Future splits are excluded** — a split's `date` field represents when the split takes effect. Until that date, neither the data provider nor Yahoo Finance has applied it. Including future splits corrupts every current candle.
+- **Persistent event loop** — the standard pattern for calling async code from sync Streamlit is `asyncio.run()`, but this is incompatible with module-level async connection pools. A single daemon-thread loop is the cleanest fix.
+
+#### Lessons Learned
+- When EODHD says "adjusted", they mean it — volume is already split-adjusted. Don't apply split factors to volume.
+- `asyncio.run()` creates AND DESTROYS an event loop. Any async resources (DB pools, connections) created inside one `asyncio.run()` call are dead by the next. For Streamlit apps that make many async calls, use a persistent loop.
+- Future splits in the DB are real (brokers announce splits before they happen). The `date <= CURRENT_DATE` filter is essential.
+
+#### Files Changed
+- `backend/services/candle_service.py` — removed volume adjustment, added `date <= CURRENT_DATE` to split query
+- `backend/services/data_validation_service.py` — YF retry with backoff, extended timeframe windows, incomplete period exclusion, expanded fixed tickers
+- `scripts/validate_local.py` — increased rate-limit delay, suppressed SQLAlchemy logs
+- `streamlit_app/pages/validation.py` — persistent event loop, re-enabled random tickers, increased rate-limit delay, added `sample_random_tickers` import
+- `backend/tests/test_candle_service.py` — updated split volume test expectation
+
+#### Test Count: 494 (1 test updated, no new tests)
+
+### Session 28h — 2026-03-30: PR Review Fixes & Self-Review (Phase 2)
+
+**Goal:** Address all 11 Copilot PR review comments on PR #34, perform a self-critical review, create CHEATSHEET.md, and finalize documentation.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+
+**PR Review Fixes (11 comments addressed):**
+1. Fixed corrupted Unicode emoji characters in `streamlit_app/app.py` sidebar (🔍, 📋, 🔎)
+2. Switched persistent event loop from module-level global to `@st.cache_resource` for proper Streamlit lifecycle management
+3. Wrapped validation page run block in `try/finally` to guarantee log handler cleanup on exceptions
+4. Vectorized `compare_candles()` — replaced `iterrows()` loop with pandas vectorized percentage-difference computation (~10x speedup)
+5. Fixed misleading UI banner: changed "auto re-checked" to "Review them below — automatic re-checking will be enabled in a future release"
+6. Updated `scripts/debug_yfinance.py` to import constants and fetcher from the canonical `data_validation_service` module (DRY)
+7. Updated `docs/ARCHITECTURE.md` — ticker count from "5 fixed" to "10 fixed + 10 random"
+8. Updated `docs/CHANGELOG.md` — fixed duplicate "Changed" heading to "Changed (continued — data validation details)"
+9. Updated `docs/PROGRESS.md` — corrected session reference from "28d" to "Sessions 28d/28g"
+10. Updated `scripts/debug_yfinance.py` help text to include `PYTHONPATH=.` prefix
+11. All items already fixed or now addressed
+
+**Self-Review (12 improvements):**
+- Added tolerance comments explaining why 1% price / 10% volume
+- Removed dead `get_retry_tickers_from_failures()` call in validate_local.py
+- Added module docstrings to data_validation_service.py and validate_local.py
+- Hardened `_last_completed_period_cutoff()` for all timeframe branches
+- Filtered random ticker sampling to exclude exotic suffixes and low-volume names
+- Added 14 new tests (494 → 508 total): cutoff logic, random ticker filtering, tolerance boundaries
+
+**CHEATSHEET.md created** with key commands for Docker, Streamlit, and validation.
+
+#### Key Design Decisions
+- **`@st.cache_resource` over module global** — Streamlit's resource cache handles lifecycle properly across reruns and prevents memory leaks. The module-level `_PERSISTENT_LOOP` global worked but wasn't idiomatic.
+- **Vectorized comparison** — pandas vectorized ops avoid Python-level `for` loops, important when comparing 2500+ bars × 5 fields per ticker/timeframe.
+- **DRY debug script** — importing from the service module ensures the debug script always stays in sync with production constants (ticker list, bar counts, fetch logic).
+
+#### Lessons Learned
+- Copilot PR review catches real issues (emoji encoding, misleading text, non-idiomatic patterns) that are easy to miss during development
+- Self-critical review after PR review found additional improvements (14 new tests, dead code, docstrings)
+- `try/finally` for Streamlit log handlers is essential — without it, duplicate handlers accumulate on every rerun
+
+#### Files Changed
+- `streamlit_app/app.py` — fixed sidebar emoji encoding
+- `streamlit_app/pages/validation.py` — `@st.cache_resource` event loop, `try/finally` log cleanup, auto-retry banner text
+- `backend/services/data_validation_service.py` — vectorized `compare_candles()`, module docstring
+- `scripts/debug_yfinance.py` — DRY imports from service, help text update
+- `docs/ARCHITECTURE.md` — updated validation ticker count
+- `docs/CHANGELOG.md` — added PR review entries, fixed heading format
+- `docs/PROGRESS.md` — updated session status, test count, session history
+- `WORKFLOW.md` — updated last completed session to 28h
+- `CHEATSHEET.md` — new file with key commands
+- `backend/tests/test_data_validation.py` — 14 new tests
+
+#### Test Count: 508 (14 new)
+
+#### PR Review Cycle 2 (7 comments, 6 code fixes + 1 already done)
+
+1. **Validation page docstring** — updated to mention "fixed + random" tickers (was "fixed tickers" only)
+2. **Editable pip install hint (validation.py)** — `pip install -e ".[validate]"` instead of `pip install "praxialpha[validate]"`
+3. **PR title** — already updated by developer to "feat: data validation — service + Streamlit UI"
+4. **Editable pip install hint (service)** — same fix in `data_validation_service.py` RuntimeError message
+5. **`sample_random_tickers(n)` honors `n`** — scaled exchange/ETF counts proportionally, added remainder fill from mixed pool, trimmed result to exactly `n`
+6. **WORKFLOW.md inline credentials** — split `DATABASE_URL=... streamlit run` into `export DATABASE_URL=...` + separate run command
+7. **README.md inline credentials** — same split; also applied to CHEATSHEET.md
+
+All 508 tests pass, CI green.

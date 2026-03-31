@@ -49,7 +49,7 @@ COLORS = {
     "rsi_line": "#7c4dff",  # deep purple
     "rsi_overbought": "rgba(239, 83, 80, 0.3)",
     "rsi_oversold": "rgba(38, 166, 154, 0.3)",
-    "bg": "#131722",  # TradingView dark bg
+    "bg": "#131722",  # Dark theme bg
     "grid": "#1e222d",
     "text": "#d1d4dc",
 }
@@ -448,7 +448,7 @@ def _add_macd_panel(
 
 
 def _apply_layout(fig: go.Figure, title: str, n_rows: int) -> None:
-    """Apply dark theme and TradingView-style layout."""
+    """Apply dark theme and professional-style layout."""
     fig.update_layout(
         title={
             "text": title,
