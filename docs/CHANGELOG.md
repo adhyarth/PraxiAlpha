@@ -8,6 +8,10 @@
 ## [Unreleased]
 
 ### Added
+- **Strategy Lab design document** (`docs/STRATEGY_LAB.md`) — comprehensive spec for the Pattern Scanner + Forward Returns Analyzer: V1 scope (quarterly bearish reversal candles on ETFs), full condition taxonomy (price shape, volume, indicators, cross-timeframe, fundamentals), scanner service architecture, data model for future persistence, UI wireframe, forward return specification, performance considerations, session roadmap (Sessions 29–38+), and future phases (NLP, entry optimization, backtesting, alerts, journal integration).
+- **Strategy Lab dedicated build log** (`docs/STRATEGY_LAB_BUILD_LOG.md`) — separate build log for Strategy Lab sessions to avoid growing the main BUILD_LOG.
+
+### Added (continued — data validation)
 - **`StockMeta` metadata enrichment** (`data_validation_service.py`) — new `StockMeta` dataclass with `type_label`, `is_low_liquidity`, and `is_exotic` properties. `fetch_stock_metadata()` async function queries the DB for name, exchange, asset_type, and 90-day average daily volume. Used to annotate validation results so users can distinguish real data issues from ignorable mismatches on SPACs, warrants, rights, or micro-cap securities.
 - **Validation UI enrichment** (`streamlit_app/pages/validation.py`) — results table now displays "Type" (Stock, ETF, SPAC, Warrant, etc.), "Avg Vol (90d)" (formatted with commas), and "Note" columns. The Note column flags low-liquidity or exotic securities with "⏭️ safe to ignore" when they have mismatches.
 - **`ValidationResult.note` property** — contextual note explaining ignorable mismatches based on security type and liquidity.

@@ -756,11 +756,16 @@ This runs entirely on your local Mac (280 GB available — plenty of headroom) d
 - [x] Build Trading Journal PDF report generator (annotated charts with entry/exit markers) — Session 22
 - [ ] Build Trading Journal post-close "what-if" tracking (auto-snapshot prices after trade close, hypothetical PnL analysis)
 - [x] Build Trading Journal Streamlit UI (trade list, entry form, detail view, PDF download, what-if display) — Session 23
-- [ ] Build watchlist management backend (CRUD operations, persistence, and API endpoints)
-- [ ] Build watchlist management UI
+- [x] Build Strategy Lab design doc (pattern scanner, forward returns, condition taxonomy) — Session 29
+- [ ] Build Strategy Lab scanner engine (quarterly ETF scan, condition filtering, RSI, forward returns) — Session 30
+- [ ] Build Strategy Lab Streamlit UI (condition form builder, summary panel, detail table) — Session 31
+- [ ] Build watchlist management backend (CRUD operations, persistence, and API endpoints) — deprioritized
+- [ ] Build watchlist management UI — deprioritized
 - [ ] Dashboard polish (wire everything together, final QA)
 
-**Deliverable:** Working dashboard where you can view charts, journal trades, and generate PDF trade reports
+**Deliverable:** Working dashboard where you can view charts, journal trades, generate PDF trade reports, and scan for historical patterns with forward return analysis
+
+> **Strategy Lab design doc:** [`docs/STRATEGY_LAB.md`](docs/STRATEGY_LAB.md)
 
 ---
 
