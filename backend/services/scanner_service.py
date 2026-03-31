@@ -21,7 +21,6 @@ See ``docs/STRATEGY_LAB.md`` §4 for the full architecture.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -90,12 +89,12 @@ class ForwardReturn:
         window_label: Human-readable label, e.g. ``"Q+1"``.
         close_price: Close price at that future candle (or ``None``).
         return_pct: ``(future_close - signal_close) / signal_close * 100``.
-        max_drawdown_pct: Worst percentage move vs. the signal close observed
-            during the window; typically negative if price trades below the
-            signal close, but may be zero or positive if it does not.
-        max_surge_pct: Best percentage move vs. the signal close observed
-            during the window; typically positive if price trades above the
-            signal close, but may be zero or negative if it does not.
+        max_drawdown_pct: Worst percentage decline vs. the signal close
+            observed during the window; always ≤ 0 (clamped). Zero when
+            price never trades below the signal close.
+        max_surge_pct: Best percentage gain vs. the signal close observed
+            during the window; always ≥ 0 (clamped). Zero when price
+            never trades above the signal close.
     """
 
     window: int
@@ -242,25 +241,30 @@ class ScannerService:
             )
 
         # 3. Fetch candles + compute derived columns per ticker
-        #    Use bounded concurrency to avoid sequential round-trips
-        #    while not overwhelming the DB connection pool.
+        #    Note: We fetch sequentially because CandleService shares a single
+        #    AsyncSession which is not safe for concurrent overlapping awaits.
+        #    Per-ticker errors are caught and logged so one bad ticker doesn't
+        #    abort the entire scan.
         timeframe = Timeframe(request.timeframe)
         total = len(universe)
-        sem = asyncio.Semaphore(20)  # max 20 concurrent fetches
-        completed = 0
+        all_frames: list[pd.DataFrame] = []
 
-        async def _fetch_one(stock_id: int, ticker: str) -> pd.DataFrame | None:
-            nonlocal completed
-            async with sem:
-                result = await self._fetch_and_enrich_ticker(stock_id, ticker, timeframe, request)
-                completed += 1
-                if progress_callback is not None:
-                    progress_callback(completed, total)
-                return result
-
-        tasks = [_fetch_one(sid, tkr) for sid, tkr in universe]
-        results = await asyncio.gather(*tasks)
-        all_frames: list[pd.DataFrame] = [df for df in results if df is not None and not df.empty]
+        for i, (stock_id, ticker) in enumerate(universe):
+            try:
+                df = await self._fetch_and_enrich_ticker(stock_id, ticker, timeframe, request)
+                if df is not None and not df.empty:
+                    all_frames.append(df)
+            except Exception:
+                logger.exception(
+                    "Scanner: failed to fetch/enrich data for %s (stock_id=%s); skipping",
+                    ticker,
+                    stock_id,
+                )
+            if progress_callback is not None:
+                try:
+                    progress_callback(i + 1, total)
+                except Exception:
+                    logger.exception("Scanner: progress_callback raised an exception")
 
         if not all_frames:
             return ScanResult(
@@ -552,8 +556,9 @@ class ScannerService:
         all_closes = forward_slice["close"].astype(float)
         min_close = float(all_closes.min())
         max_close = float(all_closes.max())
-        max_drawdown_pct = (min_close - signal_close) / signal_close * 100
-        max_surge_pct = (max_close - signal_close) / signal_close * 100
+        # Clamp: drawdown is always ≤ 0, surge is always ≥ 0
+        max_drawdown_pct = min((min_close - signal_close) / signal_close * 100, 0.0)
+        max_surge_pct = max((max_close - signal_close) / signal_close * 100, 0.0)
 
         return ForwardReturn(
             window=window,
@@ -590,9 +595,6 @@ class ScannerService:
         dates = [s.signal_date for s in signals]
         date_range = f"{min(dates)} to {max(dates)}"
 
-        # Determine win direction based on candle color
-        bearish = request.candle_color == "red"
-
         per_window: list[WindowSummary] = []
         for w in request.forward_windows:
             returns = []
@@ -612,8 +614,16 @@ class ScannerService:
                 continue
 
             arr = np.array(returns)
-            # Win = price went DOWN for bearish, UP for bullish
-            win_count = int((arr < 0).sum()) if bearish else int((arr > 0).sum())
+            # Win rate: DOWN for bearish, UP for bullish, undefined for "any"
+            if request.candle_color == "red":
+                win_count = int((arr < 0).sum())
+                win_rate: float | None = round(win_count / len(arr) * 100, 2)
+            elif request.candle_color == "green":
+                win_count = int((arr > 0).sum())
+                win_rate = round(win_count / len(arr) * 100, 2)
+            else:
+                # "any" — win direction is ambiguous; leave as None
+                win_rate = None
 
             per_window.append(
                 WindowSummary(
@@ -621,7 +631,7 @@ class ScannerService:
                     window_label=f"Q+{w}",
                     mean_return_pct=round(float(arr.mean()), 2),
                     median_return_pct=round(float(np.median(arr)), 2),
-                    win_rate_pct=round(win_count / len(arr) * 100, 2),
+                    win_rate_pct=win_rate,
                     mean_max_drawdown_pct=round(float(np.mean(drawdowns)), 2)
                     if drawdowns
                     else None,
@@ -683,6 +693,12 @@ class ScannerService:
         for cond in conditions:
             if cond.field == "volume_vs_avg" and cond.extra:
                 lb = cond.extra.get("lookback")
-                if lb is not None and int(lb) >= 1:
-                    return int(lb)
+                if lb is not None:
+                    try:
+                        lb_int = int(lb)
+                    except (TypeError, ValueError):
+                        # Invalid lookback value; ignore and fall back to default
+                        continue
+                    if lb_int >= 1:
+                        return lb_int
         return 2  # default lookback

@@ -609,8 +609,8 @@ class TestForwardReturns:
         assert abs(result.return_pct - (-5.0)) < 0.01
         # max drawdown = (85 - 100) / 100 * 100 = -15%
         assert abs(result.max_drawdown_pct - (-15.0)) < 0.01
-        # max surge = (95 - 100) / 100 * 100 = -5% (all below signal)
-        assert abs(result.max_surge_pct - (-5.0)) < 0.01
+        # max surge clamped at 0% (all forward closes below signal close)
+        assert abs(result.max_surge_pct - 0.0) < 0.01
 
     def test_single_forward_return_max_surge(self):
         """Max surge should be the max close in the forward window."""
@@ -624,6 +624,8 @@ class TestForwardReturns:
         # Forward slice = indices 3,4 → closes [120, 110]
         # max surge = (120 - 100) / 100 * 100 = 20%
         assert abs(result.max_surge_pct - 20.0) < 0.01
+        # max drawdown clamped at 0% (all forward closes above signal close)
+        assert abs(result.max_drawdown_pct - 0.0) < 0.01
         # return = (110 - 100) / 100 * 100 = 10%
         assert abs(result.return_pct - 10.0) < 0.01
 
@@ -752,6 +754,17 @@ class TestSummaryAggregation:
         # Q+1: [-5.0, 3.33] → 1 winner out of 2 = 50%
         assert abs(w1.win_rate_pct - 50.0) < 0.01
 
+    def test_any_color_win_rate_is_none(self, service):
+        """For candle_color='any', win direction is undefined → win_rate_pct=None."""
+        signals = self._make_signals()
+        req = ScanRequest(forward_windows=[1], candle_color="any")
+        summary = service._build_summary(signals, req)
+        w1 = summary.per_window[0]
+        assert w1.win_rate_pct is None
+        # Other stats should still be computed
+        assert w1.signal_count == 2
+        assert w1.mean_return_pct is not None
+
     def test_empty_signals(self, service):
         req = ScanRequest(forward_windows=[1, 2, 3])
         summary = service._build_summary([], req)
@@ -817,6 +830,22 @@ class TestVolumeLookback:
             ScanCondition(field="body_pct", operator="<=", value=0.02, extra={"lookback": 10}),
         ]
         # "lookback" on a non-volume_vs_avg field → ignored
+        assert ScannerService._get_volume_lookback(conditions) == 2
+
+    def test_lookback_invalid_value_falls_back(self):
+        """Non-numeric lookback should fall back to default, not raise."""
+        conditions = [
+            ScanCondition(
+                field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": "bad"}
+            ),
+        ]
+        assert ScannerService._get_volume_lookback(conditions) == 2
+
+    def test_lookback_zero_falls_back(self):
+        """Lookback of 0 should fall back to default."""
+        conditions = [
+            ScanCondition(field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 0}),
+        ]
         assert ScannerService._get_volume_lookback(conditions) == 2
 
 
