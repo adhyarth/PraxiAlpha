@@ -8,6 +8,7 @@
 ## [Unreleased]
 
 ### Added
+- **Strategy Lab scanner engine** (`backend/services/scanner_service.py`) — `ScannerService.run_scan()` pipeline: universe resolution (ETF filter from `stocks` table), per-ticker candle fetch + enrichment (body %, upper/lower wick %, volume vs N-period avg, RSI-14), vectorized condition filtering with AND logic, forward return computation (return %, max drawdown %, max surge % per window), summary aggregation (mean, median, win rate). 10 data classes (`ScanCondition`, `ScanRequest`, `ForwardReturn`, `SignalResult`, `WindowSummary`, `ScanSummary`, `ScanResult`). Progress callback support for Streamlit integration. 65 comprehensive tests across 10 categories.
 - **Strategy Lab design document** (`docs/STRATEGY_LAB.md`) — comprehensive spec for the Pattern Scanner + Forward Returns Analyzer: V1 scope (quarterly bearish reversal candles on ETFs), full condition taxonomy (price shape, volume, indicators, cross-timeframe, fundamentals), scanner service architecture, data model for future persistence, UI wireframe, forward return specification, performance considerations, session roadmap (Sessions 29–38+), and future phases (NLP, entry optimization, backtesting, alerts, journal integration).
 - **Strategy Lab dedicated build log** (`docs/STRATEGY_LAB_BUILD_LOG.md`) — separate build log for Strategy Lab sessions to avoid growing the main BUILD_LOG.
 
