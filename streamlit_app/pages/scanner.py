@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import asdict
 
 import pandas as pd
 import streamlit as st
@@ -21,14 +20,98 @@ import streamlit as st
 from backend.database import async_session_factory
 from backend.services.scanner_service import (
     ScanCondition,
+    ScannerService,
     ScanRequest,
     ScanResult,
-    ScannerService,
     SignalResult,
-    WindowSummary,
 )
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================
+# Helper functions (must be defined before Streamlit rendering)
+# ============================================================
+
+
+def _fmt_pct(value: float | None) -> str:
+    """Format a percentage value for display."""
+    if value is None:
+        return "—"
+    sign = "+" if value > 0 else ""
+    return f"{sign}{value:.2f}%"
+
+
+def _sort_key(col: pd.Series) -> pd.Series:
+    """Extract numeric sort keys from formatted string columns."""
+    return col.apply(_parse_sortable)
+
+
+def _parse_sortable(val):  # type: ignore[no-untyped-def]
+    """Parse a formatted value into a sortable number."""
+    if isinstance(val, (int, float)):
+        return val
+    if not isinstance(val, str):
+        return 0
+    # Strip formatting: $, %, x, commas, +
+    cleaned = (
+        val.replace("$", "")
+        .replace("%", "")
+        .replace(",", "")
+        .replace("x", "")
+        .replace("+", "")
+        .strip()
+    )
+    if cleaned == "—" or cleaned == "":
+        return float("nan")
+    try:
+        return float(cleaned)
+    except ValueError:
+        return 0
+
+
+def _render_signal_detail(sig: SignalResult) -> None:
+    """Render the expandable detail for a single signal."""
+    # Signal candle info
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Open", f"${sig.open:,.2f}")
+    with col2:
+        st.metric("High", f"${sig.high:,.2f}")
+    with col3:
+        st.metric("Low", f"${sig.low:,.2f}")
+    with col4:
+        st.metric("Volume", f"{sig.volume:,}")
+
+    col5, col6, col7, col8 = st.columns(4)
+    with col5:
+        st.metric("Body %", f"{sig.body_pct:.1f}%")
+    with col6:
+        st.metric("Upper Wick %", f"{sig.upper_wick_pct:.1f}%")
+    with col7:
+        st.metric("Lower Wick %", f"{sig.lower_wick_pct:.1f}%")
+    with col8:
+        st.metric("Vol vs Avg", f"{sig.volume_vs_avg:.1f}x" if sig.volume_vs_avg else "—")
+
+    # Forward returns table
+    if sig.forward_returns:
+        fwd_rows = []
+        for fr in sig.forward_returns:
+            fwd_rows.append(
+                {
+                    "Window": fr.window_label,
+                    "Close": f"${fr.close_price:,.2f}" if fr.close_price is not None else "—",
+                    "Return %": _fmt_pct(fr.return_pct),
+                    "Max Drawdown %": _fmt_pct(fr.max_drawdown_pct),
+                    "Max Surge %": _fmt_pct(fr.max_surge_pct),
+                }
+            )
+        st.dataframe(
+            pd.DataFrame(fwd_rows),
+            use_container_width=True,
+            hide_index=True,
+        )
+
 
 # ============================================================
 # Page header
@@ -104,7 +187,11 @@ with col_color:
     candle_color = st.selectbox(
         "Candle Color",
         options=["red", "green", "any"],
-        format_func=lambda x: {"red": "🔴 Red (bearish)", "green": "🟢 Green (bullish)", "any": "⚪ Any"}[x],
+        format_func=lambda x: {
+            "red": "🔴 Red (bearish)",
+            "green": "🟢 Green (bullish)",
+            "any": "⚪ Any",
+        }[x],
         index=0,
         help="Red = close < open (bearish). Green = close > open (bullish). Any = no color filter.",
     )
@@ -117,7 +204,9 @@ col_body, col_upper, col_lower = st.columns(3)
 
 with col_body:
     body_pct_enabled = st.checkbox("Body % filter", value=True)
-    body_pct_op = st.selectbox("Body operator", options=["<=", ">=", "<", ">"], index=0, key="body_op")
+    body_pct_op = st.selectbox(
+        "Body operator", options=["<=", ">=", "<", ">"], index=0, key="body_op"
+    )
     body_pct_val = st.slider(
         "Body %",
         min_value=0.0,
@@ -129,7 +218,9 @@ with col_body:
 
 with col_upper:
     upper_wick_enabled = st.checkbox("Upper wick % filter", value=True)
-    upper_wick_op = st.selectbox("Upper wick operator", options=[">=", "<=", ">", "<"], index=0, key="upper_op")
+    upper_wick_op = st.selectbox(
+        "Upper wick operator", options=[">=", "<=", ">", "<"], index=0, key="upper_op"
+    )
     upper_wick_val = st.slider(
         "Upper wick %",
         min_value=0.0,
@@ -141,7 +232,9 @@ with col_upper:
 
 with col_lower:
     lower_wick_enabled = st.checkbox("Lower wick % filter", value=True)
-    lower_wick_op = st.selectbox("Lower wick operator", options=["<=", ">=", "<", ">"], index=0, key="lower_op")
+    lower_wick_op = st.selectbox(
+        "Lower wick operator", options=["<=", ">=", "<", ">"], index=0, key="lower_op"
+    )
     lower_wick_val = st.slider(
         "Lower wick %",
         min_value=0.0,
@@ -235,12 +328,16 @@ def _build_conditions() -> list[ScanCondition]:
 
     if upper_wick_enabled:
         conditions.append(
-            ScanCondition(field="upper_wick_pct", operator=upper_wick_op, value=upper_wick_val / 100)
+            ScanCondition(
+                field="upper_wick_pct", operator=upper_wick_op, value=upper_wick_val / 100
+            )
         )
 
     if lower_wick_enabled:
         conditions.append(
-            ScanCondition(field="lower_wick_pct", operator=lower_wick_op, value=lower_wick_val / 100)
+            ScanCondition(
+                field="lower_wick_pct", operator=lower_wick_op, value=lower_wick_val / 100
+            )
         )
 
     if volume_enabled:
@@ -254,9 +351,7 @@ def _build_conditions() -> list[ScanCondition]:
         )
 
     if rsi_enabled:
-        conditions.append(
-            ScanCondition(field="rsi_14", operator=rsi_op, value=float(rsi_val))
-        )
+        conditions.append(ScanCondition(field="rsi_14", operator=rsi_op, value=float(rsi_val)))
 
     return conditions
 
@@ -280,7 +375,9 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
     conditions = _build_conditions()
 
     if not conditions and candle_color == "any":
-        st.warning("No conditions set and candle color is 'any'. Add at least one filter to avoid scanning every candle.")
+        st.warning(
+            "No conditions set and candle color is 'any'. Add at least one filter to avoid scanning every candle."
+        )
         st.stop()
 
     request = ScanRequest(
@@ -341,9 +438,13 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
 
     # ---- Win rate context ----
     if candle_color == "red":
-        st.caption("📉 Win rate = % of signals where price went **down** (bearish thesis — puts profitable)")
+        st.caption(
+            "📉 Win rate = % of signals where price went **down** (bearish thesis — puts profitable)"
+        )
     elif candle_color == "green":
-        st.caption("📈 Win rate = % of signals where price went **up** (bullish thesis — calls profitable)")
+        st.caption(
+            "📈 Win rate = % of signals where price went **up** (bullish thesis — calls profitable)"
+        )
     else:
         st.caption("⚪ Win rate not computed for 'any' candle color (direction ambiguous)")
 
@@ -351,15 +452,17 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
     if summary.per_window:
         summary_rows = []
         for ws in summary.per_window:
-            summary_rows.append({
-                "Window": ws.window_label,
-                "Mean Return %": _fmt_pct(ws.mean_return_pct),
-                "Median Return %": _fmt_pct(ws.median_return_pct),
-                "Win Rate %": _fmt_pct(ws.win_rate_pct),
-                "Avg Drawdown %": _fmt_pct(ws.mean_max_drawdown_pct),
-                "Avg Surge %": _fmt_pct(ws.mean_max_surge_pct),
-                "Signals": ws.signal_count,
-            })
+            summary_rows.append(
+                {
+                    "Window": ws.window_label,
+                    "Mean Return %": _fmt_pct(ws.mean_return_pct),
+                    "Median Return %": _fmt_pct(ws.median_return_pct),
+                    "Win Rate %": _fmt_pct(ws.win_rate_pct),
+                    "Avg Drawdown %": _fmt_pct(ws.mean_max_drawdown_pct),
+                    "Avg Surge %": _fmt_pct(ws.mean_max_surge_pct),
+                    "Signals": ws.signal_count,
+                }
+            )
         summary_df = pd.DataFrame(summary_rows)
         st.dataframe(
             summary_df,
@@ -367,7 +470,9 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
             hide_index=True,
         )
     elif summary.total_signals == 0:
-        st.info("No signals found. Try loosening the conditions (e.g., lower RSI threshold, increase body %).")
+        st.info(
+            "No signals found. Try loosening the conditions (e.g., lower RSI threshold, increase body %)."
+        )
 
     # ---- Signal details ----
     st.divider()
@@ -425,84 +530,11 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
         # ---- Expandable per-signal detail ----
         st.divider()
         st.subheader("Per-Signal Forward Returns")
-        st.caption("Expand a signal to see full forward return breakdown including drawdown and surge.")
+        st.caption(
+            "Expand a signal to see full forward return breakdown including drawdown and surge."
+        )
 
         for sig in result.signals:
             label = f"{sig.ticker} — {sig.signal_date} (close: ${sig.close:,.2f}, RSI: {sig.rsi_14 if sig.rsi_14 is not None else '—'})"
             with st.expander(label):
                 _render_signal_detail(sig)
-
-
-# ============================================================
-# Helper functions
-# ============================================================
-
-
-def _fmt_pct(value: float | None) -> str:
-    """Format a percentage value for display."""
-    if value is None:
-        return "—"
-    sign = "+" if value > 0 else ""
-    return f"{sign}{value:.2f}%"
-
-
-def _sort_key(col: pd.Series) -> pd.Series:
-    """Extract numeric sort keys from formatted string columns."""
-    return col.apply(_parse_sortable)
-
-
-def _parse_sortable(val):
-    """Parse a formatted value into a sortable number."""
-    if isinstance(val, (int, float)):
-        return val
-    if not isinstance(val, str):
-        return 0
-    # Strip formatting: $, %, x, commas, +
-    cleaned = val.replace("$", "").replace("%", "").replace(",", "").replace("x", "").replace("+", "").strip()
-    if cleaned == "—" or cleaned == "":
-        return float("nan")
-    try:
-        return float(cleaned)
-    except ValueError:
-        return 0
-
-
-def _render_signal_detail(sig: SignalResult) -> None:
-    """Render the expandable detail for a single signal."""
-    # Signal candle info
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Open", f"${sig.open:,.2f}")
-    with col2:
-        st.metric("High", f"${sig.high:,.2f}")
-    with col3:
-        st.metric("Low", f"${sig.low:,.2f}")
-    with col4:
-        st.metric("Volume", f"{sig.volume:,}")
-
-    col5, col6, col7, col8 = st.columns(4)
-    with col5:
-        st.metric("Body %", f"{sig.body_pct:.1f}%")
-    with col6:
-        st.metric("Upper Wick %", f"{sig.upper_wick_pct:.1f}%")
-    with col7:
-        st.metric("Lower Wick %", f"{sig.lower_wick_pct:.1f}%")
-    with col8:
-        st.metric("Vol vs Avg", f"{sig.volume_vs_avg:.1f}x" if sig.volume_vs_avg else "—")
-
-    # Forward returns table
-    if sig.forward_returns:
-        fwd_rows = []
-        for fr in sig.forward_returns:
-            fwd_rows.append({
-                "Window": fr.window_label,
-                "Close": f"${fr.close_price:,.2f}" if fr.close_price is not None else "—",
-                "Return %": _fmt_pct(fr.return_pct),
-                "Max Drawdown %": _fmt_pct(fr.max_drawdown_pct),
-                "Max Surge %": _fmt_pct(fr.max_surge_pct),
-            })
-        st.dataframe(
-            pd.DataFrame(fwd_rows),
-            use_container_width=True,
-            hide_index=True,
-        )

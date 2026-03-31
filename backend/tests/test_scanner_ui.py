@@ -28,18 +28,21 @@ st = pytest.importorskip("streamlit")
 def _get_fmt_pct():
     """Import _fmt_pct from the scanner page module."""
     from streamlit_app.pages.scanner import _fmt_pct
+
     return _fmt_pct
 
 
 def _get_parse_sortable():
     """Import _parse_sortable from the scanner page module."""
     from streamlit_app.pages.scanner import _parse_sortable
+
     return _parse_sortable
 
 
 def _get_sort_key():
     """Import _sort_key from the scanner page module."""
     from streamlit_app.pages.scanner import _sort_key
+
     return _sort_key
 
 
@@ -114,11 +117,13 @@ class TestParseSortable:
     def test_dash(self):
         parse = _get_parse_sortable()
         import math
+
         assert math.isnan(parse("—"))
 
     def test_empty_string(self):
         parse = _get_parse_sortable()
         import math
+
         assert math.isnan(parse(""))
 
     def test_numeric_int(self):
@@ -160,6 +165,7 @@ class TestSortKey:
         assert result.iloc[2] == -3.14
         # Dash → NaN
         import math
+
         assert math.isnan(result.iloc[1])
 
 
@@ -173,7 +179,6 @@ class TestBuildConditions:
 
     def test_all_conditions_enabled(self):
         """When all checkboxes are on, all 5 conditions are created."""
-        from backend.services.scanner_service import ScanCondition
 
         # Simulate the UI state by importing and calling _build_conditions
         # with mocked module-level variables
@@ -182,11 +187,21 @@ class TestBuildConditions:
         # Save originals
         orig = {}
         fields = [
-            "body_pct_enabled", "body_pct_op", "body_pct_val",
-            "upper_wick_enabled", "upper_wick_op", "upper_wick_val",
-            "lower_wick_enabled", "lower_wick_op", "lower_wick_val",
-            "volume_enabled", "volume_multiplier", "volume_lookback",
-            "rsi_enabled", "rsi_op", "rsi_val",
+            "body_pct_enabled",
+            "body_pct_op",
+            "body_pct_val",
+            "upper_wick_enabled",
+            "upper_wick_op",
+            "upper_wick_val",
+            "lower_wick_enabled",
+            "lower_wick_op",
+            "lower_wick_val",
+            "volume_enabled",
+            "volume_multiplier",
+            "volume_lookback",
+            "rsi_enabled",
+            "rsi_op",
+            "rsi_val",
         ]
         for f in fields:
             orig[f] = getattr(scanner_mod, f, None)
@@ -245,8 +260,11 @@ class TestBuildConditions:
 
         orig = {}
         fields = [
-            "body_pct_enabled", "upper_wick_enabled",
-            "lower_wick_enabled", "volume_enabled", "rsi_enabled",
+            "body_pct_enabled",
+            "upper_wick_enabled",
+            "lower_wick_enabled",
+            "volume_enabled",
+            "rsi_enabled",
         ]
         for f in fields:
             orig[f] = getattr(scanner_mod, f, None)
@@ -271,9 +289,15 @@ class TestBuildConditions:
 
         orig = {}
         fields = [
-            "body_pct_enabled", "body_pct_op", "body_pct_val",
-            "upper_wick_enabled", "lower_wick_enabled",
-            "volume_enabled", "rsi_enabled", "rsi_op", "rsi_val",
+            "body_pct_enabled",
+            "body_pct_op",
+            "body_pct_val",
+            "upper_wick_enabled",
+            "lower_wick_enabled",
+            "volume_enabled",
+            "rsi_enabled",
+            "rsi_op",
+            "rsi_val",
         ]
         for f in fields:
             orig[f] = getattr(scanner_mod, f, None)
@@ -306,9 +330,15 @@ class TestBuildConditions:
 
         orig = {}
         fields = [
-            "body_pct_enabled", "upper_wick_enabled", "upper_wick_op",
-            "upper_wick_val", "lower_wick_enabled", "lower_wick_op",
-            "lower_wick_val", "volume_enabled", "rsi_enabled",
+            "body_pct_enabled",
+            "upper_wick_enabled",
+            "upper_wick_op",
+            "upper_wick_val",
+            "lower_wick_enabled",
+            "lower_wick_op",
+            "lower_wick_val",
+            "volume_enabled",
+            "rsi_enabled",
         ]
         for f in fields:
             orig[f] = getattr(scanner_mod, f, None)
@@ -482,6 +512,7 @@ class TestDisplayEdgeCases:
         """Edge case: just $ with nothing."""
         parse = _get_parse_sortable()
         import math
+
         assert math.isnan(parse("$"))
 
 
@@ -501,9 +532,7 @@ class TestScanRequestConstruction:
             ScanCondition(field="body_pct", operator="<=", value=0.02),
             ScanCondition(field="upper_wick_pct", operator=">=", value=0.10),
             ScanCondition(field="lower_wick_pct", operator="<=", value=0.02),
-            ScanCondition(
-                field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 2}
-            ),
+            ScanCondition(field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 2}),
             ScanCondition(field="rsi_14", operator=">=", value=70.0),
         ]
 
