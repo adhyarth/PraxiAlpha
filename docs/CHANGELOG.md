@@ -33,6 +33,9 @@
 - **Log handler cleanup in `try/finally`** — validation page wraps the entire run block in `try/finally` to guarantee log handler removal even on exceptions, preventing duplicate log lines on rerun.
 - **Debug script imports from service** — `scripts/debug_yfinance.py` now imports `FIXED_TICKERS`, `ALL_TIMEFRAMES`, `TIMEFRAME_BARS`, and `fetch_yf_candles` from the canonical `data_validation_service` module instead of duplicating them.
 - **14 new tests (508 total)** — additional test coverage from self-review fixes (cutoff logic, random ticker filtering, tolerance comments, dead code removal).
+- **`sample_random_tickers()` honors `n` parameter** — exchange/ETF counts are now scaled proportionally when `n` differs from the default (10); any remainder is filled from a mixed-exchange pool and the result is trimmed to exactly `n`.
+- **Editable pip install hints** — all `pip install "praxialpha[validate]"` messages changed to `pip install -e ".[validate]"` (correct for local dev).
+- **Inline DB credentials removed from commands** — WORKFLOW.md, README.md, and CHEATSHEET.md now use `export DATABASE_URL=...` + separate `streamlit run` invocation to avoid leaking credentials via shell history / process listings.
 
 ### Changed (continued — data validation details)
 - **Data Validation service** (`backend/services/data_validation_service.py`) — backend service for comparing OHLCV data (daily, weekly, monthly, quarterly) between PraxiAlpha's database and Yahoo Finance. Includes bar-by-bar comparison with configurable tolerances (1% price, 10% volume), quarterly aggregation from YF monthly data, failure persistence (JSON), and summary computation.
