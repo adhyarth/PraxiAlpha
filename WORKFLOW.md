@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-30 (Session 28h — PR review fixes, docs update)
+> **Last updated:** 2026-03-30 (Session 29 — Strategy Lab design doc)
 
 ---
 
@@ -15,24 +15,25 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 28h — PR Review Fixes |
+| **Session** | 29 — Strategy Lab Design Doc |
 | **Date** | 2026-03-30 |
-| **PR** | #34 (final) |
-| **What was done** | Addressed all 11 Copilot PR review comments: vectorized `compare_candles()`, `@st.cache_resource` event loop, `try/finally` log handler cleanup, sidebar emoji fix, misleading auto-retry banner fix, debug script DRY imports, doc accuracy updates. Self-review: added 14 new tests, dead code removal, docstrings, cutoff logic hardening. Created CHEATSHEET.md. All 508 tests pass, CI green. |
+| **PR** | #35 |
+| **What was done** | Created `docs/STRATEGY_LAB.md` — full design for the Pattern Scanner + Forward Returns Analyzer. V1 scope: quarterly bearish reversal candles on ETFs, configurable condition form builder, 5-quarter forward returns with return/drawdown/surge metrics. Created dedicated `docs/STRATEGY_LAB_BUILD_LOG.md`. |
 
 ### Current Phase
-**Phase 2: Charting & Basic Dashboard** — in progress. Phase 1 is complete.
+**Phase 2: Charting & Basic Dashboard** — in progress (Strategy Lab prioritized over Watchlist). Phase 1 is complete.
 
 ### Next Session
 | | |
 |-|-|
-| **Session** | 29 — Watchlist Backend |
-| **Scope** | Watchlist model (`watchlists` + `watchlist_items` tables), CRUD service, API endpoints (`GET/POST/PUT/DELETE /api/v1/watchlists/`), Alembic migration, tests. |
-| **Key files** | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, `backend/api/routes/watchlists.py`, `backend/tests/test_watchlist.py`, Alembic migration |
-| **Depends on** | Session 16 (Journal backend, provides CRUD service pattern) |
-| **Why** | Watchlist management is the last major backend feature before Phase 2 dashboard polish. |
+| **Session** | 30 — Strategy Lab Scanner Engine |
+| **Scope** | `backend/services/scanner_service.py` — universe resolution (ETF filter), quarterly candle fetch, derived column computation (body %, wick %, volume ratio), RSI(14), vectorized condition filtering, forward return calculator. Comprehensive tests. |
+| **Key files** | `backend/services/scanner_service.py`, `backend/tests/test_scanner.py` |
+| **Depends on** | Session 29 (design doc), Session 12 (CandleService), Session 11 (indicators) |
+| **Why** | The scanner engine is the computational core that the Streamlit UI (Session 31) will call. |
+| **Design doc** | [`docs/STRATEGY_LAB.md`](docs/STRATEGY_LAB.md) — read §4 Architecture before starting |
 
-> **After Session 28h:** Session 29 builds the Watchlist backend — model, service, API, tests.
+> **After Session 29:** Session 30 implements the scanner engine — the backend computational core.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 
@@ -40,6 +41,8 @@
 | File | What It Tells You |
 |------|-------------------|
 | `docs/PROGRESS.md` | Full component status, phase checklists, session history, upcoming roadmap, **crash recovery status** |
+| `docs/STRATEGY_LAB.md` | Strategy Lab design — V1 scope, architecture, condition taxonomy, forward returns spec |
+| `docs/STRATEGY_LAB_BUILD_LOG.md` | Strategy Lab session history (dedicated build log) |
 | `DESIGN_DOC.md` | Architecture, mental models, phase roadmap, data providers |
 | `docs/BUILD_LOG.md` | Chronological record of every session (read the latest session) |
 | `docs/CHANGELOG.md` | What changed (Added / Fixed / Changed) |
