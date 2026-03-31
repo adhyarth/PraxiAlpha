@@ -180,7 +180,7 @@ with col_univ:
         options=["etf"],
         format_func=lambda x: "ETFs" if x == "etf" else x.upper(),
         index=0,
-        help="V1 scans all active, non-delisted ETFs (~500 tickers).",
+        help="V1 scans all active, non-delisted ETFs (~5,300 tickers).",
     )
 
 with col_color:
@@ -400,10 +400,9 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
     # ---- Execute with spinner ----
     # Note: progress_callback cannot update Streamlit widgets from the
     # background event-loop thread (NoSessionContext error).  We use a
-    # simple st.spinner() instead — the scan typically takes 30-60s for
-    # ~500 ETFs on quarterly data.
+    # simple st.spinner() instead — the scan runs ~5,300 ETFs sequentially.
     try:
-        with st.spinner("🔍 Scanning ETFs… this may take 30–60 seconds."):
+        with st.spinner("🔍 Scanning ~5,300 ETFs… this may take 1–3 minutes."):
             result: ScanResult = _run_async(_execute_scan(request, None))
         st.success(f"✅ Scan complete in {result.scan_duration_seconds:.1f}s")
     except Exception as e:

@@ -350,10 +350,17 @@ class ScannerService:
         # Determine volume lookback from conditions (default 2)
         vol_lookback = self._get_volume_lookback(request.conditions)
 
+        # Use adjusted=False for non-daily timeframes to hit the
+        # pre-computed SQL aggregates directly (single fast query) instead
+        # of fetching all daily rows and re-aggregating in Python.  For
+        # pattern scanning, the relative metrics (body %, wick %, RSI,
+        # volume ratio) are not materially affected by split adjustment
+        # at the quarterly level.  This reduces per-ticker cost from
+        # ~12K daily rows + pandas resample to a single ~200-row query.
         candles = await self._candle_service.get_candles(
             stock_id,
             timeframe,
-            adjusted=True,
+            adjusted=False,
             limit=200,  # ~50 years of quarterly data
         )
 
