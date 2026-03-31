@@ -5,7 +5,7 @@
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-30 (Session 30 — Strategy Lab scanner engine)
+> **Last updated:** 2026-03-31 (Post-merge cleanup — Session 30 merged as PR #36)
 
 ---
 
@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 30 — Strategy Lab Scanner Engine |
-| **Branch** | `feat/scanner-engine` |
-| **Status** | Scanner engine complete, 65 tests pass, updating docs, PR pending. |
-| **Last checkpoint** | Created `backend/services/scanner_service.py` and `backend/tests/test_scanner.py`. 573 tests pass (508 existing + 65 new). Ruff + mypy clean. |
+| **Session** | 30 — Strategy Lab Scanner Engine (merged) |
+| **Branch** | `main` |
+| **Status** | ✅ Merged. PR #36 merged to main. Feature branch deleted. Post-merge cleanup complete. |
+| **Last checkpoint** | 576 tests pass. Ruff + mypy clean. Ready for Session 31. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -40,9 +40,9 @@
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
 | **Data Validation** | ✅ Working | EODHD vs Yahoo Finance comparison: 10 fixed + 10 random tickers × 4 timeframes (80 checks). Volume tolerance 10%. **Split fixes** — removed double volume adjustment (EODHD pre-adjusted), excluded future splits (CVNA fix). **Persistent async loop** via `@st.cache_resource` — fixed TCPTransport errors in Streamlit. YF retry with exponential backoff. Vectorized comparison. Metadata enrichment, failure persistence, CSV export. 43 tests + 508 total. |
-| **Strategy Lab** | 🟡 Engine done | Scanner engine complete (`backend/services/scanner_service.py`). V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns. 65 tests. UI in Session 31. |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (573 tests) |
-| **Tests** | ✅ 573 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation, **scanner engine** |
+| **Strategy Lab** | 🟡 Engine done | Scanner engine complete and merged (`backend/services/scanner_service.py`). V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns. 68 tests. PR review: 2 cycles (12 comments). UI next in Session 31. |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (576 tests) |
+| **Tests** | ✅ 576 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation, **scanner engine (68 tests)** |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS, CHEATSHEET |
 
 ---
@@ -128,7 +128,7 @@
 | 28g | 2026-03-29 | Validation hardening: fixed double volume adjustment (EODHD pre-adjusted), excluded future splits from candle adjustment (CVNA reverse split fix), persistent background event loop for Streamlit async (TCPTransport fix), YF retry with backoff, re-enabled random tickers in GUI, expanded to 10 fixed + 10 random tickers, extended validation windows to ~10yr, incomplete period exclusion. Updated split volume test. 494 tests, CI green. | PR #34 (updated) |
 | 28h | 2026-03-30 | PR review fixes (2 cycles, 18 comments total): vectorized compare_candles(), @st.cache_resource event loop, try/finally log handler, sidebar emoji fix, auto-retry banner fix, debug script DRY imports, doc accuracy, editable pip install hints, honor n param in sample_random_tickers, split inline DB credentials. Self-review: 14 new tests (508 total), dead code removal, docstrings, cutoff hardening. Created CHEATSHEET.md. | PR #34 (final) |
 | 29 | 2026-03-30 | Strategy Lab design doc: full spec for Pattern Scanner + Forward Returns Analyzer. V1 scope (quarterly bearish reversal on ETFs), condition taxonomy, scanner architecture, UI wireframe, forward return spec, session roadmap. Dedicated build log. Docs-only. | PR #35 |
-| 30 | 2026-03-30 | Strategy Lab scanner engine: `ScannerService` with universe resolution, per-ticker enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering, forward return computation (return, drawdown, surge), summary aggregation. 65 new tests (573 total). | PR #36 |
+| 30 | 2026-03-30 | Strategy Lab scanner engine: `ScannerService` with universe resolution, per-ticker enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering, forward return computation (return, drawdown, surge — clamped), summary aggregation. 2 PR review cycles (12 comments): sequential fetch for session safety, per-ticker error handling, drawdown/surge clamping, any-color win-rate=None, defensive lookback parsing. 68 tests (576 total). | PR #36 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 > **Strategy Lab sessions:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) for detailed Strategy Lab build notes.
@@ -158,7 +158,7 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **28** | **Split-Adjusted Charts** | ✅ Done — candle service applies `adjusted_close / close` ratio to OHLCV at query time (daily only), `adjusted` API parameter, Streamlit sidebar toggle, 9 new tests (446 total). | `backend/services/candle_service.py`, `backend/api/routes/charts.py`, `streamlit_app/pages/charts.py`, `backend/tests/test_candle_service.py` | Session 12 ✅ |
 | **28b** | **Weekly Aggregate Split Adjustment** | ✅ Done — non-daily candles re-aggregated from adjusted daily data via pandas resample (W-SUN/MS/QS), 200-week SMA matches industry-standard charting, Streamlit toggle for all timeframes, 4 new tests (450 total). | `backend/services/candle_service.py`, `backend/api/routes/charts.py`, `streamlit_app/pages/charts.py`, `backend/tests/test_candle_service.py` | Session 28 ✅ |
 | **29** | **Strategy Lab — Design Doc** | ✅ Done — full design doc for Pattern Scanner + Forward Returns Analyzer. V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns. Dedicated build log. | `docs/STRATEGY_LAB.md`, `docs/STRATEGY_LAB_BUILD_LOG.md` | — |
-| **30** | **Strategy Lab — Scanner Engine** | ✅ Done — ScannerService: universe resolution, per-ticker enrichment, vectorized condition filtering, forward return computation, summary aggregation, progress callback. 65 tests (573 total). | `backend/services/scanner_service.py`, `backend/tests/test_scanner.py` | Session 29 ✅ |
+| **30** | **Strategy Lab — Scanner Engine** | ✅ Done — ScannerService: universe resolution, per-ticker enrichment, vectorized condition filtering, forward return computation (clamped drawdown/surge), summary aggregation, progress callback. 2 PR review cycles. 68 tests (576 total). | `backend/services/scanner_service.py`, `backend/tests/test_scanner.py` | Session 29 ✅ |
 | **31** | **Strategy Lab — Streamlit UI** | Condition form builder (sliders, dropdowns), run button, progress bar, summary panel, expandable detail table. | `streamlit_app/pages/scanner.py` | Session 30 |
 | **32** | **Strategy Lab — Iteration & Polish** | Bug fixes, performance tuning, UX improvements from real usage. | Various | Session 31 |
 | **33+** | **Watchlist — Backend** | (Deprioritized) Watchlist model, CRUD service, API, migration, tests. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, etc. | Session 16 |
