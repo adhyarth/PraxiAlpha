@@ -257,7 +257,11 @@ class ScannerService:
             )
 
         combined = pd.concat(all_frames, ignore_index=True)
-        logger.info("Scanner: combined DataFrame has %d rows across %d tickers", len(combined), len(all_frames))
+        logger.info(
+            "Scanner: combined DataFrame has %d rows across %d tickers",
+            len(combined),
+            len(all_frames),
+        )
 
         # 4. Apply condition filters
         signals_df = self._apply_conditions(combined, request)
@@ -467,9 +471,7 @@ class ScannerService:
             # Compute forward returns for each window
             fwd_returns: list[ForwardReturn] = []
             for w in forward_windows:
-                fwd = self._compute_single_forward_return(
-                    ticker_df, signal_idx, signal_close, w
-                )
+                fwd = self._compute_single_forward_return(ticker_df, signal_idx, signal_close, w)
                 fwd_returns.append(fwd)
 
             signal = SignalResult(
@@ -558,8 +560,7 @@ class ScannerService:
                 unique_tickers=0,
                 date_range="",
                 per_window=[
-                    WindowSummary(window=w, window_label=f"Q+{w}")
-                    for w in request.forward_windows
+                    WindowSummary(window=w, window_label=f"Q+{w}") for w in request.forward_windows
                 ],
             )
 
@@ -585,9 +586,7 @@ class ScannerService:
                             surges.append(fr.max_surge_pct)
 
             if not returns:
-                per_window.append(
-                    WindowSummary(window=w, window_label=f"Q+{w}", signal_count=0)
-                )
+                per_window.append(WindowSummary(window=w, window_label=f"Q+{w}", signal_count=0))
                 continue
 
             arr = np.array(returns)
@@ -601,7 +600,9 @@ class ScannerService:
                     mean_return_pct=round(float(arr.mean()), 2),
                     median_return_pct=round(float(np.median(arr)), 2),
                     win_rate_pct=round(win_count / len(arr) * 100, 2),
-                    mean_max_drawdown_pct=round(float(np.mean(drawdowns)), 2) if drawdowns else None,
+                    mean_max_drawdown_pct=round(float(np.mean(drawdowns)), 2)
+                    if drawdowns
+                    else None,
                     mean_max_surge_pct=round(float(np.mean(surges)), 2) if surges else None,
                     signal_count=len(returns),
                 )

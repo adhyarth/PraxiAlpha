@@ -41,6 +41,7 @@ from backend.services.scanner_service import (
 # Helpers — build synthetic candle data
 # ============================================================
 
+
 def _make_quarterly_candles(
     n: int = 20,
     *,
@@ -115,6 +116,7 @@ def _make_universe_result(tickers: list[tuple[int, str]]) -> MagicMock:
 # 1. Data Classes & Operators
 # ============================================================
 
+
 class TestDataClasses:
     """Sanity checks on data classes and constants."""
 
@@ -123,9 +125,7 @@ class TestDataClasses:
         assert cond.extra is None
 
     def test_scan_condition_with_extra(self):
-        cond = ScanCondition(
-            field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 3}
-        )
+        cond = ScanCondition(field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 3})
         assert cond.extra == {"lookback": 3}
 
     def test_scan_request_defaults(self):
@@ -145,8 +145,14 @@ class TestDataClasses:
         assert set(_OPERATORS.keys()) == {"<=", ">=", "<", ">", "=="}
 
     def test_valid_fields(self):
-        expected = {"body_pct", "upper_wick_pct", "lower_wick_pct",
-                    "volume_vs_avg", "rsi_14", "full_range_pct"}
+        expected = {
+            "body_pct",
+            "upper_wick_pct",
+            "lower_wick_pct",
+            "volume_vs_avg",
+            "rsi_14",
+            "full_range_pct",
+        }
         assert expected == _VALID_FIELDS
 
     def test_scan_result_defaults(self):
@@ -163,6 +169,7 @@ class TestDataClasses:
 # ============================================================
 # 2. Request Validation
 # ============================================================
+
 
 class TestValidation:
     """Test ScannerService._validate_request."""
@@ -201,6 +208,7 @@ class TestValidation:
 # 3. Universe Resolution
 # ============================================================
 
+
 class TestUniverseResolution:
     """Test ScannerService.resolve_universe."""
 
@@ -236,6 +244,7 @@ class TestUniverseResolution:
 # 4. Per-Ticker Enrichment (Derived Columns)
 # ============================================================
 
+
 class TestEnrichment:
     """Test _fetch_and_enrich_ticker derived column computation."""
 
@@ -255,8 +264,15 @@ class TestEnrichment:
             df = await service._fetch_and_enrich_ticker(1, "SPY", "quarterly", req)
 
         assert df is not None
-        for col in ("body_pct", "upper_wick_pct", "lower_wick_pct",
-                     "full_range_pct", "volume_vs_avg", "rsi_14", "ticker"):
+        for col in (
+            "body_pct",
+            "upper_wick_pct",
+            "lower_wick_pct",
+            "full_range_pct",
+            "volume_vs_avg",
+            "rsi_14",
+            "ticker",
+        ):
             assert col in df.columns
 
     @pytest.mark.asyncio
@@ -264,15 +280,23 @@ class TestEnrichment:
         candles = [
             {
                 "date": "2024-01-01",
-                "open": 100.0, "high": 110.0, "low": 90.0,
-                "close": 105.0, "adjusted_close": 105.0,
-                "volume": 1_000_000, "trading_days": 63,
+                "open": 100.0,
+                "high": 110.0,
+                "low": 90.0,
+                "close": 105.0,
+                "adjusted_close": 105.0,
+                "volume": 1_000_000,
+                "trading_days": 63,
             },
             {
                 "date": "2024-04-01",
-                "open": 200.0, "high": 220.0, "low": 190.0,
-                "close": 210.0, "adjusted_close": 210.0,
-                "volume": 1_500_000, "trading_days": 63,
+                "open": 200.0,
+                "high": 220.0,
+                "low": 190.0,
+                "close": 210.0,
+                "adjusted_close": 210.0,
+                "volume": 1_500_000,
+                "trading_days": 63,
             },
         ]
         with patch.object(service._candle_service, "get_candles", return_value=candles):
@@ -291,15 +315,23 @@ class TestEnrichment:
         candles = [
             {
                 "date": "2024-01-01",
-                "open": 100.0, "high": 120.0, "low": 98.0,
-                "close": 101.0, "adjusted_close": 101.0,
-                "volume": 1_000_000, "trading_days": 63,
+                "open": 100.0,
+                "high": 120.0,
+                "low": 98.0,
+                "close": 101.0,
+                "adjusted_close": 101.0,
+                "volume": 1_000_000,
+                "trading_days": 63,
             },
             {
                 "date": "2024-04-01",
-                "open": 102.0, "high": 125.0, "low": 100.0,
-                "close": 103.0, "adjusted_close": 103.0,
-                "volume": 1_200_000, "trading_days": 63,
+                "open": 102.0,
+                "high": 125.0,
+                "low": 100.0,
+                "close": 103.0,
+                "adjusted_close": 103.0,
+                "volume": 1_200_000,
+                "trading_days": 63,
             },
         ]
         with patch.object(service._candle_service, "get_candles", return_value=candles):
@@ -317,15 +349,23 @@ class TestEnrichment:
         candles = [
             {
                 "date": "2024-01-01",
-                "open": 100.0, "high": 105.0, "low": 90.0,
-                "close": 98.0, "adjusted_close": 98.0,
-                "volume": 1_000_000, "trading_days": 63,
+                "open": 100.0,
+                "high": 105.0,
+                "low": 90.0,
+                "close": 98.0,
+                "adjusted_close": 98.0,
+                "volume": 1_000_000,
+                "trading_days": 63,
             },
             {
                 "date": "2024-04-01",
-                "open": 99.0, "high": 106.0, "low": 88.0,
-                "close": 97.0, "adjusted_close": 97.0,
-                "volume": 1_200_000, "trading_days": 63,
+                "open": 99.0,
+                "high": 106.0,
+                "low": 88.0,
+                "close": 97.0,
+                "adjusted_close": 97.0,
+                "volume": 1_200_000,
+                "trading_days": 63,
             },
         ]
         with patch.object(service._candle_service, "get_candles", return_value=candles):
@@ -373,8 +413,7 @@ class TestEnrichment:
             req = ScanRequest(
                 conditions=[
                     ScanCondition(
-                        field="volume_vs_avg", operator=">", value=1.0,
-                        extra={"lookback": 4}
+                        field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 4}
                     )
                 ]
             )
@@ -387,6 +426,7 @@ class TestEnrichment:
 # ============================================================
 # 5. Condition Filtering
 # ============================================================
+
 
 class TestConditionFiltering:
     """Test _apply_conditions."""
@@ -527,6 +567,7 @@ class TestConditionFiltering:
 # 6. Forward Return Computation
 # ============================================================
 
+
 class TestForwardReturns:
     """Test _compute_single_forward_return and _compute_forward_returns."""
 
@@ -550,8 +591,14 @@ class TestForwardReturns:
         """Max drawdown should be the min close in the forward window."""
         # Signal at index 2 (close=100), looking at Q+3 (indices 3, 4, 5)
         data = {
-            "date": ["2020-01-01", "2020-04-01", "2020-07-01",
-                     "2020-10-01", "2021-01-01", "2021-04-01"],
+            "date": [
+                "2020-01-01",
+                "2020-04-01",
+                "2020-07-01",
+                "2020-10-01",
+                "2021-01-01",
+                "2021-04-01",
+            ],
             "close": [110, 105, 100, 90, 85, 95],  # drops then recovers
             "ticker": ["SPY"] * 6,
         }
@@ -568,8 +615,7 @@ class TestForwardReturns:
     def test_single_forward_return_max_surge(self):
         """Max surge should be the max close in the forward window."""
         data = {
-            "date": ["2020-01-01", "2020-04-01", "2020-07-01",
-                     "2020-10-01", "2021-01-01"],
+            "date": ["2020-01-01", "2020-04-01", "2020-07-01", "2020-10-01", "2021-01-01"],
             "close": [90, 95, 100, 120, 110],
             "ticker": ["SPY"] * 5,
         }
@@ -613,6 +659,7 @@ class TestForwardReturns:
 # 7. Summary Aggregation
 # ============================================================
 
+
 class TestSummaryAggregation:
     """Test _build_summary."""
 
@@ -624,10 +671,17 @@ class TestSummaryAggregation:
         """Two signals with known forward returns."""
         return [
             SignalResult(
-                ticker="SPY", signal_date="2022-07-01",
-                open=100.5, high=115.0, low=99.5, close=100.0,
-                volume=5_000_000, rsi_14=75.0,
-                body_pct=0.50, upper_wick_pct=14.93, lower_wick_pct=0.50,
+                ticker="SPY",
+                signal_date="2022-07-01",
+                open=100.5,
+                high=115.0,
+                low=99.5,
+                close=100.0,
+                volume=5_000_000,
+                rsi_14=75.0,
+                body_pct=0.50,
+                upper_wick_pct=14.93,
+                lower_wick_pct=0.50,
                 volume_vs_avg=1.5,
                 forward_returns=[
                     ForwardReturn(1, "Q+1", 95.0, -5.0, -8.0, 2.0),
@@ -635,10 +689,17 @@ class TestSummaryAggregation:
                 ],
             ),
             SignalResult(
-                ticker="QQQ", signal_date="2023-01-01",
-                open=300.5, high=330.0, low=298.0, close=300.0,
-                volume=8_000_000, rsi_14=72.0,
-                body_pct=0.17, upper_wick_pct=10.0, lower_wick_pct=0.67,
+                ticker="QQQ",
+                signal_date="2023-01-01",
+                open=300.5,
+                high=330.0,
+                low=298.0,
+                close=300.0,
+                volume=8_000_000,
+                rsi_14=72.0,
+                body_pct=0.17,
+                upper_wick_pct=10.0,
+                lower_wick_pct=0.67,
                 volume_vs_avg=1.8,
                 forward_returns=[
                     ForwardReturn(1, "Q+1", 310.0, 3.33, -2.0, 5.0),
@@ -704,10 +765,17 @@ class TestSummaryAggregation:
         """Signals with missing forward windows should still be counted for available windows."""
         signals = [
             SignalResult(
-                ticker="SPY", signal_date="2024-07-01",
-                open=100.0, high=115.0, low=99.0, close=100.0,
-                volume=5_000_000, rsi_14=75.0,
-                body_pct=0.0, upper_wick_pct=15.0, lower_wick_pct=1.0,
+                ticker="SPY",
+                signal_date="2024-07-01",
+                open=100.0,
+                high=115.0,
+                low=99.0,
+                close=100.0,
+                volume=5_000_000,
+                rsi_14=75.0,
+                body_pct=0.0,
+                upper_wick_pct=15.0,
+                lower_wick_pct=1.0,
                 volume_vs_avg=1.5,
                 forward_returns=[
                     ForwardReturn(1, "Q+1", 95.0, -5.0, -8.0, 2.0),
@@ -725,6 +793,7 @@ class TestSummaryAggregation:
 # 8. Volume Lookback Helper
 # ============================================================
 
+
 class TestVolumeLookback:
     """Test _get_volume_lookback."""
 
@@ -733,8 +802,7 @@ class TestVolumeLookback:
 
     def test_lookback_from_condition(self):
         conditions = [
-            ScanCondition(field="volume_vs_avg", operator=">", value=1.0,
-                          extra={"lookback": 4}),
+            ScanCondition(field="volume_vs_avg", operator=">", value=1.0, extra={"lookback": 4}),
         ]
         assert ScannerService._get_volume_lookback(conditions) == 4
 
@@ -746,8 +814,7 @@ class TestVolumeLookback:
 
     def test_lookback_from_unrelated_condition(self):
         conditions = [
-            ScanCondition(field="body_pct", operator="<=", value=0.02,
-                          extra={"lookback": 10}),
+            ScanCondition(field="body_pct", operator="<=", value=0.02, extra={"lookback": 10}),
         ]
         # "lookback" on a non-volume_vs_avg field → ignored
         assert ScannerService._get_volume_lookback(conditions) == 2
@@ -756,6 +823,7 @@ class TestVolumeLookback:
 # ============================================================
 # 9. Full run_scan Integration
 # ============================================================
+
 
 class TestRunScan:
     """Integration tests for run_scan with mocked DB."""
@@ -780,7 +848,9 @@ class TestRunScan:
         mock_session.execute.return_value = _make_universe_result(tickers)
 
         # Candle fetches go through CandleService.get_candles
-        async def mock_get_candles(stock_id, timeframe, adjusted=True, limit=200, start=None, end=None):
+        async def mock_get_candles(
+            stock_id, timeframe, adjusted=True, limit=200, start=None, end=None
+        ):
             for sid, ticker in tickers:
                 if sid == stock_id:
                     return candle_sets.get(ticker, [])
@@ -796,15 +866,16 @@ class TestRunScan:
         # Make candle at index 15 a bearish reversal
         candles[15] = _make_bearish_reversal_candle(
             date_str=candles[15]["date"],
-            open_=candles[15]["close"] + 0.3,   # small body, red
+            open_=candles[15]["close"] + 0.3,  # small body, red
             close=candles[15]["close"],
-            high=candles[15]["close"] + 20.0,   # huge upper wick
-            low=candles[15]["close"] - 0.5,     # tiny lower wick
-            volume=10_000_000,                  # high volume
+            high=candles[15]["close"] + 20.0,  # huge upper wick
+            low=candles[15]["close"] - 0.5,  # tiny lower wick
+            volume=10_000_000,  # high volume
         )
 
         self._setup_scan(
-            service, mock_session,
+            service,
+            mock_session,
             [(1, "SPY")],
             {"SPY": candles},
         )
@@ -843,7 +914,8 @@ class TestRunScan:
         """All candles fail conditions → zero signals."""
         candles = _make_quarterly_candles(20, base_close=100.0, trend=2.0)
         self._setup_scan(
-            service, mock_session,
+            service,
+            mock_session,
             [(1, "SPY")],
             {"SPY": candles},
         )
@@ -877,7 +949,8 @@ class TestRunScan:
             )
 
         self._setup_scan(
-            service, mock_session,
+            service,
+            mock_session,
             [(1, "SPY"), (2, "QQQ")],
             {"SPY": spy_candles, "QQQ": qqq_candles},
         )
@@ -900,12 +973,14 @@ class TestRunScan:
         """Progress callback should be called for each ticker."""
         candles = _make_quarterly_candles(10)
         self._setup_scan(
-            service, mock_session,
+            service,
+            mock_session,
             [(1, "SPY"), (2, "QQQ")],
             {"SPY": candles, "QQQ": candles},
         )
 
         progress_calls = []
+
         def on_progress(current, total):
             progress_calls.append((current, total))
 
@@ -926,7 +1001,8 @@ class TestRunScan:
         """The conditions used should be preserved in the result."""
         candles = _make_quarterly_candles(10)
         self._setup_scan(
-            service, mock_session,
+            service,
+            mock_session,
             [(1, "SPY")],
             {"SPY": candles},
         )
@@ -942,6 +1018,7 @@ class TestRunScan:
 # ============================================================
 # 10. Edge Cases
 # ============================================================
+
 
 class TestEdgeCases:
     """Edge cases and boundary conditions."""
@@ -971,9 +1048,14 @@ class TestEdgeCases:
     def test_signal_result_display_values(self):
         """SignalResult stores display-ready values (pct × 100)."""
         sig = SignalResult(
-            ticker="SPY", signal_date="2024-07-01",
-            open=100.5, high=115.0, low=99.5, close=100.0,
-            volume=5_000_000, rsi_14=75.0,
+            ticker="SPY",
+            signal_date="2024-07-01",
+            open=100.5,
+            high=115.0,
+            low=99.5,
+            close=100.0,
+            volume=5_000_000,
+            rsi_14=75.0,
             body_pct=0.50,  # 0.50%
             upper_wick_pct=14.93,  # 14.93%
             lower_wick_pct=0.50,  # 0.50%
@@ -997,18 +1079,32 @@ class TestEdgeCases:
         service = ScannerService(AsyncMock())
         signals = [
             SignalResult(
-                ticker="SPY", signal_date="2024-01-01",
-                open=100, high=110, low=95, close=100,
-                volume=1000000, rsi_14=75, body_pct=0.0,
-                upper_wick_pct=10.0, lower_wick_pct=5.0,
+                ticker="SPY",
+                signal_date="2024-01-01",
+                open=100,
+                high=110,
+                low=95,
+                close=100,
+                volume=1000000,
+                rsi_14=75,
+                body_pct=0.0,
+                upper_wick_pct=10.0,
+                lower_wick_pct=5.0,
                 volume_vs_avg=1.5,
                 forward_returns=[ForwardReturn(1, "Q+1", 90.0, -10.0, -15.0, -2.0)],
             ),
             SignalResult(
-                ticker="QQQ", signal_date="2024-04-01",
-                open=300, high=320, low=290, close=300,
-                volume=2000000, rsi_14=72, body_pct=0.0,
-                upper_wick_pct=6.67, lower_wick_pct=3.33,
+                ticker="QQQ",
+                signal_date="2024-04-01",
+                open=300,
+                high=320,
+                low=290,
+                close=300,
+                volume=2000000,
+                rsi_14=72,
+                body_pct=0.0,
+                upper_wick_pct=6.67,
+                lower_wick_pct=3.33,
                 volume_vs_avg=1.3,
                 forward_returns=[ForwardReturn(1, "Q+1", 280.0, -6.67, -10.0, -1.0)],
             ),
@@ -1022,10 +1118,17 @@ class TestEdgeCases:
         service = ScannerService(AsyncMock())
         signals = [
             SignalResult(
-                ticker="SPY", signal_date="2024-01-01",
-                open=100, high=110, low=95, close=100,
-                volume=1000000, rsi_14=75, body_pct=0.0,
-                upper_wick_pct=10.0, lower_wick_pct=5.0,
+                ticker="SPY",
+                signal_date="2024-01-01",
+                open=100,
+                high=110,
+                low=95,
+                close=100,
+                volume=1000000,
+                rsi_14=75,
+                body_pct=0.0,
+                upper_wick_pct=10.0,
+                lower_wick_pct=5.0,
                 volume_vs_avg=1.5,
                 forward_returns=[ForwardReturn(1, "Q+1", 110.0, 10.0, -2.0, 12.0)],
             ),
