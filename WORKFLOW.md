@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-30 (Session 30 — Strategy Lab scanner engine)
+> **Last updated:** 2026-03-31 (Post-merge cleanup — Session 30 merged as PR #36)
 
 ---
 
@@ -17,8 +17,8 @@
 |-|-|
 | **Session** | 30 — Strategy Lab Scanner Engine |
 | **Date** | 2026-03-30 |
-| **PR** | #36 |
-| **What was done** | Built `backend/services/scanner_service.py` — the computational core of the Strategy Lab. ScannerService.run_scan() pipeline: universe resolution (ETF filter), per-ticker candle fetch + enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering (AND logic), forward return computation (return %, max drawdown, max surge per window), summary aggregation (mean, median, win rate). 10 data classes. Progress callback support. 65 comprehensive tests across 10 categories. |
+| **PR** | #36 (merged 2026-03-31) |
+| **What was done** | Built `backend/services/scanner_service.py` — the computational core of the Strategy Lab. ScannerService.run_scan() pipeline: universe resolution (ETF filter), per-ticker candle fetch + enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering (AND logic), forward return computation (return %, max drawdown ≤0, max surge ≥0 per window), summary aggregation (mean, median, win rate). 10 data classes. Progress callback support. 2 PR review cycles (12 comments addressed): sequential fetch for AsyncSession safety, per-ticker error handling, drawdown/surge clamping, any-color win-rate=None, defensive lookback parsing. 68 comprehensive tests across 10 categories. 576 total tests. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress (Strategy Lab prioritized over Watchlist). Phase 1 is complete.

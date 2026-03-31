@@ -2424,18 +2424,20 @@ All 508 tests pass, CI green.
 
 ### Session 30 — 2026-03-30: Strategy Lab — Scanner Engine
 
-**Branch:** `feat/scanner-engine` | **PR:** #36
+**Branch:** `feat/scanner-engine` | **PR:** #36 (merged 2026-03-31)
 
 Built `backend/services/scanner_service.py` — the Strategy Lab's computational
 core. `ScannerService.run_scan()` pipeline: universe resolution (ETF filter from
 `stocks` table), per-ticker candle fetch + enrichment (body %, upper/lower wick %,
 volume vs N-period avg, RSI-14), vectorized condition filtering (AND logic),
-forward return computation (return %, max drawdown %, max surge % per window),
+forward return computation (return %, max drawdown ≤ 0, max surge ≥ 0 per window),
 summary aggregation (mean, median, win rate). 10 data classes, progress callback
-support. 65 comprehensive tests across 10 categories.
+support. 2 PR review cycles (12 Copilot comments): sequential fetch for
+AsyncSession safety, per-ticker error handling, drawdown/surge clamping,
+any-color win-rate=None, defensive lookback parsing. 68 tests across 10 categories.
 
 **Files:** `backend/services/scanner_service.py` (new), `backend/tests/test_scanner.py` (new)
 
-**Tests:** 573 (508 + 65 new) | **CI:** ✅ ruff + mypy + pytest green
+**Tests:** 576 (508 + 68 new) | **CI:** ✅ ruff + mypy + pytest green
 
 > **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 30.

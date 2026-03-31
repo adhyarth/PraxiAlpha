@@ -5,7 +5,7 @@
 >
 > **Design doc:** [`docs/STRATEGY_LAB.md`](./STRATEGY_LAB.md)
 >
-> **Last updated:** 2026-03-30 (Session 30)
+> **Last updated:** 2026-03-31 (Session 30 — merged PR #36)
 
 ---
 
@@ -78,7 +78,7 @@ Analyzer for rapid strategy iteration. Document the full spec before writing cod
 UI (Session 31) will call. Implements the full scan pipeline from §4 of the
 design doc.
 
-**Branch:** `feat/scanner-engine`
+**Branch:** `feat/scanner-engine` | **PR:** #36 (merged 2026-03-31)
 
 #### What Was Built
 
@@ -95,7 +95,7 @@ design doc.
      (split-adjusted), compute derived columns (body %, upper/lower wick %,
      full range %, volume vs N-period rolling avg, RSI-14)
    - Apply vectorized condition filters (AND logic, NaN excluded)
-   - Compute forward returns per signal (return %, max drawdown, max surge)
+   - Compute forward returns per signal (return %, max drawdown ≤ 0, max surge ≥ 0)
    - Aggregate summary stats (mean, median, win rate per window)
    - Return `ScanResult` with timing metadata
 
@@ -109,17 +109,35 @@ design doc.
    - `_validate_request()` — input validation
    - `_get_volume_lookback()` — extract from condition extra params
 
-**`backend/tests/test_scanner.py`** — 65 tests across 10 categories:
+**`backend/tests/test_scanner.py`** — 68 tests across 10 categories:
 - Data classes & operators (8)
 - Request validation (6)
 - Universe resolution (3)
 - Per-ticker enrichment (8)
 - Condition filtering (11)
 - Forward return computation (5)
-- Summary aggregation (7)
-- Volume lookback helper (4)
+- Summary aggregation (8) — includes any-color win-rate=None test
+- Volume lookback helper (6) — includes invalid/zero lookback fallback tests
 - Full `run_scan` integration (7)
 - Edge cases (6)
+
+#### PR Review (2 cycles, 12 Copilot comments)
+
+**Round 1 (6 comments):**
+- Guard all four price columns (open/high/low/close) > 0 before division
+- Loosen volume_vs_avg: allow partial windows with `min_periods=1`
+- Clarify ForwardReturn docstring (drawdown/surge vs signal close)
+- Add bounded async concurrency for ticker fetches (Semaphore)
+- Switch `iterrows()` → `itertuples()` for signal iteration
+- Precompute per-ticker `date→index` dict for O(1) signal lookup
+
+**Round 2 (6 comments):**
+- Revert to sequential fetching (AsyncSession not safe for concurrent awaits)
+- Add per-ticker exception handling with logging
+- Clamp `max_drawdown_pct ≤ 0` and `max_surge_pct ≥ 0` per spec
+- Set `win_rate_pct=None` when `candle_color="any"` (ambiguous win direction)
+- Defensive `_get_volume_lookback()`: try/except for non-numeric values
+- Guard `progress_callback` calls with try/except
 
 #### Key Design Decisions
 
@@ -137,15 +155,25 @@ design doc.
   the Streamlit UI can display them directly.
 - **Progress callback** — `run_scan()` accepts an optional
   `progress_callback(current, total)` so the Streamlit UI can show a progress
-  bar during the scan.
+  bar during the scan. Callback errors are caught and logged to prevent
+  UI issues from aborting the scan.
+- **Drawdown/surge clamped** — `max_drawdown_pct` is always ≤ 0,
+  `max_surge_pct` is always ≥ 0, matching the Strategy Lab spec. Avoids
+  confusing negative "surge" or positive "drawdown" values in the UI.
+- **Any-color win rate = None** — when `candle_color="any"`, win direction
+  is ambiguous (user hasn't chosen bearish or bullish), so `win_rate_pct`
+  is set to `None` rather than defaulting to bullish.
+- **Sequential fetching** — single `AsyncSession` shared by `CandleService`
+  is not safe for concurrent overlapping awaits, so tickers are fetched
+  sequentially. Per-ticker errors are caught and logged.
 
 #### Files Changed
 - `backend/services/scanner_service.py` — **new** — scanner engine
-- `backend/tests/test_scanner.py` — **new** — 65 tests
+- `backend/tests/test_scanner.py` — **new** — 68 tests
 
 #### CI Status: ✅ Green
 - ruff: clean
 - mypy: clean
-- pytest: 573 passed (508 existing + 65 new)
+- pytest: 576 passed (508 existing + 68 new)
 
-#### Test Count: 573 (508 + 65 new)
+#### Test Count: 576 (508 + 68 new)
