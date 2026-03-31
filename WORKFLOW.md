@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-30 (Session 29 — Strategy Lab design doc)
+> **Last updated:** 2026-03-30 (Session 30 — Strategy Lab scanner engine)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 29 — Strategy Lab Design Doc |
+| **Session** | 30 — Strategy Lab Scanner Engine |
 | **Date** | 2026-03-30 |
-| **PR** | #35 |
-| **What was done** | Created `docs/STRATEGY_LAB.md` — full design for the Pattern Scanner + Forward Returns Analyzer. V1 scope: quarterly bearish reversal candles on ETFs, configurable condition form builder, 5-quarter forward returns with return/drawdown/surge metrics. Created dedicated `docs/STRATEGY_LAB_BUILD_LOG.md`. |
+| **PR** | #36 |
+| **What was done** | Built `backend/services/scanner_service.py` — the computational core of the Strategy Lab. ScannerService.run_scan() pipeline: universe resolution (ETF filter), per-ticker candle fetch + enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering (AND logic), forward return computation (return %, max drawdown, max surge per window), summary aggregation (mean, median, win rate). 10 data classes. Progress callback support. 65 comprehensive tests across 10 categories. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress (Strategy Lab prioritized over Watchlist). Phase 1 is complete.
@@ -26,14 +26,14 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 30 — Strategy Lab Scanner Engine |
-| **Scope** | `backend/services/scanner_service.py` — universe resolution (ETF filter), quarterly candle fetch, derived column computation (body %, wick %, volume ratio), RSI(14), vectorized condition filtering, forward return calculator. Comprehensive tests. |
-| **Key files** | `backend/services/scanner_service.py`, `backend/tests/test_scanner.py` |
-| **Depends on** | Session 29 (design doc), Session 12 (CandleService), Session 11 (indicators) |
-| **Why** | The scanner engine is the computational core that the Streamlit UI (Session 31) will call. |
-| **Design doc** | [`docs/STRATEGY_LAB.md`](docs/STRATEGY_LAB.md) — read §4 Architecture before starting |
+| **Session** | 31 — Strategy Lab Streamlit UI |
+| **Scope** | `streamlit_app/pages/scanner.py` — condition form builder (sliders, dropdowns for body %, wick %, volume, RSI), run scan button, progress bar, summary statistics panel, per-signal detail table (expandable rows, sortable). |
+| **Key files** | `streamlit_app/pages/scanner.py`, `streamlit_app/app.py` (nav update) |
+| **Depends on** | Session 30 (scanner engine), Session 12 (CandleService) |
+| **Why** | The UI is the user-facing layer that makes the scanner engine usable for rapid strategy iteration. |
+| **Design doc** | [`docs/STRATEGY_LAB.md`](docs/STRATEGY_LAB.md) — read §6 UI Wireframe before starting |
 
-> **After Session 29:** Session 30 implements the scanner engine — the backend computational core.
+> **After Session 30:** Session 31 builds the Streamlit UI that calls the scanner engine.
 
 > **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
 

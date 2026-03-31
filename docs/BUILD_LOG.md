@@ -2419,3 +2419,23 @@ All 508 tests pass, CI green.
 - `DESIGN_DOC.md` — updated Phase 2 roadmap with Strategy Lab sessions
 
 #### Test Count: 508 (unchanged — docs-only session)
+
+---
+
+### Session 30 — 2026-03-30: Strategy Lab — Scanner Engine
+
+**Branch:** `feat/scanner-engine` | **PR:** #36
+
+Built `backend/services/scanner_service.py` — the Strategy Lab's computational
+core. `ScannerService.run_scan()` pipeline: universe resolution (ETF filter from
+`stocks` table), per-ticker candle fetch + enrichment (body %, upper/lower wick %,
+volume vs N-period avg, RSI-14), vectorized condition filtering (AND logic),
+forward return computation (return %, max drawdown %, max surge % per window),
+summary aggregation (mean, median, win rate). 10 data classes, progress callback
+support. 65 comprehensive tests across 10 categories.
+
+**Files:** `backend/services/scanner_service.py` (new), `backend/tests/test_scanner.py` (new)
+
+**Tests:** 573 (508 + 65 new) | **CI:** ✅ ruff + mypy + pytest green
+
+> **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 30.

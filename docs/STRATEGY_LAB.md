@@ -3,9 +3,9 @@
 > **Purpose:** Design document for the Strategy Lab — a Pattern Scanner + Forward
 > Returns Analyzer that enables rapid, data-driven strategy iteration.
 >
-> **Status:** Design phase (Session 29). No code yet.
+> **Status:** Engine implemented (Session 30). UI next (Session 31).
 >
-> **Last updated:** 2026-03-30 (Session 29 — initial design)
+> **Last updated:** 2026-03-30 (Session 30 — scanner engine complete)
 
 ---
 
