@@ -13,10 +13,10 @@
 
 | | |
 |-|-|
-| **Session** | 30 — Strategy Lab Scanner Engine (merged) |
-| **Branch** | `main` |
-| **Status** | ✅ Merged. PR #36 merged to main. Feature branch deleted. Post-merge cleanup complete. |
-| **Last checkpoint** | 576 tests pass. Ruff + mypy clean. Ready for Session 31. |
+| **Session** | 31 — Strategy Lab Streamlit UI |
+| **Branch** | `feat/scanner-ui` |
+| **Status** | 🟡 Code complete, CI passed (614 tests). Docs and PR pending. |
+| **Last checkpoint** | Scanner page (`streamlit_app/pages/scanner.py`) + app nav update + 38 new tests. Ruff + mypy + pytest all green. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
