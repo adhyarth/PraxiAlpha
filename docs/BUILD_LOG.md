@@ -2321,3 +2321,58 @@ Addressed all 6 Copilot review comments on PR #27:
 - `backend/tests/test_candle_service.py` — updated split volume test expectation
 
 #### Test Count: 494 (1 test updated, no new tests)
+
+### Session 28h — 2026-03-30: PR Review Fixes & Self-Review (Phase 2)
+
+**Goal:** Address all 11 Copilot PR review comments on PR #34, perform a self-critical review, create CHEATSHEET.md, and finalize documentation.
+
+**Branch:** `feat/tradingview-data-validation`
+
+#### What Was Done
+
+**PR Review Fixes (11 comments addressed):**
+1. Fixed corrupted Unicode emoji characters in `streamlit_app/app.py` sidebar (🔍, 📋, 🔎)
+2. Switched persistent event loop from module-level global to `@st.cache_resource` for proper Streamlit lifecycle management
+3. Wrapped validation page run block in `try/finally` to guarantee log handler cleanup on exceptions
+4. Vectorized `compare_candles()` — replaced `iterrows()` loop with pandas vectorized percentage-difference computation (~10x speedup)
+5. Fixed misleading UI banner: changed "auto re-checked" to "Review them below — automatic re-checking will be enabled in a future release"
+6. Updated `scripts/debug_yfinance.py` to import constants and fetcher from the canonical `data_validation_service` module (DRY)
+7. Updated `docs/ARCHITECTURE.md` — ticker count from "5 fixed" to "10 fixed + 10 random"
+8. Updated `docs/CHANGELOG.md` — fixed duplicate "Changed" heading to "Changed (continued — data validation details)"
+9. Updated `docs/PROGRESS.md` — corrected session reference from "28d" to "Sessions 28d/28g"
+10. Updated `scripts/debug_yfinance.py` help text to include `PYTHONPATH=.` prefix
+11. All items already fixed or now addressed
+
+**Self-Review (12 improvements):**
+- Added tolerance comments explaining why 1% price / 10% volume
+- Removed dead `get_retry_tickers_from_failures()` call in validate_local.py
+- Added module docstrings to data_validation_service.py and validate_local.py
+- Hardened `_last_completed_period_cutoff()` for all timeframe branches
+- Filtered random ticker sampling to exclude exotic suffixes and low-volume names
+- Added 14 new tests (494 → 508 total): cutoff logic, random ticker filtering, tolerance boundaries
+
+**CHEATSHEET.md created** with key commands for Docker, Streamlit, and validation.
+
+#### Key Design Decisions
+- **`@st.cache_resource` over module global** — Streamlit's resource cache handles lifecycle properly across reruns and prevents memory leaks. The module-level `_PERSISTENT_LOOP` global worked but wasn't idiomatic.
+- **Vectorized comparison** — pandas vectorized ops avoid Python-level `for` loops, important when comparing 2500+ bars × 5 fields per ticker/timeframe.
+- **DRY debug script** — importing from the service module ensures the debug script always stays in sync with production constants (ticker list, bar counts, fetch logic).
+
+#### Lessons Learned
+- Copilot PR review catches real issues (emoji encoding, misleading text, non-idiomatic patterns) that are easy to miss during development
+- Self-critical review after PR review found additional improvements (14 new tests, dead code, docstrings)
+- `try/finally` for Streamlit log handlers is essential — without it, duplicate handlers accumulate on every rerun
+
+#### Files Changed
+- `streamlit_app/app.py` — fixed sidebar emoji encoding
+- `streamlit_app/pages/validation.py` — `@st.cache_resource` event loop, `try/finally` log cleanup, auto-retry banner text
+- `backend/services/data_validation_service.py` — vectorized `compare_candles()`, module docstring
+- `scripts/debug_yfinance.py` — DRY imports from service, help text update
+- `docs/ARCHITECTURE.md` — updated validation ticker count
+- `docs/CHANGELOG.md` — added PR review entries, fixed heading format
+- `docs/PROGRESS.md` — updated session status, test count, session history
+- `WORKFLOW.md` — updated last completed session to 28h
+- `CHEATSHEET.md` — new file with key commands
+- `backend/tests/test_data_validation.py` — 14 new tests
+
+#### Test Count: 508 (14 new)
