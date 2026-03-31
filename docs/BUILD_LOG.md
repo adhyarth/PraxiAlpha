@@ -2388,3 +2388,34 @@ Addressed all 6 Copilot review comments on PR #27:
 7. **README.md inline credentials** — same split; also applied to CHEATSHEET.md
 
 All 508 tests pass, CI green.
+
+### Session 29 — 2026-03-30: Strategy Lab — Design Doc (Phase 2)
+
+**Goal:** Design the Strategy Lab feature — a Pattern Scanner + Forward Returns Analyzer for rapid strategy iteration. Document the full spec before writing code.
+
+**Branch:** `docs/strategy-lab-design`
+
+> Detailed build log: [docs/STRATEGY_LAB_BUILD_LOG.md](./STRATEGY_LAB_BUILD_LOG.md)
+
+#### What Was Done
+1. Created `docs/STRATEGY_LAB.md` — comprehensive design document covering: vision, V1 scope (quarterly bearish reversal candles on ETFs), full condition taxonomy (price shape, volume, indicators, cross-timeframe, fundamentals), scanner service architecture with dataclass API, data model for future persistence, UI wireframe, forward return specification (5 quarterly windows with return/drawdown/surge), performance considerations, session roadmap (Sessions 29–38+), and future phases (NLP, entry optimization, backtesting, alerts, journal integration).
+2. Created `docs/STRATEGY_LAB_BUILD_LOG.md` — dedicated build log for Strategy Lab sessions to avoid growing the main BUILD_LOG further.
+3. Updated all project docs (WORKFLOW, PROGRESS, CHANGELOG, DESIGN_DOC) to reflect Strategy Lab priority and new session plan. Watchlist deprioritized.
+
+#### Key Design Decisions
+- Quarterly-only for V1 (no daily noise, manageable scan size)
+- Programmatic ETF filter via `stocks.asset_type = 'ETF'` (not a hardcoded list)
+- Hybrid SQL + pandas approach (CandleService for data, pandas for filtering + RSI)
+- No persistence in V1 (iterate first, save later)
+- Dedicated build log to prevent main BUILD_LOG OOM issues
+- Win rate = price goes down for bearish scans (auto-flips for bullish later)
+
+#### Files Changed
+- `docs/STRATEGY_LAB.md` — **new** — full design document
+- `docs/STRATEGY_LAB_BUILD_LOG.md` — **new** — dedicated build log
+- `docs/CHANGELOG.md` — added Strategy Lab design entries
+- `WORKFLOW.md` — updated last session, next session, key files table
+- `docs/PROGRESS.md` — updated component status, phase checklist, session history, roadmap
+- `DESIGN_DOC.md` — updated Phase 2 roadmap with Strategy Lab sessions
+
+#### Test Count: 508 (unchanged — docs-only session)
