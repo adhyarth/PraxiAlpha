@@ -16,6 +16,7 @@
 - **YF retry with exponential backoff** — `fetch_yf_candles()` retries up to 3 times with 2s/4s backoff on transient failures (Yahoo Finance rate-limits / TCP drops).
 - **Random ticker sampling in Streamlit validation GUI** — re-enabled `sample_random_tickers(10)` for 10 fixed + 10 random tickers per validation run (80 checks total).
 - **Incomplete period exclusion** — `compare_candles()` now excludes the current incomplete week/month/quarter from validation to prevent false mismatches on partial periods.
+- **CHEATSHEET.md** — quick-reference command cheatsheet for Docker, Streamlit, and validation scripts.
 
 ### Changed
 - **Migrated validation from tvdatafeed to yfinance** — replaced `fetch_tv_candles()` + `get_tv_client()` with `fetch_yf_candles()`. Removed tvdatafeed dependency in favor of `yfinance` (stable PyPI package, REST API, actively maintained). Renamed `tv_validation_service.py` → `data_validation_service.py` and `test_tv_validation.py` → `test_data_validation.py`. All existing validation logic preserved — only the data-fetch layer swapped.
@@ -27,6 +28,11 @@
 - **Rate-limit delays increased** — CLI script 0.3s → 1.0s, Streamlit GUI 0.5s → 1.5s to reduce Yahoo Finance rate-limit drops.
 - **Expanded fixed ticker set to 10** — AAPL, MSFT, NVDA, SMH, TSLA, QQQ, SPY, GLD, CVNA, XBI.
 - **Extended validation windows** — daily: 2520 bars (~10yr), weekly: 520, monthly: 120, quarterly: 40.
+- **Vectorized `compare_candles()`** — replaced `iterrows()` loop with pandas vectorized percentage-difference computation for ~10x speedup on large comparison sets.
+- **Streamlit event loop via `@st.cache_resource`** — persistent background event loop now managed by Streamlit's resource cache instead of a module-level global, ensuring proper lifecycle across reruns.
+- **Log handler cleanup in `try/finally`** — validation page wraps the entire run block in `try/finally` to guarantee log handler removal even on exceptions, preventing duplicate log lines on rerun.
+- **Debug script imports from service** — `scripts/debug_yfinance.py` now imports `FIXED_TICKERS`, `ALL_TIMEFRAMES`, `TIMEFRAME_BARS`, and `fetch_yf_candles` from the canonical `data_validation_service` module instead of duplicating them.
+- **14 new tests (508 total)** — additional test coverage from self-review fixes (cutoff logic, random ticker filtering, tolerance comments, dead code removal).
 
 ### Changed (continued — data validation details)
 - **Data Validation service** (`backend/services/data_validation_service.py`) — backend service for comparing OHLCV data (daily, weekly, monthly, quarterly) between PraxiAlpha's database and Yahoo Finance. Includes bar-by-bar comparison with configurable tolerances (1% price, 10% volume), quarterly aggregation from YF monthly data, failure persistence (JSON), and summary computation.
@@ -90,6 +96,8 @@
 - **Double volume adjustment on split tickers** — EODHD already returns split-adjusted volume, but `_apply_split_adjustment()` was dividing volume by the split ratio again. Removed the redundant volume adjustment; only OHLC prices are now adjusted.
 - **Future splits applied to current data** — `_get_split_factors()` was including splits with future dates (e.g., CVNA's announced 1:5 reverse split). Added `date <= CURRENT_DATE` filter so only completed splits affect candle data.
 - **Split volume test updated** — `test_adjusted_applies_split_factor_to_ohlc` now expects unchanged volume (EODHD provides pre-adjusted volume), matching the corrected production behavior.
+- **Sidebar emoji encoding** — `streamlit_app/app.py` had corrupted Unicode codepoints for 🔍, 📋, and 🔎; replaced with correct emoji characters.
+- **Misleading auto-retry banner** — validation page UI warned "Those tickers will be automatically re-checked" but retry logic is not yet implemented; updated text to "Review them below — automatic re-checking will be enabled in a future release."
 
 ---
 
