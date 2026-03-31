@@ -166,9 +166,11 @@ docker compose up -d
 # 2. Wait for API health
 curl -sf http://localhost:8000/health
 
-# 3. Launch Streamlit (PYTHONPATH=. is required for internal imports;
-#    override DB host to localhost since Streamlit runs outside Docker)
-PYTHONPATH=. DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha" streamlit run streamlit_app/app.py
+# 3. Configure DB connection for Streamlit (runs outside Docker; uses localhost)
+export DATABASE_URL="postgresql+asyncpg://praxialpha:praxialpha_dev_2025@localhost:5432/praxialpha"
+
+# 4. Launch Streamlit (PYTHONPATH=. is required for internal imports)
+PYTHONPATH=. streamlit run streamlit_app/app.py
 ```
 
 Then perform the relevant visual checks. **No manual computation is needed** —

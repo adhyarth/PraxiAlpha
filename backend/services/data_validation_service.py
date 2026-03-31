@@ -455,7 +455,7 @@ def fetch_yf_candles(
     No authentication required — yfinance uses a free REST API.
     """
     if not YF_AVAILABLE:
-        raise RuntimeError('yfinance is not installed. Run: pip install "praxialpha[validate]"')
+        raise RuntimeError('yfinance is not installed. Run: pip install -e ".[validate]"')
 
     # Quarterly: fetch monthly from YF, then aggregate
     if timeframe == "quarterly":
@@ -632,7 +632,9 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
     """
     Sample n random tickers from our DB, spread across exchanges.
 
-    Distribution: 3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs.
+    Default distribution for n=10: 3 NYSE, 3 NASDAQ, 2 AMEX, 2 ETFs.
+    When n differs from RANDOM_TOTAL the counts are scaled proportionally
+    (rounding down), and any remainder is filled from a mixed-exchange pool.
     Excludes the fixed tickers to avoid duplicates.
 
     Filters:
@@ -651,6 +653,11 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
     exclude = set(FIXED_TICKERS)
     sampled: list[str] = []
 
+    # Scale counts proportionally when n != RANDOM_TOTAL
+    scale = n / RANDOM_TOTAL if RANDOM_TOTAL > 0 else 1.0
+    exchange_counts = {ex: max(1, int(cnt * scale)) for ex, cnt in RANDOM_SAMPLE_CONFIG.items()}
+    etf_count = max(1, int(RANDOM_ETF_COUNT * scale))
+
     # Subquery: only tickers with meaningful recent volume and no
     # exotic suffixes (warrants -W, units -U, rights -R, preferred -P*).
     common_stock_filter = (
@@ -667,8 +674,10 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
     )
 
     async with async_session_factory() as session:
-        # Sample from each exchange
-        for exchange, count in RANDOM_SAMPLE_CONFIG.items():
+        # Sample from each exchange (scaled counts)
+        for exchange, count in exchange_counts.items():
+            if len(sampled) >= n:
+                break
             result = await session.execute(
                 text(
                     "SELECT ticker FROM stocks "
@@ -683,20 +692,37 @@ async def sample_random_tickers(n: int = RANDOM_TOTAL) -> list[str]:
             exclude.update(tickers)
 
         # Sample ETFs from any exchange (ETFs generally have good volume)
-        result = await session.execute(
-            text(
-                "SELECT ticker FROM stocks "
-                "WHERE asset_type = 'ETF' "
-                "AND ticker !~ '[\\-\\+]' "
-                "AND ticker != ALL(:exclude) "
-                "ORDER BY random() LIMIT :limit"
-            ),
-            {"exclude": list(exclude), "limit": RANDOM_ETF_COUNT},
-        )
-        etf_tickers = [row[0] for row in result.fetchall()]
-        sampled.extend(etf_tickers)
+        remaining_etf = min(etf_count, n - len(sampled))
+        if remaining_etf > 0:
+            result = await session.execute(
+                text(
+                    "SELECT ticker FROM stocks "
+                    "WHERE asset_type = 'ETF' "
+                    "AND ticker !~ '[\\-\\+]' "
+                    "AND ticker != ALL(:exclude) "
+                    "ORDER BY random() LIMIT :limit"
+                ),
+                {"exclude": list(exclude), "limit": remaining_etf},
+            )
+            etf_tickers = [row[0] for row in result.fetchall()]
+            sampled.extend(etf_tickers)
+            exclude.update(etf_tickers)
 
-    return sampled
+        # Fill remainder if scaled counts didn't reach n
+        shortfall = n - len(sampled)
+        if shortfall > 0:
+            result = await session.execute(
+                text(
+                    "SELECT ticker FROM stocks "
+                    f"WHERE {common_stock_filter}"
+                    "AND ticker != ALL(:exclude) "
+                    "ORDER BY random() LIMIT :limit"
+                ),
+                {"exclude": list(exclude), "limit": shortfall},
+            )
+            sampled.extend(row[0] for row in result.fetchall())
+
+    return sampled[:n]
 
 
 # ------------------------------------------------------------------ #

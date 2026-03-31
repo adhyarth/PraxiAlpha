@@ -2,8 +2,9 @@
 PraxiAlpha — Data Validation Page
 
 Streamlit page for manually triggering OHLCV data validation
-against Yahoo Finance (second source). Compares fixed tickers
-across all timeframes (daily, weekly, monthly, quarterly).
+against Yahoo Finance (second source). Compares a set of fixed
+stress-test tickers plus a sample of 10 random tickers across all
+timeframes (daily, weekly, monthly, quarterly).
 
 Shows results in a table with match percentages, mismatch details,
 and failure persistence for re-checking on the next run.
@@ -91,7 +92,7 @@ Monthly ({TIMEFRAME_BARS["monthly"]}), Quarterly ({TIMEFRAME_BARS["quarterly"]})
 # ============================================================
 
 if not YF_AVAILABLE:
-    st.error('❌ **yfinance is not installed.** Install with: `pip install "praxialpha[validate]"`')
+    st.error('❌ **yfinance is not installed.** Install with: `pip install -e ".[validate]"`')
     st.stop()
 
 
