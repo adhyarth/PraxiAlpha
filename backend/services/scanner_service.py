@@ -21,6 +21,7 @@ See ``docs/STRATEGY_LAB.md`` §4 for the full architecture.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -89,8 +90,12 @@ class ForwardReturn:
         window_label: Human-readable label, e.g. ``"Q+1"``.
         close_price: Close price at that future candle (or ``None``).
         return_pct: ``(future_close - signal_close) / signal_close * 100``.
-        max_drawdown_pct: Worst peak-to-trough during the window (always ≤ 0).
-        max_surge_pct: Best trough-to-peak during the window (always ≥ 0).
+        max_drawdown_pct: Worst percentage move vs. the signal close observed
+            during the window; typically negative if price trades below the
+            signal close, but may be zero or positive if it does not.
+        max_surge_pct: Best percentage move vs. the signal close observed
+            during the window; typically positive if price trades above the
+            signal close, but may be zero or negative if it does not.
     """
 
     window: int
@@ -237,16 +242,25 @@ class ScannerService:
             )
 
         # 3. Fetch candles + compute derived columns per ticker
+        #    Use bounded concurrency to avoid sequential round-trips
+        #    while not overwhelming the DB connection pool.
         timeframe = Timeframe(request.timeframe)
-        all_frames: list[pd.DataFrame] = []
         total = len(universe)
+        sem = asyncio.Semaphore(20)  # max 20 concurrent fetches
+        completed = 0
 
-        for i, (stock_id, ticker) in enumerate(universe):
-            df = await self._fetch_and_enrich_ticker(stock_id, ticker, timeframe, request)
-            if df is not None and not df.empty:
-                all_frames.append(df)
-            if progress_callback is not None:
-                progress_callback(i + 1, total)
+        async def _fetch_one(stock_id: int, ticker: str) -> pd.DataFrame | None:
+            nonlocal completed
+            async with sem:
+                result = await self._fetch_and_enrich_ticker(stock_id, ticker, timeframe, request)
+                completed += 1
+                if progress_callback is not None:
+                    progress_callback(completed, total)
+                return result
+
+        tasks = [_fetch_one(sid, tkr) for sid, tkr in universe]
+        results = await asyncio.gather(*tasks)
+        all_frames: list[pd.DataFrame] = [df for df in results if df is not None and not df.empty]
 
         if not all_frames:
             return ScanResult(
@@ -350,9 +364,12 @@ class ScannerService:
         for col in ("open", "high", "low", "close", "volume"):
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Guard against zero / near-zero prices to prevent division errors
-        if (df["open"] <= 0).any() or (df["close"] <= 0).any():
-            df = df[(df["open"] > 0) & (df["close"] > 0)].copy()
+        # Guard against zero / near-zero prices to prevent division errors.
+        # full_range_pct divides by low, lower_wick_pct divides by min(open,close),
+        # so all four price columns must be positive.
+        price_ok = (df["open"] > 0) & (df["high"] > 0) & (df["low"] > 0) & (df["close"] > 0)
+        if not price_ok.all():
+            df = df[price_ok].copy()
             if df.empty:
                 return None
 
@@ -365,7 +382,8 @@ class ScannerService:
         df["full_range_pct"] = (df["high"] - df["low"]) / df["low"]
 
         # Volume vs N-period rolling average
-        if len(df) > vol_lookback:
+        # Need at least 2 rows (shift(1) consumes one, rolling needs at least 1)
+        if len(df) >= 2:
             # shift(1) so the rolling window does NOT include the current candle
             df["volume_vs_avg"] = df["volume"] / (
                 df["volume"].shift(1).rolling(window=vol_lookback, min_periods=1).mean()
@@ -446,27 +464,31 @@ class ScannerService:
         """
         signals: list[SignalResult] = []
 
-        # Pre-index full data by ticker for O(1) lookups
+        # Pre-index full data by ticker for O(1) lookups, and build
+        # date→positional-index dicts to avoid per-signal linear scans.
         ticker_groups: dict[str, pd.DataFrame] = {}
+        ticker_date_idx: dict[str, dict[str, int]] = {}
         for ticker, group in full_df.groupby("ticker"):
-            # Sort by date and build a positional index
             sorted_group = group.sort_values("date").reset_index(drop=True)
             ticker_groups[ticker] = sorted_group
+            ticker_date_idx[ticker] = {
+                str(row_date): idx for idx, row_date in enumerate(sorted_group["date"])
+            }
 
-        for _, row in signals_df.iterrows():
-            ticker = row["ticker"]
-            signal_date = row["date"]
-            signal_close = float(row["close"])
+        # Use itertuples() for lower overhead than iterrows()
+        for row in signals_df.itertuples(index=False):
+            ticker = row.ticker
+            signal_date = str(row.date)
+            signal_close = float(row.close)
 
             ticker_df = ticker_groups.get(ticker)
-            if ticker_df is None:
+            date_idx_map = ticker_date_idx.get(ticker)
+            if ticker_df is None or date_idx_map is None:
                 continue
 
-            # Find the position of this signal candle in the ticker's data
-            signal_idx_matches = ticker_df.index[ticker_df["date"] == signal_date].tolist()
-            if not signal_idx_matches:
+            signal_idx = date_idx_map.get(signal_date)
+            if signal_idx is None:
                 continue
-            signal_idx = signal_idx_matches[0]
 
             # Compute forward returns for each window
             fwd_returns: list[ForwardReturn] = []
@@ -477,17 +499,17 @@ class ScannerService:
             signal = SignalResult(
                 ticker=ticker,
                 signal_date=str(signal_date),
-                open=float(row["open"]),
-                high=float(row["high"]),
-                low=float(row["low"]),
+                open=float(row.open),
+                high=float(row.high),
+                low=float(row.low),
                 close=signal_close,
-                volume=int(row["volume"]),
-                rsi_14=round(float(row["rsi_14"]), 2) if pd.notna(row["rsi_14"]) else None,
-                body_pct=round(float(row["body_pct"]) * 100, 2),
-                upper_wick_pct=round(float(row["upper_wick_pct"]) * 100, 2),
-                lower_wick_pct=round(float(row["lower_wick_pct"]) * 100, 2),
-                volume_vs_avg=round(float(row["volume_vs_avg"]), 2)
-                if pd.notna(row["volume_vs_avg"])
+                volume=int(row.volume),
+                rsi_14=round(float(row.rsi_14), 2) if pd.notna(row.rsi_14) else None,
+                body_pct=round(float(row.body_pct) * 100, 2),
+                upper_wick_pct=round(float(row.upper_wick_pct) * 100, 2),
+                lower_wick_pct=round(float(row.lower_wick_pct) * 100, 2),
+                volume_vs_avg=round(float(row.volume_vs_avg), 2)
+                if pd.notna(row.volume_vs_avg)
                 else None,
                 forward_returns=fwd_returns,
             )
