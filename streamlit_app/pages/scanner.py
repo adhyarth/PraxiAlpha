@@ -363,7 +363,7 @@ def _build_conditions() -> list[ScanCondition]:
 
 async def _execute_scan(
     request: ScanRequest,
-    progress_callback,
+    progress_callback=None,  # type: ignore[no-untyped-def]
 ) -> ScanResult:
     """Execute the scan using a fresh DB session."""
     async with async_session_factory() as session:
@@ -397,21 +397,16 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
         st.text(f"  timeframe = {timeframe}, universe = {universe}")
         st.text(f"  forward_windows = {sorted(forward_windows)}")
 
-    # ---- Progress bar ----
-    progress_bar = st.progress(0, text="Resolving ETF universe...")
-    status_text = st.empty()
-
-    def _progress_callback(current: int, total: int) -> None:
-        """Update Streamlit progress bar from the scanner engine."""
-        pct = current / total if total > 0 else 0
-        progress_bar.progress(pct, text=f"Scanning ETFs... ({current}/{total})")
-
-    # ---- Execute ----
+    # ---- Execute with spinner ----
+    # Note: progress_callback cannot update Streamlit widgets from the
+    # background event-loop thread (NoSessionContext error).  We use a
+    # simple st.spinner() instead — the scan typically takes 30-60s for
+    # ~500 ETFs on quarterly data.
     try:
-        result: ScanResult = _run_async(_execute_scan(request, _progress_callback))
-        progress_bar.progress(1.0, text="Scan complete!")
+        with st.spinner("🔍 Scanning ETFs… this may take 30–60 seconds."):
+            result: ScanResult = _run_async(_execute_scan(request, None))
+        st.success(f"✅ Scan complete in {result.scan_duration_seconds:.1f}s")
     except Exception as e:
-        progress_bar.empty()
         st.error(f"❌ Scan failed: {e}")
         logger.exception("Scanner page: scan failed")
         st.stop()
