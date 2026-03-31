@@ -2376,3 +2376,15 @@ Addressed all 6 Copilot review comments on PR #27:
 - `backend/tests/test_data_validation.py` — 14 new tests
 
 #### Test Count: 508 (14 new)
+
+#### PR Review Cycle 2 (7 comments, 6 code fixes + 1 already done)
+
+1. **Validation page docstring** — updated to mention "fixed + random" tickers (was "fixed tickers" only)
+2. **Editable pip install hint (validation.py)** — `pip install -e ".[validate]"` instead of `pip install "praxialpha[validate]"`
+3. **PR title** — already updated by developer to "feat: data validation — service + Streamlit UI"
+4. **Editable pip install hint (service)** — same fix in `data_validation_service.py` RuntimeError message
+5. **`sample_random_tickers(n)` honors `n`** — scaled exchange/ETF counts proportionally, added remainder fill from mixed pool, trimmed result to exactly `n`
+6. **WORKFLOW.md inline credentials** — split `DATABASE_URL=... streamlit run` into `export DATABASE_URL=...` + separate run command
+7. **README.md inline credentials** — same split; also applied to CHEATSHEET.md
+
+All 508 tests pass, CI green.
