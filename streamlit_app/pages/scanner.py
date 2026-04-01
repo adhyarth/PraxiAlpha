@@ -158,6 +158,11 @@ with st.expander("ℹ️ How it works", expanded=False):
 **4.** Tweak thresholds and re-run for rapid iteration.
 
 **V1 scope:** Quarterly timeframe, ETF universe only.
+
+**Note on RSI:** RSI(14) is computed on quarterly closes — each "period" is one quarter,
+so 14 periods ≈ 3.5 years. This is much smoother than daily RSI(14). A quarterly RSI of 70+
+signals a strong multi-year uptrend, not just a short-term overbought condition.
+
 See [`docs/STRATEGY_LAB.md`](../docs/STRATEGY_LAB.md) for full design.
     """)
 
@@ -292,7 +297,8 @@ with col_rsi_val:
         max_value=100,
         value=70,
         step=1,
-        help="RSI(14) value. 70+ = overbought, 30- = oversold.",
+        help="RSI(14) computed on **quarterly** closes (14 quarters ≈ 3.5 years). "
+        "This is NOT daily RSI — quarterly RSI 70+ signals strong multi-year uptrend.",
     )
 
 st.divider()
