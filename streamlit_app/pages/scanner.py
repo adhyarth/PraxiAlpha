@@ -91,7 +91,7 @@ def _render_signal_detail(sig: SignalResult) -> None:
     with col7:
         st.metric("Lower Wick %", f"{sig.lower_wick_pct:.1f}%")
     with col8:
-        st.metric("Vol vs Avg", f"{sig.volume_vs_avg:.1f}x" if sig.volume_vs_avg else "—")
+        st.metric("Vol vs Avg", f"{sig.volume_vs_avg:.1f}x" if sig.volume_vs_avg is not None else "—")
 
     # Forward returns table
     if sig.forward_returns:
@@ -307,9 +307,9 @@ st.divider()
 st.markdown("**Forward Return Windows**")
 forward_windows = st.multiselect(
     "Quarter offsets to compute",
-    options=[1, 2, 3, 4, 5],
+    options=[1, 2, 3, 4, 5, 6, 7, 8],
     default=[1, 2, 3, 4, 5],
-    help="Which future quarters to compute returns for (Q+1 through Q+5).",
+    help="Which future quarters to compute returns for (Q+1 through Q+8).",
 )
 
 if not forward_windows:
@@ -511,12 +511,26 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
         sort_asc = st.checkbox("Ascending", value=True, key="sort_asc")
 
         # Sort — handle columns that are formatted strings by extracting numeric values
+        # Use numeric sort key only for columns that contain numeric/formatted-numeric data;
+        # fall back to normal lexicographic/date sorting for string columns like Ticker/Date.
+        series = detail_df[sort_col]
+        use_numeric_key = False
+        if pd.api.types.is_numeric_dtype(series):
+            use_numeric_key = True
+        elif series.dtype == object:
+            sample = series.dropna().astype(str).head(10)
+            if not sample.empty and sample.str.match(r"^[\$\+\-]?\d").all():
+                use_numeric_key = True
+
         try:
-            detail_df_sorted = detail_df.sort_values(
-                by=sort_col,
-                ascending=sort_asc,
-                key=lambda col: _sort_key(col),
-            )
+            if use_numeric_key:
+                detail_df_sorted = detail_df.sort_values(
+                    by=sort_col,
+                    ascending=sort_asc,
+                    key=lambda col: _sort_key(col),
+                )
+            else:
+                detail_df_sorted = detail_df.sort_values(by=sort_col, ascending=sort_asc)
         except Exception:
             detail_df_sorted = detail_df.sort_values(by=sort_col, ascending=sort_asc)
 

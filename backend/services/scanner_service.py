@@ -355,8 +355,14 @@ class ScannerService:
         # of fetching all daily rows and re-aggregating in Python.  For
         # pattern scanning, the relative metrics (body %, wick %, RSI,
         # volume ratio) are not materially affected by split adjustment
-        # at the quarterly level.  This reduces per-ticker cost from
-        # ~12K daily rows + pandas resample to a single ~200-row query.
+        # at the quarterly level because each bar's OHLC is internally
+        # consistent (pre-split or post-split, never mixed within a bar
+        # in the aggregate).  The only risk is RSI computed across a split
+        # boundary, where the price level jumps; this affects ~1 bar's
+        # return and is acceptable for a screening tool.
+        #
+        # TODO(v2): add a `fast_raw_aggregates` flag on ScanRequest so
+        # callers can opt-in to adjusted=True for precision studies.
         candles = await self._candle_service.get_candles(
             stock_id,
             timeframe,

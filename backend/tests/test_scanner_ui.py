@@ -11,13 +11,28 @@ All tests mock Streamlit and DB — no real backend or browser needed in CI.
 
 from __future__ import annotations
 
+import sys
+import types
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-# Skip all tests in this module if Streamlit is not available (CI doesn't install it).
-st = pytest.importorskip("streamlit")
+# Provide a real Streamlit import if available; otherwise, install a
+# lightweight stub so these tests can run in CI without the full
+# Streamlit dependency.
+try:
+    import streamlit as st  # type: ignore[import-not-found]
+except ImportError:
+
+    class _StreamlitStub(types.ModuleType):
+        """Minimal stub — any attribute access returns a MagicMock."""
+
+        def __getattr__(self, name: str):  # type: ignore[override]
+            return MagicMock(name=f"st.{name}")
+
+    st = _StreamlitStub("streamlit")  # type: ignore[assignment]
+    sys.modules["streamlit"] = st
 
 
 # ============================================================

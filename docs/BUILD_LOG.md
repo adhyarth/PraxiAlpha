@@ -2446,12 +2446,12 @@ any-color win-rate=None, defensive lookback parsing. 68 tests across 10 categori
 
 ### Session 31 — 2026-04-01: Strategy Lab — Streamlit UI
 
-**Branch:** `feat/scanner-ui` | **PR:** pending
+**Branch:** `feat/scanner-ui` | **PR:** #38
 
 Built `streamlit_app/pages/scanner.py` — the Strategy Lab's user-facing scanner
-page. Full condition form builder in the sidebar (candle color toggle, body %,
+page. Full condition form builder in the main page layout (candle color toggle, body %,
 upper/lower wick %, volume vs avg, RSI-14 — each with enable checkbox and
-configurable threshold/operator). Forward return windows (1–8 quarters). Run scan
+configurable threshold/operator). Forward return windows (Q+1…Q+8). Run scan
 button with `st.spinner`. Summary statistics panel (signal count, date range,
 per-window win rate / mean / median return). Per-signal detail table (ticker,
 date, OHLCV, RSI, body %, forward returns — sortable by any column, expandable
@@ -2473,6 +2473,6 @@ to `compare_candles()` and pinned test dates.
 - `backend/services/data_validation_service.py` — added `_today` param to `compare_candles()`
 - `backend/tests/test_data_validation.py` — pinned `_today` in 2 tests
 
-**Tests:** 614 (576 + 38 new) | **CI:** ✅ ruff + ruff format + mypy + pytest green
+**Tests:** 614 total (576 backend + 38 scanner UI; UI tests use Streamlit stub in CI) | **CI:** ✅ ruff + ruff format + mypy + pytest green
 
 > **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 31.

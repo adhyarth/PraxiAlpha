@@ -182,7 +182,7 @@ design doc.
 
 ## Session 31 — 2026-04-01: Strategy Lab — Streamlit UI
 
-**Branch:** `feat/scanner-ui` | **PR:** pending
+**Branch:** `feat/scanner-ui` | **PR:** #38
 
 ### What Was Built
 
@@ -192,14 +192,14 @@ displays results in an interactive Streamlit dashboard.
 
 ### UI Components
 
-1. **Sidebar condition form builder**
+1. **Condition form builder (main page layout)**
    - Candle color toggle (Red / Green / Any)
    - Body % threshold (slider + enable checkbox)
    - Upper wick % threshold (slider + enable checkbox)
    - Lower wick % threshold (slider + enable checkbox)
    - Volume vs N-period average (slider + lookback period + enable)
-   - RSI-14 range (dual slider + enable checkbox)
-   - Forward return windows (1–8 quarters, multi-select)
+   - RSI-14 filter (operator + single threshold + enable checkbox)
+   - Forward return windows (Q+1…Q+8, multi-select, default Q+1…Q+5)
    - Timeframe selector (quarterly for V1)
 
 2. **Run scan button** with `st.spinner` during execution
@@ -241,6 +241,8 @@ through to `_last_completed_period_cutoff()`. Tests now pin their date.
 - ruff lint: clean
 - ruff format: clean
 - mypy: clean
-- pytest: 614 passed (576 existing + 38 new)
+- pytest: 614 passed locally (576 existing + 38 new; scanner UI tests use Streamlit stub in CI)
 
-### Test Count: 614 (576 + 38 new)
+### Test Count
+- Local: 614 (576 + 38 new)
+- CI: 614 (scanner UI tests run via Streamlit stub)

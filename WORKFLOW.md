@@ -17,8 +17,8 @@
 |-|-|
 | **Session** | 31 — Strategy Lab Streamlit UI |
 | **Date** | 2026-04-01 |
-| **PR** | pending |
-| **What was done** | Built `streamlit_app/pages/scanner.py` — the Strategy Lab's user-facing scanner page. Condition form builder (candle color toggle, body/wick/volume/RSI sliders with enable checkboxes, forward return windows, timeframe selector). Run scan button with `st.spinner`. Summary statistics panel (signal count, date range, per-window win rate / mean / median return). Per-signal detail table (ticker, date, OHLCV, RSI, body %, forward returns — sortable, expandable rows). Performance: SQL aggregates instead of daily resample for 5.3K ETF universe. Nav entry "🔬 Strategy Lab" in sidebar. Fixed time-dependent validation tests (`_today` parameter on `compare_candles()`). 38 new tests (614 total). |
+| **PR** | #38 |
+| **What was done** | Built `streamlit_app/pages/scanner.py` — the Strategy Lab's user-facing scanner page. Condition form builder (candle color toggle, body/wick/volume/RSI sliders with enable checkboxes, forward return windows Q+1…Q+8, timeframe selector). Run scan button with `st.spinner`. Summary statistics panel (signal count, date range, per-window win rate / mean / median return). Per-signal detail table (ticker, date, OHLCV, RSI, body %, forward returns — sortable with smart numeric/text detection, expandable rows). Performance: SQL aggregates instead of daily resample for 5.3K ETF universe. Nav entry "🔬 Strategy Lab" in app navigation. Fixed time-dependent validation tests (`_today` parameter on `compare_candles()`). 38 new tests (614 total locally; scanner UI tests use Streamlit stub in CI). PR review: 14 Copilot comments addressed. |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress (Strategy Lab prioritized over Watchlist). Phase 1 is complete.

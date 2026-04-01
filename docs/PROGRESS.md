@@ -1,4 +1,4 @@
-# 📊 PraxiAlpha — Project Progress
+# 📊 PraxiAlpha —| **Status** | 🟢 Code pushed to remote. CI green (614 tests locally; scanner UI tests use Streamlit stub in CI). Docs updated. PR #38 open. |Project Progress
 
 > **Purpose:** Full project status, phase checklists, session history, and upcoming roadmap.
 > This is the reference for "where are we overall?" — not day-to-day workflow.
@@ -41,8 +41,8 @@
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
 | **Data Validation** | ✅ Working | EODHD vs Yahoo Finance comparison: 10 fixed + 10 random tickers × 4 timeframes (80 checks). Volume tolerance 10%. **Split fixes** — removed double volume adjustment (EODHD pre-adjusted), excluded future splits (CVNA fix). **Persistent async loop** via `@st.cache_resource` — fixed TCPTransport errors in Streamlit. YF retry with exponential backoff. Vectorized comparison. Metadata enrichment, failure persistence, CSV export. 43 tests + 508 total. |
 | **Strategy Lab** | ✅ V1 complete | Scanner engine + Streamlit UI complete. V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns, summary + detail view. 106 tests (68 engine + 38 UI). |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (614 tests) |
-| **Tests** | ✅ 614 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation, **scanner engine (68 tests)**, **scanner UI (38 tests)** |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (614 tests locally; scanner UI tests use Streamlit stub in CI) |
+| **Tests** | ✅ 614 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation, **scanner engine (68 tests)**, **scanner UI (38 tests, Streamlit stub in CI)** |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS, CHEATSHEET |
 
 ---
@@ -129,7 +129,7 @@
 | 28h | 2026-03-30 | PR review fixes (2 cycles, 18 comments total): vectorized compare_candles(), @st.cache_resource event loop, try/finally log handler, sidebar emoji fix, auto-retry banner fix, debug script DRY imports, doc accuracy, editable pip install hints, honor n param in sample_random_tickers, split inline DB credentials. Self-review: 14 new tests (508 total), dead code removal, docstrings, cutoff hardening. Created CHEATSHEET.md. | PR #34 (final) |
 | 29 | 2026-03-30 | Strategy Lab design doc: full spec for Pattern Scanner + Forward Returns Analyzer. V1 scope (quarterly bearish reversal on ETFs), condition taxonomy, scanner architecture, UI wireframe, forward return spec, session roadmap. Dedicated build log. Docs-only. | PR #35 |
 | 30 | 2026-03-30 | Strategy Lab scanner engine: `ScannerService` with universe resolution, per-ticker enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering, forward return computation (return, drawdown, surge — clamped), summary aggregation. 2 PR review cycles (12 comments): sequential fetch for session safety, per-ticker error handling, drawdown/surge clamping, any-color win-rate=None, defensive lookback parsing. 68 tests (576 total). | PR #36 |
-| 31 | 2026-04-01 | Strategy Lab Streamlit UI: scanner page (`streamlit_app/pages/scanner.py`) — condition form builder (candle color, body/wick/volume/RSI sliders, forward windows), run scan with spinner, summary stats panel, per-signal detail table (sortable, expandable). Performance fix: SQL aggregates for 5.3K ETF universe. Fixed time-dependent validation tests (`_today` parameter). 38 new tests (614 total). | pending |
+| 31 | 2026-04-01 | Strategy Lab Streamlit UI: scanner page (`streamlit_app/pages/scanner.py`) — condition form builder (candle color, body/wick/volume/RSI sliders, forward windows Q+1…Q+8), run scan with spinner, summary stats panel, per-signal detail table (sortable with smart numeric/text detection, expandable). Performance fix: SQL aggregates for 5.3K ETF universe. Fixed time-dependent validation tests (`_today` parameter). 38 new tests (614 total locally; scanner UI tests use Streamlit stub in CI). PR review: 14 Copilot comments addressed. | PR #38 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 > **Strategy Lab sessions:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) for detailed Strategy Lab build notes.
