@@ -31,7 +31,8 @@ with st.sidebar:
     - 📊 [Dashboard](/Dashboard)
     - 📈 [Charts](/Charts) ✨
     - 📝 [Journal](/Journal) ✨ *New*
-    - 🔍 [Data Validation](/Validation) ✨ *New*
+    - 🔬 [Strategy Lab](/Scanner) ✨ *New*
+    - 🔍 [Data Validation](/Validation)
     - 📋 Reports *(Phase 3)*
     - 🔎 Screener *(Phase 3)*
     - 🧪 Backtesting *(Phase 4)*

@@ -177,3 +177,84 @@ design doc.
 - pytest: 576 passed (508 existing + 68 new)
 
 #### Test Count: 576 (508 + 68 new)
+
+---
+
+## Session 31 — 2026-04-01: Strategy Lab — Streamlit UI
+
+**Branch:** `feat/scanner-ui` | **PR:** #38
+
+### What Was Built
+
+`streamlit_app/pages/scanner.py` — the user-facing scanner page for the
+Strategy Lab. Calls `ScannerService.run_scan()` from Session 30 and
+displays results in an interactive Streamlit dashboard.
+
+### UI Components
+
+1. **Condition form builder (main page layout)**
+   - Candle color toggle (Red / Green / Any)
+   - Body % threshold (slider + enable checkbox)
+   - Upper wick % threshold (slider + enable checkbox)
+   - Lower wick % threshold (slider + enable checkbox)
+   - Volume vs N-period average (slider + lookback period + enable)
+   - RSI-14 filter (operator + single threshold + enable checkbox)
+   - Forward return windows (Q+1…Q+8, multi-select, default Q+1…Q+5)
+   - Timeframe selector (quarterly for V1)
+
+2. **Run scan button** with `st.spinner` during execution
+
+3. **Summary statistics panel**
+   - Total signal count, unique tickers, date range
+   - Per-window table: win rate %, mean return %, median return %
+
+4. **Per-signal detail table**
+   - Columns: ticker, date, open, high, low, close, volume, RSI, body %
+   - Forward return columns per selected window
+   - Sortable by any column (click header)
+   - Expandable rows with per-signal forward return breakdown
+
+### Performance
+
+Switched from pandas daily resample to SQL aggregates for the 5.3K ETF
+universe. The original approach timed out after ~60s; SQL aggregates
+complete in ~5-10s.
+
+### Bug Fix: Time-Dependent Validation Tests
+
+`test_monthly_excludes_current_month` and `test_quarterly_excludes_current_quarter`
+were implicitly depending on `date.today()` falling within March 2026 / Q1 2026.
+After April 1, the cutoff logic no longer excluded the test bars.
+
+Fix: added keyword-only `_today` parameter to `compare_candles()`, threaded
+through to `_last_completed_period_cutoff()`. Tests now pin their date.
+
+### Files Changed
+- `streamlit_app/pages/scanner.py` — **new** — scanner page UI
+- `streamlit_app/app.py` — added "🔬 Strategy Lab" nav entry
+- `backend/tests/test_scanner_ui.py` — **new** — 38 UI tests
+- `backend/services/scanner_service.py` — SQL aggregate performance fix
+- `backend/services/data_validation_service.py` — `_today` param on `compare_candles()`
+- `backend/tests/test_data_validation.py` — pinned `_today` in 2 time-dependent tests
+
+### CI Status: ✅ Green
+- ruff lint: clean
+- ruff format: clean
+- mypy: clean
+- pytest: 614 passed locally (576 existing + 38 new; scanner UI tests use Streamlit stub in CI)
+
+### Test Count
+- Local: 614 (576 + 38 new)
+- CI: 614 (scanner UI tests run via Streamlit stub)
+
+### PR Review Fixes (14 Copilot comments on PR #38)
+
+| # | Comment | Fix |
+|---|---------|-----|
+| 1 | Unicode replacement chars in sidebar nav | Replaced corrupted codepoints with correct 🔬 and 🔍 emoji in `app.py` |
+| 2 | `Vol vs Avg` truthiness bug | Changed `if sig.volume_vs_avg` → `if sig.volume_vs_avg is not None` (0.0 was treated as falsy) |
+| 3 | Sort key applied to all columns | Numeric sort key now only used when column sample matches `^[$+-]?\d` regex; string columns (Ticker, Date) use lexicographic sort |
+| 4 | Forward windows limited to Q+1…Q+5 | Expanded UI multi-select options to Q+1…Q+8 to match docs |
+| 5 | `adjusted=False` not explained | Added explicit comment in `scanner_service.py` about split risk + `TODO(v2)` for opt-in adjusted mode |
+| 6 | UI tests skipped in CI | Added `_StreamlitStub` in `test_scanner_ui.py` so all 38 tests run in CI without full Streamlit |
+| 7–14 | Doc accuracy (sidebar wording, forward windows, test counts, PR #) | Updated CHANGELOG, PROGRESS, WORKFLOW, BUILD_LOG, STRATEGY_LAB_BUILD_LOG |

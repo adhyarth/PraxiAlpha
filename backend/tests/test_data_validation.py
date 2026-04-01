@@ -616,7 +616,9 @@ class TestIncompletePeriodExclusion:
                 "volume": 500_000,
             },
         ]
-        result = compare_candles("TEST", "monthly", _make_df(our_data), _make_df(ref_data))
+        result = compare_candles(
+            "TEST", "monthly", _make_df(our_data), _make_df(ref_data), _today=date(2026, 3, 15)
+        )
         # March bar should be excluded — only Feb remains
         assert result.overlapping_bars == 1
         assert result.mismatch_count == 0
@@ -660,7 +662,9 @@ class TestIncompletePeriodExclusion:
                 "volume": 1_000_000,
             },
         ]
-        result = compare_candles("TEST", "quarterly", _make_df(our_data), _make_df(ref_data))
+        result = compare_candles(
+            "TEST", "quarterly", _make_df(our_data), _make_df(ref_data), _today=date(2026, 3, 30)
+        )
         # Q1 2026 bar should be excluded — only Q4 2025 remains
         assert result.overlapping_bars == 1
         assert result.mismatch_count == 0

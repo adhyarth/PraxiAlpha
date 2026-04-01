@@ -1,11 +1,12 @@
-# 📊 PraxiAlpha — Project Progress
+# 📊 PraxiAlpha —| **Status** | 🟢 Code pushed to remote. CI green (614 tests locally; scanner UI tests use Streamlit stub in CI). Docs updated. PR #38 open. Addressing round 2 review. |
+| **Last checkpoint** | Fixing CI failure (Streamlit stub) and round 2 Copilot review comments. |roject Progress
 
 > **Purpose:** Full project status, phase checklists, session history, and upcoming roadmap.
 > This is the reference for "where are we overall?" — not day-to-day workflow.
 >
 > For the session workflow and what to do next, see [`WORKFLOW.md`](../WORKFLOW.md).
 >
-> **Last updated:** 2026-03-31 (Post-merge cleanup — Session 30 merged as PR #36)
+> **Last updated:** 2026-04-01 (Session 31 — Strategy Lab Streamlit UI pushed to remote)
 
 ---
 
@@ -13,10 +14,10 @@
 
 | | |
 |-|-|
-| **Session** | 30 — Strategy Lab Scanner Engine (merged) |
-| **Branch** | `main` |
-| **Status** | ✅ Merged. PR #36 merged to main. Feature branch deleted. Post-merge cleanup complete. |
-| **Last checkpoint** | 576 tests pass. Ruff + mypy clean. Ready for Session 31. |
+| **Session** | 31 — Strategy Lab Streamlit UI |
+| **Branch** | `feat/scanner-ui` |
+| **Status** | � Code pushed to remote. CI green (614 tests). Docs updated. PR pending. |
+| **Last checkpoint** | Fixed time-dependent validation tests, pushed branch. Updating docs now. |
 
 > If Copilot crashed: read this block, run `git status` and `git log --oneline -5`, and resume from the step indicated above.
 
@@ -40,9 +41,9 @@
 | **Trading Journal** | ✅ Working | 3 models (Trade, TradeExit, TradeLeg) + TradeSnapshot, CRUD service with computed fields, 7 API endpoints + 2 snapshot endpoints + 1 report endpoint, Streamlit UI (trade list, entry form, detail view, PDF download, what-if display), 64 tests. User isolation implemented. Post-close "what-if" tracking implemented (equity only — options trades excluded). |
 | **Dashboard** | ✅ Basic | Streamlit — economic calendar widget + interactive candlestick chart page with stock search + trading journal page + data validation page |
 | **Data Validation** | ✅ Working | EODHD vs Yahoo Finance comparison: 10 fixed + 10 random tickers × 4 timeframes (80 checks). Volume tolerance 10%. **Split fixes** — removed double volume adjustment (EODHD pre-adjusted), excluded future splits (CVNA fix). **Persistent async loop** via `@st.cache_resource` — fixed TCPTransport errors in Streamlit. YF retry with exponential backoff. Vectorized comparison. Metadata enrichment, failure persistence, CSV export. 43 tests + 508 total. |
-| **Strategy Lab** | 🟡 Engine done | Scanner engine complete and merged (`backend/services/scanner_service.py`). V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns. 68 tests. PR review: 2 cycles (12 comments). UI next in Session 31. |
-| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (576 tests) |
-| **Tests** | ✅ 576 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation, **scanner engine (68 tests)** |
+| **Strategy Lab** | ✅ V1 complete | Scanner engine + Streamlit UI complete. V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns, summary + detail view. 106 tests (68 engine + 38 UI). |
+| **CI/CD** | ✅ Green | GitHub Actions — ruff lint, ruff format, mypy, pytest (614 tests locally; scanner UI tests use Streamlit stub in CI) |
+| **Tests** | ✅ 614 passing | Model, fetcher, service, API, task, widget, helpers, backfill, candle service, technical indicators, chart builder, stock search, trading journal, user isolation, trade snapshots, journal PDF report, journal UI, OHLCV gap-fill, split adjustment, weekly/monthly aggregate adjustment, data validation, **scanner engine (68 tests)**, **scanner UI (38 tests, Streamlit stub in CI)** |
 | **Docs** | ✅ Current | DESIGN_DOC, ARCHITECTURE, BUILD_LOG, CHANGELOG, CONTRIBUTING, WORKFLOW, PROGRESS, CHEATSHEET |
 
 ---
@@ -77,7 +78,7 @@
 - [x] Data validation (service, Streamlit UI, 43 tests, hardened: 10% volume tolerance, log capture) — Sessions 28d/28g
 - [x] Strategy Lab — design doc (full spec, architecture, condition taxonomy, session roadmap) — Session 29
 - [x] Strategy Lab — scanner engine (condition filtering, RSI, forward returns) — Session 30
-- [ ] Strategy Lab — Streamlit UI (condition form builder, summary panel, detail table)
+- [x] Strategy Lab — Streamlit UI (condition form builder, summary panel, detail table) — Session 31
 - [ ] Watchlist management backend (deprioritized — after Strategy Lab)
 - [ ] Watchlist management UI
 - [ ] Dashboard polish (wire everything together, final QA)
@@ -129,6 +130,7 @@
 | 28h | 2026-03-30 | PR review fixes (2 cycles, 18 comments total): vectorized compare_candles(), @st.cache_resource event loop, try/finally log handler, sidebar emoji fix, auto-retry banner fix, debug script DRY imports, doc accuracy, editable pip install hints, honor n param in sample_random_tickers, split inline DB credentials. Self-review: 14 new tests (508 total), dead code removal, docstrings, cutoff hardening. Created CHEATSHEET.md. | PR #34 (final) |
 | 29 | 2026-03-30 | Strategy Lab design doc: full spec for Pattern Scanner + Forward Returns Analyzer. V1 scope (quarterly bearish reversal on ETFs), condition taxonomy, scanner architecture, UI wireframe, forward return spec, session roadmap. Dedicated build log. Docs-only. | PR #35 |
 | 30 | 2026-03-30 | Strategy Lab scanner engine: `ScannerService` with universe resolution, per-ticker enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering, forward return computation (return, drawdown, surge — clamped), summary aggregation. 2 PR review cycles (12 comments): sequential fetch for session safety, per-ticker error handling, drawdown/surge clamping, any-color win-rate=None, defensive lookback parsing. 68 tests (576 total). | PR #36 |
+| 31 | 2026-04-01 | Strategy Lab Streamlit UI: scanner page (`streamlit_app/pages/scanner.py`) — condition form builder (candle color, body/wick/volume/RSI sliders, forward windows Q+1…Q+8), run scan with spinner, summary stats panel, per-signal detail table (sortable with smart numeric/text detection, expandable). Performance fix: SQL aggregates for 5.3K ETF universe. Fixed time-dependent validation tests (`_today` parameter). 38 new tests (614 total locally; scanner UI tests use Streamlit stub in CI). PR review: 14 Copilot comments addressed. | PR #38 |
 
 > **Detailed session notes:** See [`BUILD_LOG.md`](./BUILD_LOG.md) for the full chronological record.
 > **Strategy Lab sessions:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) for detailed Strategy Lab build notes.
@@ -159,7 +161,7 @@ Each session is self-contained: one branch, one PR, one merge. Work top-to-botto
 | **28b** | **Weekly Aggregate Split Adjustment** | ✅ Done — non-daily candles re-aggregated from adjusted daily data via pandas resample (W-SUN/MS/QS), 200-week SMA matches industry-standard charting, Streamlit toggle for all timeframes, 4 new tests (450 total). | `backend/services/candle_service.py`, `backend/api/routes/charts.py`, `streamlit_app/pages/charts.py`, `backend/tests/test_candle_service.py` | Session 28 ✅ |
 | **29** | **Strategy Lab — Design Doc** | ✅ Done — full design doc for Pattern Scanner + Forward Returns Analyzer. V1: quarterly bearish reversal on ETFs, configurable conditions, 5-quarter forward returns. Dedicated build log. | `docs/STRATEGY_LAB.md`, `docs/STRATEGY_LAB_BUILD_LOG.md` | — |
 | **30** | **Strategy Lab — Scanner Engine** | ✅ Done — ScannerService: universe resolution, per-ticker enrichment, vectorized condition filtering, forward return computation (clamped drawdown/surge), summary aggregation, progress callback. 2 PR review cycles. 68 tests (576 total). | `backend/services/scanner_service.py`, `backend/tests/test_scanner.py` | Session 29 ✅ |
-| **31** | **Strategy Lab — Streamlit UI** | Condition form builder (sliders, dropdowns), run button, progress bar, summary panel, expandable detail table. | `streamlit_app/pages/scanner.py` | Session 30 |
+| **31** | **Strategy Lab — Streamlit UI** | ✅ Done — Scanner page: condition form builder (sliders, dropdowns), run scan with spinner, summary stats panel, per-signal detail table (sortable, expandable rows). SQL aggregate performance fix. Fixed time-dependent validation tests. 38 new tests (614 total). | `streamlit_app/pages/scanner.py`, `streamlit_app/app.py`, `backend/tests/test_scanner_ui.py`, `backend/services/data_validation_service.py`, `backend/tests/test_data_validation.py` | Session 30 ✅ |
 | **32** | **Strategy Lab — Iteration & Polish** | Bug fixes, performance tuning, UX improvements from real usage. | Various | Session 31 |
 | **33+** | **Watchlist — Backend** | (Deprioritized) Watchlist model, CRUD service, API, migration, tests. | `backend/models/watchlist.py`, `backend/services/watchlist_service.py`, etc. | Session 16 |
 | **32** | **Phase 3 Kickoff — Trend Classification** | Begin Phase 3 (Analysis Engine). Implement trend classification algorithm (short/mid/long-term) using SMA crossovers and slope analysis. Service + tests. | `backend/services/analysis/trend_classifier.py`, `backend/tests/test_trend_classifier.py` | Session 31 |

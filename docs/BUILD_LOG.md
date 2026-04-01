@@ -2441,3 +2441,61 @@ any-color win-rate=None, defensive lookback parsing. 68 tests across 10 categori
 **Tests:** 576 (508 + 68 new) | **CI:** ✅ ruff + mypy + pytest green
 
 > **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 30.
+
+---
+
+### Session 31 — 2026-04-01: Strategy Lab — Streamlit UI
+
+**Branch:** `feat/scanner-ui` | **PR:** #38
+
+Built `streamlit_app/pages/scanner.py` — the Strategy Lab's user-facing scanner
+page. Full condition form builder in the main page layout (candle color toggle, body %,
+upper/lower wick %, volume vs avg, RSI-14 — each with enable checkbox and
+configurable threshold/operator). Forward return windows (Q+1…Q+8). Run scan
+button with `st.spinner`. Summary statistics panel (signal count, date range,
+per-window win rate / mean / median return). Per-signal detail table (ticker,
+date, OHLCV, RSI, body %, forward returns — sortable by any column, expandable
+rows with per-signal forward return breakdown).
+
+Performance fix: switched from pandas daily resample to SQL aggregates for
+the 5.3K ETF universe scan, eliminating timeouts.
+
+Also fixed 2 time-dependent CI failures: `test_monthly_excludes_current_month`
+and `test_quarterly_excludes_current_quarter` were implicitly depending on
+`date.today()` being in March 2026 / Q1 2026. Added `_today` keyword parameter
+to `compare_candles()` and pinned test dates.
+
+**Files:**
+- `streamlit_app/pages/scanner.py` — **new** — scanner page UI
+- `streamlit_app/app.py` — added "🔬 Strategy Lab" nav entry
+- `backend/tests/test_scanner_ui.py` — **new** — 38 UI tests
+- `backend/services/scanner_service.py` — performance tuning
+- `backend/services/data_validation_service.py` — added `_today` param to `compare_candles()`
+- `backend/tests/test_data_validation.py` — pinned `_today` in 2 tests
+
+**Tests:** 614 total (576 backend + 38 scanner UI; UI tests use Streamlit stub in CI) | **CI:** ✅ ruff + ruff format + mypy + pytest green
+
+> **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 31.
+
+#### PR Review Fixes (14 Copilot comments on PR #38)
+
+1. **Fixed Unicode replacement characters in sidebar** — `app.py` had corrupted
+   codepoints for 🔬 (Strategy Lab) and 🔍 (Data Validation); replaced with
+   correct emoji characters.
+2. **Fixed `Vol vs Avg` metric** — `_render_signal_detail()` used truthiness check
+   (`if sig.volume_vs_avg`) which treated `0.0` as falsy; changed to `is not None`.
+3. **Improved sorting logic** — detail table sort now uses numeric sort key only
+   for columns that contain numeric/formatted-numeric data (detected via regex on
+   first 10 values); string columns (Ticker, Date) fall back to lexicographic sort.
+4. **Expanded forward windows to Q+1…Q+8** — UI multi-select options were Q+1…Q+5;
+   expanded to Q+1…Q+8 to match the docs and design spec.
+5. **Added split-risk comment in `scanner_service.py`** — explicit docstring
+   explaining why `adjusted=False` is acceptable for pattern scanning, plus
+   `TODO(v2)` for opt-in adjusted mode.
+6. **Added Streamlit stub for CI** — `test_scanner_ui.py` now installs a
+   lightweight `_StreamlitStub` module when `import streamlit` fails, so all
+   38 UI tests run in CI without the full Streamlit dependency.
+7. **Updated all docs for accuracy** — CHANGELOG, PROGRESS, WORKFLOW, BUILD_LOG,
+   STRATEGY_LAB_BUILD_LOG: corrected "sidebar" → "main page layout" for condition
+   form, updated forward window references (Q+1…Q+8), clarified test counts
+   (614 locally, Streamlit stub in CI), fixed PR # from "pending" → "#38".

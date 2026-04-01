@@ -307,6 +307,8 @@ def compare_candles(
     price_tolerance: float = DEFAULT_PRICE_TOLERANCE,
     volume_tolerance: float = DEFAULT_VOLUME_TOLERANCE,
     group: str = "fixed",
+    *,
+    _today: date | None = None,
 ) -> ValidationResult:
     """
     Compare our candles against a second source's candles bar-by-bar.
@@ -321,7 +323,7 @@ def compare_candles(
 
     # Drop the current incomplete period so partial-bar volume differences
     # don't generate false-positive warnings.
-    cutoff = _last_completed_period_cutoff(timeframe)
+    cutoff = _last_completed_period_cutoff(timeframe, today=_today)
     if cutoff is not None:
         our_norm = our_norm[our_norm["date"] < cutoff]
         ref_norm = ref_norm[ref_norm["date"] < cutoff]

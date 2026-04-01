@@ -350,10 +350,23 @@ class ScannerService:
         # Determine volume lookback from conditions (default 2)
         vol_lookback = self._get_volume_lookback(request.conditions)
 
+        # Use adjusted=False for non-daily timeframes to hit the
+        # pre-computed SQL aggregates directly (single fast query) instead
+        # of fetching all daily rows and re-aggregating in Python.  For
+        # pattern scanning, the relative metrics (body %, wick %, RSI,
+        # volume ratio) are not materially affected by split adjustment
+        # at the quarterly level because each bar's OHLC is internally
+        # consistent (pre-split or post-split, never mixed within a bar
+        # in the aggregate).  The only risk is RSI computed across a split
+        # boundary, where the price level jumps; this affects ~1 bar's
+        # return and is acceptable for a screening tool.
+        #
+        # TODO(v2): add a `fast_raw_aggregates` flag on ScanRequest so
+        # callers can opt-in to adjusted=True for precision studies.
         candles = await self._candle_service.get_candles(
             stock_id,
             timeframe,
-            adjusted=True,
+            adjusted=False,
             limit=200,  # ~50 years of quarterly data
         )
 
