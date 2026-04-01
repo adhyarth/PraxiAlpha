@@ -1,4 +1,5 @@
-# 📊 PraxiAlpha —| **Status** | 🟢 Code pushed to remote. CI green (614 tests locally; scanner UI tests use Streamlit stub in CI). Docs updated. PR #38 open. |Project Progress
+# 📊 PraxiAlpha —| **Status** | 🟢 Code pushed to remote. CI green (614 tests locally; scanner UI tests use Streamlit stub in CI). Docs updated. PR #38 open. Addressing round 2 review. |
+| **Last checkpoint** | Fixing CI failure (Streamlit stub) and round 2 Copilot review comments. |roject Progress
 
 > **Purpose:** Full project status, phase checklists, session history, and upcoming roadmap.
 > This is the reference for "where are we overall?" — not day-to-day workflow.

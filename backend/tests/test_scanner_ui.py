@@ -25,11 +25,88 @@ try:
     import streamlit as st  # type: ignore[import-not-found]
 except ImportError:
 
+    class _StopError(Exception):
+        """Raised by st.stop() to halt page-level code during import."""
+
     class _StreamlitStub(types.ModuleType):
-        """Minimal stub — any attribute access returns a MagicMock."""
+        """Minimal Streamlit stub for CI.
+
+        Widget APIs return safe defaults so that page-level code
+        (which runs at import time) can execute without crashing:
+        - ``columns(n)`` → list of *n* MagicMock context managers
+        - ``button(...)`` → ``False`` (never pressed)
+        - ``checkbox(...)`` → the *value* kwarg if given, else ``False``
+        - ``selectbox(...)`` → first item of *options* if given
+        - ``slider(...)`` → the *value* kwarg if given, else ``0``
+        - ``number_input(...)`` → the *value* kwarg if given, else ``0``
+        - ``multiselect(...)`` → the *default* kwarg if given, else ``[]``
+        - ``stop()`` → raises ``_StopStub``
+        - ``cache_resource`` → identity decorator
+        - Everything else → ``MagicMock``
+        """
 
         def __getattr__(self, name: str):  # type: ignore[override]
+            # Widget helpers that must return specific types
+            if name == "columns":
+                return self._columns
+            if name == "button":
+                return lambda *a, **kw: False
+            if name == "checkbox":
+                return lambda *a, **kw: kw.get("value", False)
+            if name == "selectbox":
+                return self._selectbox
+            if name == "slider":
+                return lambda *a, **kw: kw.get("value", 0)
+            if name == "number_input":
+                return lambda *a, **kw: kw.get("value", 0)
+            if name == "multiselect":
+                return lambda *a, **kw: kw.get("default", [])
+            if name == "stop":
+                return self._stop
+            if name == "cache_resource":
+                return lambda fn: fn  # identity decorator
+            if name == "expander":
+                return self._expander
             return MagicMock(name=f"st.{name}")
+
+        @staticmethod
+        def _columns(n, **kw):  # type: ignore[no-untyped-def]
+            """Return a list of n MagicMock context managers."""
+            cols = []
+            for _ in range(n if isinstance(n, int) else len(n)):
+                m = MagicMock()
+                m.__enter__ = MagicMock(return_value=m)
+                m.__exit__ = MagicMock(return_value=False)
+                # Widgets inside a column should also return safe defaults
+                m.selectbox = lambda *a, **kw: (  # noqa: E731
+                    kw["options"][kw.get("index", 0)]
+                    if "options" in kw and kw["options"]
+                    else MagicMock()
+                )
+                m.checkbox = lambda *a, **kw: kw.get("value", False)  # noqa: E731
+                m.slider = lambda *a, **kw: kw.get("value", 0)  # noqa: E731
+                m.number_input = lambda *a, **kw: kw.get("value", 0)  # noqa: E731
+                cols.append(m)
+            return cols
+
+        @staticmethod
+        def _selectbox(*args, **kwargs):  # type: ignore[no-untyped-def]
+            options = kwargs.get("options", [])
+            index = kwargs.get("index", 0)
+            if options and 0 <= index < len(options):
+                return options[index]
+            return MagicMock()
+
+        @staticmethod
+        def _stop():  # type: ignore[no-untyped-def]
+            raise _StopError("st.stop()")
+
+        @staticmethod
+        def _expander(*args, **kwargs):  # type: ignore[no-untyped-def]
+            m = MagicMock()
+            m.__enter__ = MagicMock(return_value=m)
+            m.__exit__ = MagicMock(return_value=False)
+            return m
 
     st = _StreamlitStub("streamlit")  # type: ignore[assignment]
     sys.modules["streamlit"] = st
@@ -412,7 +489,7 @@ class TestRenderSignalDetail:
             close=248.12,
             volume=5000000,
             rsi_14=79.7,
-            body_pct=0.05,
+            body_pct=5.0,
             upper_wick_pct=4.8,
             lower_wick_pct=1.2,
             volume_vs_avg=1.5,
@@ -459,7 +536,7 @@ class TestRenderSignalDetail:
             close=398.0,
             volume=3000000,
             rsi_14=None,
-            body_pct=0.5,
+            body_pct=50.0,
             upper_wick_pct=3.0,
             lower_wick_pct=0.75,
             volume_vs_avg=None,
@@ -490,7 +567,7 @@ class TestRenderSignalDetail:
             close=142.3,
             volume=2000000,
             rsi_14=71.2,
-            body_pct=0.2,
+            body_pct=20.0,
             upper_wick_pct=4.0,
             lower_wick_pct=1.4,
             volume_vs_avg=1.8,
@@ -681,7 +758,7 @@ class TestSignalResultDisplay:
             close=248.12,
             volume=5000000,
             rsi_14=79.7,
-            body_pct=0.05,
+            body_pct=5.0,
             upper_wick_pct=4.8,
             lower_wick_pct=1.2,
             volume_vs_avg=1.5,
@@ -709,7 +786,7 @@ class TestSignalResultDisplay:
         assert row["Date"] == "2024-09-30"
         assert row["Close"] == "$248.12"
         assert row["RSI(14)"] == "79.7"
-        assert row["Body %"] == "0.1%"
+        assert row["Body %"] == "5.0%"
 
         # Forward return column
         assert fmt(sig.forward_returns[0].return_pct) == "-6.10%"

@@ -518,9 +518,24 @@ if st.button("🔍 Run Scan", type="primary", use_container_width=True):
         if pd.api.types.is_numeric_dtype(series):
             use_numeric_key = True
         elif series.dtype == object:
-            sample = series.dropna().astype(str).head(10)
-            if not sample.empty and sample.str.match(r"^[\$\+\-]?\d").all():
-                use_numeric_key = True
+            # Work with a small non-missing sample, treating display dashes as missing
+            sample = (
+                series.astype(str)
+                .replace("—", pd.NA)
+                .dropna()
+                .head(10)
+            )
+            if not sample.empty:
+                # If most sample values parse as datetimes, treat as date-like, not numeric
+                parsed_dates = pd.to_datetime(sample, errors="coerce")
+                date_fraction = float(parsed_dates.notna().mean())
+                if date_fraction < 0.8:
+                    # Not date-like: check if values look like formatted numbers ($, %, x, +/-)
+                    cleaned = sample.str.replace(r"[^\d\.\+\-]", "", regex=True)
+                    numeric_coerced = pd.to_numeric(cleaned, errors="coerce")
+                    numeric_fraction = float(numeric_coerced.notna().mean())
+                    if numeric_fraction >= 0.8:
+                        use_numeric_key = True
 
         try:
             if use_numeric_key:
