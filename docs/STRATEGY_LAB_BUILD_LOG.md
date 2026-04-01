@@ -246,3 +246,15 @@ through to `_last_completed_period_cutoff()`. Tests now pin their date.
 ### Test Count
 - Local: 614 (576 + 38 new)
 - CI: 614 (scanner UI tests run via Streamlit stub)
+
+### PR Review Fixes (14 Copilot comments on PR #38)
+
+| # | Comment | Fix |
+|---|---------|-----|
+| 1 | Unicode replacement chars in sidebar nav | Replaced corrupted codepoints with correct 🔬 and 🔍 emoji in `app.py` |
+| 2 | `Vol vs Avg` truthiness bug | Changed `if sig.volume_vs_avg` → `if sig.volume_vs_avg is not None` (0.0 was treated as falsy) |
+| 3 | Sort key applied to all columns | Numeric sort key now only used when column sample matches `^[$+-]?\d` regex; string columns (Ticker, Date) use lexicographic sort |
+| 4 | Forward windows limited to Q+1…Q+5 | Expanded UI multi-select options to Q+1…Q+8 to match docs |
+| 5 | `adjusted=False` not explained | Added explicit comment in `scanner_service.py` about split risk + `TODO(v2)` for opt-in adjusted mode |
+| 6 | UI tests skipped in CI | Added `_StreamlitStub` in `test_scanner_ui.py` so all 38 tests run in CI without full Streamlit |
+| 7–14 | Doc accuracy (sidebar wording, forward windows, test counts, PR #) | Updated CHANGELOG, PROGRESS, WORKFLOW, BUILD_LOG, STRATEGY_LAB_BUILD_LOG |

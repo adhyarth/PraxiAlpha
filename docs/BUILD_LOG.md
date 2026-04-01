@@ -2476,3 +2476,26 @@ to `compare_candles()` and pinned test dates.
 **Tests:** 614 total (576 backend + 38 scanner UI; UI tests use Streamlit stub in CI) | **CI:** ✅ ruff + ruff format + mypy + pytest green
 
 > **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 31.
+
+#### PR Review Fixes (14 Copilot comments on PR #38)
+
+1. **Fixed Unicode replacement characters in sidebar** — `app.py` had corrupted
+   codepoints for 🔬 (Strategy Lab) and 🔍 (Data Validation); replaced with
+   correct emoji characters.
+2. **Fixed `Vol vs Avg` metric** — `_render_signal_detail()` used truthiness check
+   (`if sig.volume_vs_avg`) which treated `0.0` as falsy; changed to `is not None`.
+3. **Improved sorting logic** — detail table sort now uses numeric sort key only
+   for columns that contain numeric/formatted-numeric data (detected via regex on
+   first 10 values); string columns (Ticker, Date) fall back to lexicographic sort.
+4. **Expanded forward windows to Q+1…Q+8** — UI multi-select options were Q+1…Q+5;
+   expanded to Q+1…Q+8 to match the docs and design spec.
+5. **Added split-risk comment in `scanner_service.py`** — explicit docstring
+   explaining why `adjusted=False` is acceptable for pattern scanning, plus
+   `TODO(v2)` for opt-in adjusted mode.
+6. **Added Streamlit stub for CI** — `test_scanner_ui.py` now installs a
+   lightweight `_StreamlitStub` module when `import streamlit` fails, so all
+   38 UI tests run in CI without the full Streamlit dependency.
+7. **Updated all docs for accuracy** — CHANGELOG, PROGRESS, WORKFLOW, BUILD_LOG,
+   STRATEGY_LAB_BUILD_LOG: corrected "sidebar" → "main page layout" for condition
+   form, updated forward window references (Q+1…Q+8), clarified test counts
+   (614 locally, Streamlit stub in CI), fixed PR # from "pending" → "#38".
