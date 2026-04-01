@@ -6,7 +6,7 @@
 > For full project status, phase checklists, session history, and roadmap,
 > see [`docs/PROGRESS.md`](docs/PROGRESS.md).
 >
-> **Last updated:** 2026-03-31 (Post-merge cleanup — Session 30 merged as PR #36)
+> **Last updated:** 2026-04-01 (Session 31 — Strategy Lab Streamlit UI pushed)
 
 ---
 
@@ -15,10 +15,10 @@
 ### Last Completed Session
 | | |
 |-|-|
-| **Session** | 30 — Strategy Lab Scanner Engine |
-| **Date** | 2026-03-30 |
-| **PR** | #36 (merged 2026-03-31) |
-| **What was done** | Built `backend/services/scanner_service.py` — the computational core of the Strategy Lab. ScannerService.run_scan() pipeline: universe resolution (ETF filter), per-ticker candle fetch + enrichment (body %, wick %, volume ratio, RSI-14), vectorized condition filtering (AND logic), forward return computation (return %, max drawdown ≤0, max surge ≥0 per window), summary aggregation (mean, median, win rate). 10 data classes. Progress callback support. 2 PR review cycles (12 comments addressed): sequential fetch for AsyncSession safety, per-ticker error handling, drawdown/surge clamping, any-color win-rate=None, defensive lookback parsing. 68 comprehensive tests across 10 categories. 576 total tests. |
+| **Session** | 31 — Strategy Lab Streamlit UI |
+| **Date** | 2026-04-01 |
+| **PR** | pending |
+| **What was done** | Built `streamlit_app/pages/scanner.py` — the Strategy Lab's user-facing scanner page. Condition form builder (candle color toggle, body/wick/volume/RSI sliders with enable checkboxes, forward return windows, timeframe selector). Run scan button with `st.spinner`. Summary statistics panel (signal count, date range, per-window win rate / mean / median return). Per-signal detail table (ticker, date, OHLCV, RSI, body %, forward returns — sortable, expandable rows). Performance: SQL aggregates instead of daily resample for 5.3K ETF universe. Nav entry "🔬 Strategy Lab" in sidebar. Fixed time-dependent validation tests (`_today` parameter on `compare_candles()`). 38 new tests (614 total). |
 
 ### Current Phase
 **Phase 2: Charting & Basic Dashboard** — in progress (Strategy Lab prioritized over Watchlist). Phase 1 is complete.
@@ -26,16 +26,11 @@
 ### Next Session
 | | |
 |-|-|
-| **Session** | 31 — Strategy Lab Streamlit UI |
-| **Scope** | `streamlit_app/pages/scanner.py` — condition form builder (sliders, dropdowns for body %, wick %, volume, RSI), run scan button, progress bar, summary statistics panel, per-signal detail table (expandable rows, sortable). |
-| **Key files** | `streamlit_app/pages/scanner.py`, `streamlit_app/app.py` (nav update) |
-| **Depends on** | Session 30 (scanner engine), Session 12 (CandleService) |
-| **Why** | The UI is the user-facing layer that makes the scanner engine usable for rapid strategy iteration. |
-| **Design doc** | [`docs/STRATEGY_LAB.md`](docs/STRATEGY_LAB.md) — read §6 UI Wireframe before starting |
-
-> **After Session 30:** Session 31 builds the Streamlit UI that calls the scanner engine.
-
-> **How to resume:** Start a new chat, paste one of the prompts in §7 (Resume Prompts).
+| **Session** | 32 — Strategy Lab Iteration & Polish |
+| **Scope** | Bug fixes, performance tuning, UX improvements from real scanner usage. May include: multi-timeframe support, saved scan presets, additional condition types. |
+| **Key files** | `streamlit_app/pages/scanner.py`, `backend/services/scanner_service.py` |
+| **Depends on** | Session 31 (scanner UI) |
+| **Why** | Real usage feedback drives iteration. Polish before moving to Phase 3. |
 
 ### Key Files to Read for Context
 | File | What It Tells You |

@@ -2441,3 +2441,38 @@ any-color win-rate=None, defensive lookback parsing. 68 tests across 10 categori
 **Tests:** 576 (508 + 68 new) | **CI:** ✅ ruff + mypy + pytest green
 
 > **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 30.
+
+---
+
+### Session 31 — 2026-04-01: Strategy Lab — Streamlit UI
+
+**Branch:** `feat/scanner-ui` | **PR:** pending
+
+Built `streamlit_app/pages/scanner.py` — the Strategy Lab's user-facing scanner
+page. Full condition form builder in the sidebar (candle color toggle, body %,
+upper/lower wick %, volume vs avg, RSI-14 — each with enable checkbox and
+configurable threshold/operator). Forward return windows (1–8 quarters). Run scan
+button with `st.spinner`. Summary statistics panel (signal count, date range,
+per-window win rate / mean / median return). Per-signal detail table (ticker,
+date, OHLCV, RSI, body %, forward returns — sortable by any column, expandable
+rows with per-signal forward return breakdown).
+
+Performance fix: switched from pandas daily resample to SQL aggregates for
+the 5.3K ETF universe scan, eliminating timeouts.
+
+Also fixed 2 time-dependent CI failures: `test_monthly_excludes_current_month`
+and `test_quarterly_excludes_current_quarter` were implicitly depending on
+`date.today()` being in March 2026 / Q1 2026. Added `_today` keyword parameter
+to `compare_candles()` and pinned test dates.
+
+**Files:**
+- `streamlit_app/pages/scanner.py` — **new** — scanner page UI
+- `streamlit_app/app.py` — added "🔬 Strategy Lab" nav entry
+- `backend/tests/test_scanner_ui.py` — **new** — 38 UI tests
+- `backend/services/scanner_service.py` — performance tuning
+- `backend/services/data_validation_service.py` — added `_today` param to `compare_candles()`
+- `backend/tests/test_data_validation.py` — pinned `_today` in 2 tests
+
+**Tests:** 614 (576 + 38 new) | **CI:** ✅ ruff + ruff format + mypy + pytest green
+
+> **Details:** See [`STRATEGY_LAB_BUILD_LOG.md`](./STRATEGY_LAB_BUILD_LOG.md) Session 31.
