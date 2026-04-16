@@ -573,7 +573,7 @@ class TestIncompletePeriodExclusion:
                 "volume": 999_999,
             },
         ]
-        result = compare_candles("TEST", "weekly", _make_df(our_data), _make_df(ref_data))
+        result = compare_candles("TEST", "weekly", _make_df(our_data), _make_df(ref_data), _today=date(2026, 3, 30))
         # Only 1 bar should be compared (the completed week), not 2
         assert result.overlapping_bars == 1
         assert result.mismatch_count == 0
