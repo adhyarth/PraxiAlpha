@@ -282,7 +282,7 @@ def _last_completed_period_cutoff(timeframe: str, today: date | None = None) -> 
         return None  # daily bars are always complete once the day closes
 
     if timeframe == "weekly":
-        # Monday of the current (incomplete) week
+        # Exclude bars in the current (incomplete) week: cutoff is the Monday of the current week
         return today - timedelta(days=today.weekday())
 
     if timeframe == "monthly":
@@ -319,12 +319,35 @@ def compare_candles(
     The current incomplete period (this week / this month / this quarter)
     is excluded automatically — partial bars always differ between providers.
     """
+    print(f"[DEBUG] compare_candles: timeframe={timeframe}, _today={_today}")
+
     our_norm, ref_norm = _normalize_dates_for_merge(our_df, ref_df, timeframe)
 
     # Drop the current incomplete period so partial-bar volume differences
     # don't generate false-positive warnings.
     cutoff = _last_completed_period_cutoff(timeframe, today=_today)
-    if cutoff is not None:
+    # Ensure date columns are of type date for correct comparison
+    if "date" in our_norm:
+        our_norm["date"] = pd.to_datetime(our_norm["date"]).dt.date
+    if "date" in ref_norm:
+        ref_norm["date"] = pd.to_datetime(ref_norm["date"]).dt.date
+
+    # DEBUG: Print cutoff and dates for weekly
+    if cutoff is not None and timeframe == "weekly":
+        print(f"[DEBUG] Weekly cutoff: {cutoff}")
+        print(f"[DEBUG] Our dates: {our_norm['date'].tolist()}")
+        print(f"[DEBUG] Ref dates: {ref_norm['date'].tolist()}")
+        before_our = len(our_norm)
+        before_ref = len(ref_norm)
+        our_norm = our_norm[our_norm["date"] < cutoff]
+        ref_norm = ref_norm[ref_norm["date"] < cutoff]
+        print(
+            f"[DEBUG] Our dates after cutoff: {our_norm['date'].tolist()} (removed {before_our - len(our_norm)})"
+        )
+        print(
+            f"[DEBUG] Ref dates after cutoff: {ref_norm['date'].tolist()} (removed {before_ref - len(ref_norm)})"
+        )
+    elif cutoff is not None:
         our_norm = our_norm[our_norm["date"] < cutoff]
         ref_norm = ref_norm[ref_norm["date"] < cutoff]
 
