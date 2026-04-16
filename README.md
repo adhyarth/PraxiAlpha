@@ -126,7 +126,7 @@ flowchart TB
 | 📊 OHLCV Records | **58.2 million** |
 | 🏢 Tickers Covered | **49,000+** (NYSE, NASDAQ, AMEX) |
 | 📅 History Depth | **1990 — Present** |
-| 🧪 Test Coverage | **614 tests** passing |
+| 🧪 Tests | **614 tests** passing |
 | 🔄 PRs Merged | **38** |
 | 📝 Development Sessions | **31** |
 
@@ -195,10 +195,10 @@ PraxiAlpha was built using **AI-assisted development** (GitHub Copilot) as a for
 flowchart TB
     subgraph Context["📚 Context System"]
         WF[WORKFLOW.md<br/>Session workflow]
-        PROG[PROGRESS.md<br/>Crash recovery]
+        PROG[docs/PROGRESS.md<br/>Crash recovery]
         DESIGN[DESIGN_DOC.md<br/>Architecture]
-        BUILD[BUILD_LOG.md<br/>Session history]
-        CHANGE[CHANGELOG.md<br/>What changed]
+        BUILD[docs/BUILD_LOG.md<br/>Session history]
+        CHANGE[docs/CHANGELOG.md<br/>What changed]
     end
     
     subgraph Process["🔄 Each Session"]
@@ -230,7 +230,7 @@ flowchart TB
 
 ### Why This Works
 
-The **context system** (`WORKFLOW.md`, `PROGRESS.md`, `DESIGN_DOC.md`) allows AI to maintain continuity across chat sessions. This enables:
+The **context system** (`WORKFLOW.md`, `docs/PROGRESS.md`, `DESIGN_DOC.md`) allows AI to maintain continuity across chat sessions. This enables:
 
 - **Crash recovery** — If the AI session crashes, the next session reads `PROGRESS.md` and resumes from the last checkpoint
 - **Consistent patterns** — AI follows established codebase conventions by reading existing code
