@@ -26,9 +26,9 @@ async_session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_comm
 
 
 async def main():
-    # Current week's data (April 10, 2026)
-    current_high = 389.60
-    current_200w_sma = 203.23
+    # Current week's data (April 16, 2026)
+    current_high = 402.56
+    current_200w_sma = 204.42
     current_extension_pct = (current_high - current_200w_sma) / current_200w_sma * 100
     print(f"Current SOXX extension: {current_extension_pct:.2f}% above 200W SMA")
     print(f"  High: ${current_high:.2f}, 200W SMA: ${current_200w_sma:.2f}")
