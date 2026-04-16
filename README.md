@@ -335,8 +335,15 @@ PraxiAlpha/
 
 ## 📸 Screenshots
 
-<!-- Add screenshots after capturing them -->
-*Screenshots coming soon — Charts, Strategy Lab Scanner*
+### Interactive Charts
+*Split-adjusted candlestick charts with volume, multiple timeframes, and real-time price data*
+
+![Charts](docs/images/charts.png)
+
+### Strategy Lab — Pattern Scanner
+*Configure scan conditions (candle shape, volume, RSI) and analyze forward returns across 5,300+ ETFs*
+
+![Scanner](docs/images/scanner.png)
 
 ---
 
